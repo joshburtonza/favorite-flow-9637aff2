@@ -1,0 +1,153 @@
+import { ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  Package, 
+  Users, 
+  Building2, 
+  CreditCard, 
+  BarChart3, 
+  Landmark,
+  Upload,
+  LogOut,
+  Menu,
+  X,
+  Home
+} from 'lucide-react';
+import { useState } from 'react';
+
+interface AppLayoutProps {
+  children: ReactNode;
+}
+
+const navItems = [
+  { path: '/', label: 'Dashboard', icon: Home },
+  { path: '/shipments', label: 'Shipments', icon: Package },
+  { path: '/suppliers', label: 'Suppliers', icon: Users },
+  { path: '/clients', label: 'Clients', icon: Building2 },
+  { path: '/payments', label: 'Payments', icon: CreditCard },
+  { path: '/creditors', label: 'Creditors', icon: BarChart3 },
+  { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
+  { path: '/import', label: 'Import Data', icon: Upload },
+];
+
+export function AppLayout({ children }: AppLayoutProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signOut, user } = useAuth();
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  const handleNavClick = (path: string) => {
+    navigate(path);
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  const Sidebar = () => (
+    <aside className={cn(
+      'fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-200',
+      isMobile ? 'w-64' : 'w-64',
+      isMobile && !sidebarOpen && '-translate-x-full'
+    )}>
+      <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
+        <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
+          <Package className="h-5 w-5 text-sidebar-primary-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold text-sidebar-foreground truncate">Favorite Logistics</h1>
+          <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
+        </div>
+        {isMobile && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setSidebarOpen(false)}
+            className="text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
+      
+      <ScrollArea className="flex-1 py-2">
+        <nav className="px-2 space-y-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path || 
+              (item.path !== '/' && location.pathname.startsWith(item.path));
+            
+            return (
+              <button
+                key={item.path}
+                onClick={() => handleNavClick(item.path)}
+                className={cn(
+                  'nav-link w-full text-left',
+                  isActive && 'nav-link-active'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </ScrollArea>
+      
+      <div className="p-2 border-t border-sidebar-border">
+        <button
+          onClick={handleSignOut}
+          className="nav-link w-full text-left text-destructive hover:text-destructive"
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      
+      {/* Overlay for mobile */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Main content */}
+      <div className={cn('min-h-screen', !isMobile && 'ml-64')}>
+        {/* Mobile header */}
+        {isMobile && (
+          <header className="sticky top-0 z-30 flex items-center gap-4 px-4 h-14 bg-background border-b border-border">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Favorite Logistics</span>
+            </div>
+          </header>
+        )}
+        
+        <main className="p-4 md:p-6 lg:p-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
