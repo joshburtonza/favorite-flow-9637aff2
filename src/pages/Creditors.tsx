@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { formatCurrency } from '@/lib/formatters';
 import { KPICard } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { 
   Table, 
   TableBody, 
@@ -22,9 +24,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingDown, TrendingUp, Eye, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
 
 type FilterType = 'all' | 'outstanding' | 'overpaid';
 
@@ -33,15 +35,14 @@ export default function Creditors() {
   const isMobile = useIsMobile();
   const { data: suppliers, isLoading } = useSuppliers();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [ledgerSupplierId, setLedgerSupplierId] = useState<string | null>(null);
 
-  // Filter suppliers based on balance
   const filteredSuppliers = suppliers?.filter((s) => {
     if (filter === 'outstanding') return s.current_balance > 0;
     if (filter === 'overpaid') return s.current_balance < 0;
     return true;
   });
 
-  // Calculate totals
   const totalOwed = suppliers?.reduce((sum, s) => s.current_balance > 0 ? sum + s.current_balance : sum, 0) || 0;
   const totalCredit = suppliers?.reduce((sum, s) => s.current_balance < 0 ? sum + Math.abs(s.current_balance) : sum, 0) || 0;
 
@@ -80,7 +81,6 @@ export default function Creditors() {
           <p className="text-muted-foreground">Outstanding balances with suppliers</p>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2">
           <KPICard
             title="Total Owed TO Suppliers"
@@ -96,7 +96,6 @@ export default function Creditors() {
           />
         </div>
 
-        {/* Filter */}
         <div className="flex items-center gap-4">
           <Label className="text-sm font-medium">Filter:</Label>
           <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
@@ -111,7 +110,6 @@ export default function Creditors() {
           </Select>
         </div>
 
-        {/* Creditors Table */}
         {filteredSuppliers?.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
@@ -136,7 +134,7 @@ export default function Creditors() {
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3">
-                    <Button variant="outline" size="sm" className="flex-1">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setLedgerSupplierId(supplier.id)}>
                       <Eye className="h-4 w-4 mr-1" />
                       Ledger
                     </Button>
@@ -174,7 +172,7 @@ export default function Creditors() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => setLedgerSupplierId(supplier.id)}>
                           <Eye className="h-4 w-4 mr-1" />
                           Ledger
                         </Button>
@@ -191,10 +189,14 @@ export default function Creditors() {
           </Card>
         )}
       </div>
+
+      {ledgerSupplierId && (
+        <SupplierLedgerModal
+          supplierId={ledgerSupplierId}
+          open={!!ledgerSupplierId}
+          onOpenChange={(open) => !open && setLedgerSupplierId(null)}
+        />
+      )}
     </AppLayout>
   );
-}
-
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={className}>{children}</span>;
 }

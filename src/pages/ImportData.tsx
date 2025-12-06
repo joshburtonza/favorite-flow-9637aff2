@@ -1,34 +1,489 @@
+import { useState, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload } from 'lucide-react';
+import { useCreateShipment } from '@/hooks/useShipments';
+import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
+import { useClients, useCreateClient } from '@/hooks/useClients';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+type ImportType = 'shipments' | 'suppliers' | 'payments';
+type Step = 'type' | 'upload' | 'map' | 'preview' | 'complete';
+
+interface ParsedRow {
+  [key: string]: string;
+}
+
+interface ColumnMapping {
+  [csvColumn: string]: string;
+}
+
+const SHIPMENT_FIELDS = [
+  { key: 'lot_number', label: 'LOT Number', required: true },
+  { key: 'supplier_name', label: 'Supplier Name', required: false },
+  { key: 'client_name', label: 'Client Name', required: false },
+  { key: 'commodity', label: 'Commodity', required: false },
+  { key: 'eta', label: 'ETA', required: false },
+  { key: 'document_submitted', label: 'Document Submitted', required: false },
+  { key: 'telex_released', label: 'Telex Released', required: false },
+  { key: 'delivery_date', label: 'Delivery Date', required: false },
+];
+
+const SUPPLIER_FIELDS = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'currency', label: 'Currency', required: false },
+  { key: 'contact_person', label: 'Contact Person', required: false },
+  { key: 'email', label: 'Email', required: false },
+  { key: 'phone', label: 'Phone', required: false },
+];
 
 export default function ImportData() {
+  const [step, setStep] = useState<Step>('type');
+  const [importType, setImportType] = useState<ImportType>('shipments');
+  const [file, setFile] = useState<File | null>(null);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvData, setCsvData] = useState<ParsedRow[]>([]);
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState<{ success: number; errors: string[] }>({ success: 0, errors: [] });
+
+  const { data: existingSuppliers } = useSuppliers();
+  const { data: existingClients } = useClients();
+  const createShipment = useCreateShipment();
+  const createSupplier = useCreateSupplier();
+  const createClient = useCreateClient();
+
+  const fields = importType === 'shipments' ? SHIPMENT_FIELDS : SUPPLIER_FIELDS;
+
+  const parseCSV = (text: string): { headers: string[]; data: ParsedRow[] } => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return { headers: [], data: [] };
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const data = lines.slice(1).map(line => {
+      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const row: ParsedRow = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      return row;
+    });
+
+    return { headers, data };
+  };
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = e.target.files?.[0];
+    if (!uploadedFile) return;
+
+    if (!uploadedFile.name.endsWith('.csv')) {
+      toast.error('Please upload a CSV file');
+      return;
+    }
+
+    setFile(uploadedFile);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const { headers, data } = parseCSV(text);
+      setCsvHeaders(headers);
+      setCsvData(data);
+
+      // Auto-map columns with matching names
+      const autoMapping: ColumnMapping = {};
+      headers.forEach(header => {
+        const matchingField = fields.find(f => 
+          f.label.toLowerCase() === header.toLowerCase() ||
+          f.key.toLowerCase() === header.toLowerCase().replace(/\s+/g, '_')
+        );
+        if (matchingField) {
+          autoMapping[header] = matchingField.key;
+        }
+      });
+      setColumnMapping(autoMapping);
+    };
+    reader.readAsText(uploadedFile);
+  }, [fields]);
+
+  const handleImport = async () => {
+    setImporting(true);
+    setImportProgress(0);
+    const results = { success: 0, errors: [] as string[] };
+
+    try {
+      for (let i = 0; i < csvData.length; i++) {
+        const row = csvData[i];
+        setImportProgress(Math.round(((i + 1) / csvData.length) * 100));
+
+        try {
+          if (importType === 'shipments') {
+            const lotNumber = Object.entries(columnMapping).find(([, v]) => v === 'lot_number')?.[0];
+            const supplierName = Object.entries(columnMapping).find(([, v]) => v === 'supplier_name')?.[0];
+            const clientName = Object.entries(columnMapping).find(([, v]) => v === 'client_name')?.[0];
+            const commodityCol = Object.entries(columnMapping).find(([, v]) => v === 'commodity')?.[0];
+            const etaCol = Object.entries(columnMapping).find(([, v]) => v === 'eta')?.[0];
+
+            if (!lotNumber || !row[lotNumber]) {
+              results.errors.push(`Row ${i + 1}: Missing LOT number`);
+              continue;
+            }
+
+            let supplierId: string | undefined;
+            if (supplierName && row[supplierName]) {
+              const existingSupplier = existingSuppliers?.find(s => 
+                s.name.toLowerCase() === row[supplierName].toLowerCase()
+              );
+              if (existingSupplier) {
+                supplierId = existingSupplier.id;
+              } else {
+                const newSupplier = await createSupplier.mutateAsync({ name: row[supplierName], currency: 'USD' });
+                supplierId = newSupplier.id;
+              }
+            }
+
+            let clientId: string | undefined;
+            if (clientName && row[clientName]) {
+              const existingClient = existingClients?.find(c => 
+                c.name.toLowerCase() === row[clientName].toLowerCase()
+              );
+              if (existingClient) {
+                clientId = existingClient.id;
+              } else {
+                const newClient = await createClient.mutateAsync({ name: row[clientName] });
+                clientId = newClient.id;
+              }
+            }
+
+            await createShipment.mutateAsync({
+              lot_number: row[lotNumber],
+              supplier_id: supplierId,
+              client_id: clientId,
+              commodity: commodityCol ? row[commodityCol] : undefined,
+              eta: etaCol && row[etaCol] ? row[etaCol] : undefined,
+            });
+
+            results.success++;
+          } else if (importType === 'suppliers') {
+            const nameCol = Object.entries(columnMapping).find(([, v]) => v === 'name')?.[0];
+            
+            if (!nameCol || !row[nameCol]) {
+              results.errors.push(`Row ${i + 1}: Missing name`);
+              continue;
+            }
+
+            const currencyCol = Object.entries(columnMapping).find(([, v]) => v === 'currency')?.[0];
+            const contactCol = Object.entries(columnMapping).find(([, v]) => v === 'contact_person')?.[0];
+            const emailCol = Object.entries(columnMapping).find(([, v]) => v === 'email')?.[0];
+            const phoneCol = Object.entries(columnMapping).find(([, v]) => v === 'phone')?.[0];
+
+            await createSupplier.mutateAsync({
+              name: row[nameCol],
+              currency: currencyCol && row[currencyCol] ? row[currencyCol] as 'USD' | 'EUR' | 'ZAR' : 'USD',
+              contact_person: contactCol ? row[contactCol] : undefined,
+              email: emailCol ? row[emailCol] : undefined,
+              phone: phoneCol ? row[phoneCol] : undefined,
+            });
+
+            results.success++;
+          }
+        } catch (err: any) {
+          results.errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+    } finally {
+      setImporting(false);
+      setImportResults(results);
+      setStep('complete');
+    }
+  };
+
+  const resetImport = () => {
+    setStep('type');
+    setFile(null);
+    setCsvHeaders([]);
+    setCsvData([]);
+    setColumnMapping({});
+    setImportProgress(0);
+    setImportResults({ success: 0, errors: [] });
+  };
+
+  const stepProgress = {
+    type: 25,
+    upload: 50,
+    map: 75,
+    preview: 90,
+    complete: 100,
+  };
+
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-4xl mx-auto">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Import Data</h1>
-          <p className="text-muted-foreground">Import shipments and data from CSV/Excel files</p>
+          <p className="text-muted-foreground">Import shipments and data from CSV files</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>CSV Import</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
-              <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Import Data</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                CSV import functionality coming soon. This will allow you to import shipments, 
-                supplier statements, and payment schedules from your existing Excel files.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Supported formats: .csv, .xlsx
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <Progress value={stepProgress[step]} className="h-2" />
+
+        {step === 'type' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1: Select Import Type</CardTitle>
+              <CardDescription>Choose what type of data you want to import</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <RadioGroup value={importType} onValueChange={(v) => setImportType(v as ImportType)}>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="shipments" id="shipments" />
+                  <Label htmlFor="shipments" className="flex-1 cursor-pointer">
+                    <p className="font-medium">Shipment Schedule</p>
+                    <p className="text-sm text-muted-foreground">Import LOT numbers, suppliers, clients, ETA dates</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="suppliers" id="suppliers" />
+                  <Label htmlFor="suppliers" className="flex-1 cursor-pointer">
+                    <p className="font-medium">Suppliers</p>
+                    <p className="text-sm text-muted-foreground">Import supplier names and contact details</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              <div className="flex justify-end">
+                <Button onClick={() => setStep('upload')}>
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 'upload' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 2: Upload File</CardTitle>
+              <CardDescription>Upload a CSV file with your data</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  {file ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <FileSpreadsheet className="h-10 w-10 text-primary" />
+                      <div className="text-left">
+                        <p className="font-medium">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">{csvData.length} rows found</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="font-medium mb-1">Click to upload or drag and drop</p>
+                      <p className="text-sm text-muted-foreground">CSV files only</p>
+                    </>
+                  )}
+                </label>
+              </div>
+
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setStep('type')}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <Button onClick={() => setStep('map')} disabled={!file || csvData.length === 0}>
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 'map' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 3: Map Columns</CardTitle>
+              <CardDescription>Match your CSV columns to system fields</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {csvHeaders.map((header) => (
+                  <div key={header} className="flex items-center gap-4">
+                    <div className="w-48 text-sm font-medium truncate">{header}</div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Select
+                      value={columnMapping[header] || ''}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, [header]: value }))}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select field..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">-- Skip --</SelectItem>
+                        {fields.map((field) => (
+                          <SelectItem key={field.key} value={field.key}>
+                            {field.label} {field.required && '*'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setStep('upload')}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <Button onClick={() => setStep('preview')}>
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 'preview' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 4: Preview & Import</CardTitle>
+              <CardDescription>Review the first 10 rows before importing</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="overflow-x-auto border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol, fieldKey]) => (
+                        <TableHead key={csvCol}>
+                          {fields.find(f => f.key === fieldKey)?.label || fieldKey}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {csvData.slice(0, 10).map((row, i) => (
+                      <TableRow key={i}>
+                        {Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol]) => (
+                          <TableCell key={csvCol}>{row[csvCol] || '-'}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {csvData.length > 10 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Showing 10 of {csvData.length} rows
+                </p>
+              )}
+
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  This will import {csvData.length} records. New suppliers and clients will be created automatically if they don't exist.
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setStep('map')}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <Button onClick={handleImport} disabled={importing}>
+                  {importing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Importing... {importProgress}%
+                    </>
+                  ) : (
+                    <>
+                      Import {csvData.length} Records
+                      <Check className="h-4 w-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 'complete' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Check className="h-6 w-6 text-success" />
+                Import Complete
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-success/10 text-success rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold">{importResults.success}</p>
+                <p>records imported successfully</p>
+              </div>
+
+              {importResults.errors.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium mb-2">{importResults.errors.length} errors occurred:</p>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      {importResults.errors.slice(0, 5).map((error, i) => (
+                        <li key={i}>{error}</li>
+                      ))}
+                      {importResults.errors.length > 5 && (
+                        <li>...and {importResults.errors.length - 5} more</li>
+                      )}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex justify-center gap-4">
+                <Button variant="outline" onClick={resetImport}>
+                  Import More
+                </Button>
+                <Button onClick={() => window.location.href = '/'}>
+                  View Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );

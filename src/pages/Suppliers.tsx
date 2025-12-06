@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
-import { formatCurrency, formatDate } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,18 +29,18 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CurrencyType } from '@/types/database';
-import { useNavigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
 
 export default function Suppliers() {
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: suppliers, isLoading } = useSuppliers();
   const createSupplier = useCreateSupplier();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [ledgerSupplierId, setLedgerSupplierId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState<CurrencyType>('USD');
   const [contactPerson, setContactPerson] = useState('');
@@ -72,8 +72,8 @@ export default function Suppliers() {
   };
 
   const getBalanceClass = (balance: number) => {
-    if (balance > 0) return 'profit-negative'; // Owed to supplier
-    if (balance < 0) return 'profit-positive'; // They owe us
+    if (balance > 0) return 'profit-negative';
+    if (balance < 0) return 'profit-positive';
     return 'profit-neutral';
   };
 
@@ -117,7 +117,7 @@ export default function Suppliers() {
         ) : isMobile ? (
           <div className="space-y-3">
             {suppliers?.map((supplier) => (
-              <Card key={supplier.id} className="cursor-pointer hover:shadow-md transition-shadow">
+              <Card key={supplier.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLedgerSupplierId(supplier.id)}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -145,6 +145,7 @@ export default function Suppliers() {
                   <TableHead>Contact Person</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -158,6 +159,12 @@ export default function Suppliers() {
                       {formatCurrency(Math.abs(supplier.current_balance), supplier.currency)}
                       {supplier.current_balance > 0 && ' (owed)'}
                       {supplier.current_balance < 0 && ' (credit)'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setLedgerSupplierId(supplier.id)}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Ledger
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -211,6 +218,14 @@ export default function Suppliers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {ledgerSupplierId && (
+        <SupplierLedgerModal
+          supplierId={ledgerSupplierId}
+          open={!!ledgerSupplierId}
+          onOpenChange={(open) => !open && setLedgerSupplierId(null)}
+        />
+      )}
     </AppLayout>
   );
 }
