@@ -85,6 +85,28 @@ export function useUpdateSupplier() {
   });
 }
 
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('suppliers')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success('Supplier deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete supplier');
+    },
+  });
+}
+
 export function useSupplierLedger(supplierId: string) {
   return useQuery({
     queryKey: ['supplier-ledger', supplierId],

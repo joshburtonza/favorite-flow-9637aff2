@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useClients, useCreateClient } from '@/hooks/useClients';
+import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@/hooks/useClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,15 +20,32 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Client } from '@/types/database';
 
 export default function Clients() {
   const isMobile = useIsMobile();
   const { data: clients, isLoading } = useClients();
   const createClient = useCreateClient();
+  const updateClient = useUpdateClient();
+  const deleteClient = useDeleteClient();
+  
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  
   const [name, setName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [email, setEmail] = useState('');
@@ -41,23 +58,53 @@ export default function Clients() {
     setEmail('');
     setPhone('');
     setAddress('');
+    setEditingClient(null);
+  };
+
+  const openEditDialog = (client: Client) => {
+    setEditingClient(client);
+    setName(client.name);
+    setContactPerson(client.contact_person || '');
+    setEmail(client.email || '');
+    setPhone(client.phone || '');
+    setAddress(client.address || '');
+    setDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    await createClient.mutateAsync({
-      name: name.trim(),
-      contact_person: contactPerson || undefined,
-      email: email || undefined,
-      phone: phone || undefined,
-      address: address || undefined,
-    });
+    if (editingClient) {
+      await updateClient.mutateAsync({
+        id: editingClient.id,
+        name: name.trim(),
+        contact_person: contactPerson || null,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+      });
+    } else {
+      await createClient.mutateAsync({
+        name: name.trim(),
+        contact_person: contactPerson || undefined,
+        email: email || undefined,
+        phone: phone || undefined,
+        address: address || undefined,
+      });
+    }
 
     resetForm();
     setDialogOpen(false);
   };
+
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    await deleteClient.mutateAsync(deleteConfirmId);
+    setDeleteConfirmId(null);
+  };
+
+  const isSubmitting = createClient.isPending || updateClient.isPending;
 
   if (isLoading) {
     return (
@@ -78,7 +125,7 @@ export default function Clients() {
             <h1 className="text-2xl font-bold text-foreground">Clients</h1>
             <p className="text-muted-foreground">Manage your client relationships</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
             Add Client
           </Button>
@@ -101,13 +148,26 @@ export default function Clients() {
             {clients?.map((client) => (
               <Card key={client.id}>
                 <CardContent className="p-4">
-                  <p className="font-semibold text-foreground">{client.name}</p>
-                  {client.contact_person && (
-                    <p className="text-sm text-muted-foreground">{client.contact_person}</p>
-                  )}
-                  {client.email && (
-                    <p className="text-sm text-muted-foreground">{client.email}</p>
-                  )}
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-foreground">{client.name}</p>
+                      {client.contact_person && (
+                        <p className="text-sm text-muted-foreground">{client.contact_person}</p>
+                      )}
+                      {client.email && (
+                        <p className="text-sm text-muted-foreground">{client.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(client)}>
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(client.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -122,6 +182,7 @@ export default function Clients() {
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Address</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -132,6 +193,16 @@ export default function Clients() {
                     <TableCell>{client.email || '-'}</TableCell>
                     <TableCell>{client.phone || '-'}</TableCell>
                     <TableCell>{client.address || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(client)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(client.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -140,10 +211,11 @@ export default function Clients() {
         )}
       </div>
 
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Client</DialogTitle>
+            <DialogTitle>{editingClient ? 'Edit Client' : 'Add Client'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -168,13 +240,31 @@ export default function Clients() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createClient.isPending}>
-                {createClient.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Client'}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingClient ? 'Save Changes' : 'Add Client')}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this client? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              {deleteClient.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
