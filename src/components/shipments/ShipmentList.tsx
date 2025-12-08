@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShipments } from '@/hooks/useShipments';
 import { useSuppliers } from '@/hooks/useSuppliers';
@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   Select, 
   SelectContent, 
@@ -25,9 +27,11 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Eye, Upload } from 'lucide-react';
+import { Plus, Search, Eye, Upload, CalendarIcon, X } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { DateRange } from 'react-day-picker';
 
 interface ShipmentListProps {
   onNewShipment: () => void;
@@ -40,19 +44,39 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
   const [statusFilter, setStatusFilter] = useState<ShipmentStatus | 'all'>('all');
   const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const { data: shipments, isLoading } = useShipments({
     status: statusFilter,
     supplierId: supplierFilter !== 'all' ? supplierFilter : undefined,
     clientId: clientFilter !== 'all' ? clientFilter : undefined,
-    search: search || undefined,
+    startDate: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
+    endDate: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
   });
 
   const { data: suppliers } = useSuppliers();
   const { data: clients } = useClients();
 
+  // Filter shipments by search (LOT number, supplier name, client name)
+  const filteredShipments = useMemo(() => {
+    if (!shipments) return [];
+    if (!search.trim()) return shipments;
+    
+    const searchLower = search.toLowerCase().trim();
+    return shipments.filter((s) => 
+      s.lot_number.toLowerCase().includes(searchLower) ||
+      s.supplier?.name?.toLowerCase().includes(searchLower) ||
+      s.client?.name?.toLowerCase().includes(searchLower) ||
+      s.commodity?.toLowerCase().includes(searchLower)
+    );
+  }, [shipments, search]);
+
   const handleViewShipment = (id: string) => {
     navigate(`/shipments/${id}`);
+  };
+
+  const clearDateRange = () => {
+    setDateRange(undefined);
   };
 
   if (isLoading) {
@@ -71,12 +95,12 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters Row 1 */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search LOT number..."
+            placeholder="Search LOT, supplier, client..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -121,34 +145,84 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
         </Select>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" onClick={() => navigate('/import')}>
-          <Upload className="h-4 w-4 mr-2" />
-          Import CSV
-        </Button>
-        <Button onClick={onNewShipment}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Shipment
-        </Button>
+      {/* Filters Row 2 - Date Range */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'justify-start text-left font-normal w-full sm:w-auto',
+                  !dateRange && 'text-muted-foreground'
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, 'LLL dd')} - {format(dateRange.to, 'LLL dd, y')}
+                    </>
+                  ) : (
+                    format(dateRange.from, 'LLL dd, y')
+                  )
+                ) : (
+                  'ETA Date Range'
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+          {dateRange && (
+            <Button variant="ghost" size="icon" onClick={clearDateRange} className="h-9 w-9">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 ml-auto">
+          <Button variant="outline" onClick={() => navigate('/import')}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={onNewShipment}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Shipment
+          </Button>
+        </div>
       </div>
 
       {/* Shipments list */}
-      {shipments?.length === 0 ? (
+      {filteredShipments?.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground text-center">
-              No shipments found. Create your first shipment to get started.
+              {shipments?.length === 0 
+                ? 'No shipments found. Create your first shipment to get started.'
+                : 'No shipments match your search criteria.'}
             </p>
-            <Button className="mt-4" onClick={onNewShipment}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Shipment
-            </Button>
+            {shipments?.length === 0 && (
+              <Button className="mt-4" onClick={onNewShipment}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Shipment
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : isMobile ? (
         <div className="space-y-3">
-          {shipments?.map((shipment) => (
+          {filteredShipments?.map((shipment) => (
             <Card 
               key={shipment.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
@@ -195,7 +269,7 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shipments?.map((shipment) => (
+              {filteredShipments?.map((shipment) => (
                 <TableRow key={shipment.id} className="cursor-pointer" onClick={() => handleViewShipment(shipment.id)}>
                   <TableCell className="font-medium">{shipment.lot_number}</TableCell>
                   <TableCell>{shipment.supplier?.name || '-'}</TableCell>

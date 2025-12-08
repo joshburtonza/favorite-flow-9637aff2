@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useShipment, useUpdateShipment, useUpdateShipmentCosts, useDeleteShipment } from '@/hooks/useShipments';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useClients } from '@/hooks/useClients';
+import { useBankAccounts } from '@/hooks/useBankAccounts';
+import { useCreatePayment } from '@/hooks/usePayments';
 import { ShipmentStatus, CurrencyType } from '@/types/database';
 import { calculateShipmentCosts, CostInputs } from '@/lib/calculations';
 import { formatCurrency, formatRate, formatPercentage, getCurrencySymbol, getProfitClass } from '@/lib/formatters';
@@ -35,9 +37,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Save, Trash2, CalendarIcon, Loader2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { ArrowLeft, Save, Trash2, CalendarIcon, Loader2, Eye, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
 
 export function ShipmentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,9 +55,11 @@ export function ShipmentDetail() {
   const { data: shipment, isLoading } = useShipment(id!);
   const { data: suppliers } = useSuppliers();
   const { data: clients } = useClients();
+  const { data: bankAccounts } = useBankAccounts();
   const updateShipment = useUpdateShipment();
   const updateCosts = useUpdateShipmentCosts();
   const deleteShipment = useDeleteShipment();
+  const createPayment = useCreatePayment();
 
   // Form state
   const [supplierId, setSupplierId] = useState<string>('');
@@ -74,6 +86,14 @@ export function ShipmentDetail() {
     clientInvoiceZar: 0,
     bankCharges: 0,
   });
+
+  // Modal states
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentDate, setPaymentDate] = useState<Date | undefined>(new Date());
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentFxRate, setPaymentFxRate] = useState('');
+  const [paymentBankId, setPaymentBankId] = useState('');
 
   // Initialize form with shipment data
   useEffect(() => {
@@ -102,6 +122,9 @@ export function ShipmentDetail() {
           clientInvoiceZar: Number(shipment.costs.client_invoice_zar) || 0,
           bankCharges: Number(shipment.costs.bank_charges) || 0,
         });
+        // Pre-fill payment dialog with shipment costs
+        setPaymentAmount(String(shipment.costs.total_foreign || 0));
+        setPaymentFxRate(String(shipment.costs.fx_applied_rate || 0));
       }
     }
   }, [shipment]);
@@ -154,6 +177,22 @@ export function ShipmentDetail() {
     navigate('/');
   };
 
+  const handleSchedulePayment = async () => {
+    if (!supplierId || !paymentDate || !paymentAmount || !paymentFxRate) return;
+
+    await createPayment.mutateAsync({
+      supplier_id: supplierId,
+      shipment_id: id,
+      bank_account_id: paymentBankId || undefined,
+      payment_date: format(paymentDate, 'yyyy-MM-dd'),
+      amount_foreign: parseFloat(paymentAmount),
+      currency: sourceCurrency,
+      fx_rate: parseFloat(paymentFxRate),
+    });
+
+    setPaymentDialogOpen(false);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -199,7 +238,19 @@ export function ShipmentDetail() {
             </span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {supplierId && (
+            <>
+              <Button variant="outline" onClick={() => setLedgerOpen(true)}>
+                <Eye className="h-4 w-4 mr-2" />
+                Supplier Ledger
+              </Button>
+              <Button variant="outline" onClick={() => setPaymentDialogOpen(true)}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                Schedule Payment
+              </Button>
+            </>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={deleteShipment.isPending}>
@@ -520,6 +571,77 @@ export function ShipmentDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Supplier Ledger Modal */}
+      {supplierId && (
+        <SupplierLedgerModal
+          supplierId={supplierId}
+          open={ledgerOpen}
+          onOpenChange={setLedgerOpen}
+        />
+      )}
+
+      {/* Schedule Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Schedule Payment for LOT {shipment.lot_number}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Payment Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn('w-full justify-start', !paymentDate && 'text-muted-foreground')}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {paymentDate ? format(paymentDate, 'PPP') : 'Pick a date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} className="pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Amount ({sourceCurrency})</Label>
+                <Input type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>FX Rate</Label>
+                <Input type="number" step="0.0001" value={paymentFxRate} onChange={(e) => setPaymentFxRate(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Bank Account</Label>
+              <Select value={paymentBankId} onValueChange={setPaymentBankId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select bank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts?.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {paymentAmount && paymentFxRate && (
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm text-muted-foreground">Estimated ZAR Amount</p>
+                <p className="text-lg font-bold currency-display">
+                  {formatCurrency(parseFloat(paymentAmount) * parseFloat(paymentFxRate))}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSchedulePayment} disabled={createPayment.isPending}>
+              {createPayment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Schedule Payment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
