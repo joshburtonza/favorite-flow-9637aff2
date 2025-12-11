@@ -20,6 +20,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { EditModeBanner } from '@/components/ui/edit-mode-banner';
 import { 
   Select, 
   SelectContent, 
@@ -93,6 +94,9 @@ export function ShipmentDetail() {
     clientInvoiceZar: 0,
     bankCharges: 0,
   });
+
+  // Edit mode state (read-only by default)
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Modal states
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -258,38 +262,49 @@ export function ShipmentDetail() {
               </Button>
             </>
           )}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={deleteShipment.isPending}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
+          {isEditMode && (
+            <>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={deleteShipment.isPending}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this shipment? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Changes
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Shipment</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this shipment? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Save Changes
-          </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Edit Mode Banner */}
+      <EditModeBanner
+        isEditMode={isEditMode}
+        onEnableEdit={() => setIsEditMode(true)}
+        onDisableEdit={() => setIsEditMode(false)}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Shipment Information */}
@@ -301,7 +316,7 @@ export function ShipmentDetail() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Supplier</Label>
-                <Select value={supplierId} onValueChange={setSupplierId}>
+                <Select value={supplierId} onValueChange={setSupplierId} disabled={!isEditMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select supplier" />
                   </SelectTrigger>
@@ -314,7 +329,7 @@ export function ShipmentDetail() {
               </div>
               <div className="space-y-2">
                 <Label>Client</Label>
-                <Select value={clientId} onValueChange={setClientId}>
+                <Select value={clientId} onValueChange={setClientId} disabled={!isEditMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select client" />
                   </SelectTrigger>
@@ -329,7 +344,7 @@ export function ShipmentDetail() {
 
             <div className="space-y-2">
               <Label>Commodity</Label>
-              <Input value={commodity} onChange={(e) => setCommodity(e.target.value)} placeholder="Enter commodity" />
+              <Input value={commodity} onChange={(e) => setCommodity(e.target.value)} placeholder="Enter commodity" disabled={!isEditMode} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -337,7 +352,7 @@ export function ShipmentDetail() {
                 <Label>ETA</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !eta && 'text-muted-foreground')}>
+                    <Button variant="outline" disabled={!isEditMode} className={cn('w-full justify-start text-left font-normal', !eta && 'text-muted-foreground')}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {eta ? format(eta, 'PPP') : 'Pick a date'}
                     </Button>
@@ -349,7 +364,7 @@ export function ShipmentDetail() {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as ShipmentStatus)}>
+                <Select value={status} onValueChange={(v) => setStatus(v as ShipmentStatus)} disabled={!isEditMode}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -368,13 +383,13 @@ export function ShipmentDetail() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="doc-submitted" checked={documentSubmitted} onCheckedChange={(c) => setDocumentSubmitted(!!c)} />
+                  <Checkbox id="doc-submitted" checked={documentSubmitted} onCheckedChange={(c) => setDocumentSubmitted(!!c)} disabled={!isEditMode} />
                   <Label htmlFor="doc-submitted">Document Submitted</Label>
                 </div>
                 {documentSubmitted && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
+                      <Button variant="outline" size="sm" className="w-full justify-start" disabled={!isEditMode}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {documentSubmittedDate ? format(documentSubmittedDate, 'PPP') : 'Pick date'}
                       </Button>
@@ -387,13 +402,13 @@ export function ShipmentDetail() {
               </div>
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="telex-released" checked={telexReleased} onCheckedChange={(c) => setTelexReleased(!!c)} />
+                  <Checkbox id="telex-released" checked={telexReleased} onCheckedChange={(c) => setTelexReleased(!!c)} disabled={!isEditMode} />
                   <Label htmlFor="telex-released">Telex Released</Label>
                 </div>
                 {telexReleased && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
+                      <Button variant="outline" size="sm" className="w-full justify-start" disabled={!isEditMode}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {telexReleasedDate ? format(telexReleasedDate, 'PPP') : 'Pick date'}
                       </Button>
@@ -410,7 +425,7 @@ export function ShipmentDetail() {
               <Label>Delivery Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !deliveryDate && 'text-muted-foreground')}>
+                  <Button variant="outline" disabled={!isEditMode} className={cn('w-full justify-start text-left font-normal', !deliveryDate && 'text-muted-foreground')}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {deliveryDate ? format(deliveryDate, 'PPP') : 'Pick a date'}
                   </Button>
@@ -423,7 +438,7 @@ export function ShipmentDetail() {
 
             <div className="space-y-2">
               <Label>Notes</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add notes..." rows={3} />
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add notes..." rows={3} disabled={!isEditMode} />
             </div>
           </CardContent>
         </Card>
@@ -437,7 +452,7 @@ export function ShipmentDetail() {
             {/* Currency Selection */}
             <div className="space-y-2">
               <Label>Source Currency</Label>
-              <Select value={sourceCurrency} onValueChange={(v) => setSourceCurrency(v as CurrencyType)}>
+              <Select value={sourceCurrency} onValueChange={(v) => setSourceCurrency(v as CurrencyType)} disabled={!isEditMode}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -457,28 +472,28 @@ export function ShipmentDetail() {
                   <Label>Supplier Cost</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.supplierCost || ''} onChange={(e) => updateCostField('supplierCost', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.supplierCost || ''} onChange={(e) => updateCostField('supplierCost', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Freight Cost</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.freightCost || ''} onChange={(e) => updateCostField('freightCost', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.freightCost || ''} onChange={(e) => updateCostField('freightCost', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Clearing Cost</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.clearingCost || ''} onChange={(e) => updateCostField('clearingCost', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.clearingCost || ''} onChange={(e) => updateCostField('clearingCost', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Transport Cost</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.transportCost || ''} onChange={(e) => updateCostField('transportCost', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.transportCost || ''} onChange={(e) => updateCostField('transportCost', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
               </div>
@@ -496,11 +511,11 @@ export function ShipmentDetail() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Spot Rate (ZAR)</Label>
-                  <Input type="number" step="0.0001" className="currency-display" value={costInputs.fxSpotRate || ''} onChange={(e) => updateCostField('fxSpotRate', e.target.value)} />
+                  <Input type="number" step="0.0001" className="currency-display" value={costInputs.fxSpotRate || ''} onChange={(e) => updateCostField('fxSpotRate', e.target.value)} disabled={!isEditMode} />
                 </div>
                 <div className="space-y-2">
                   <Label>Applied Rate (ZAR)</Label>
-                  <Input type="number" step="0.0001" className="currency-display" value={costInputs.fxAppliedRate || ''} onChange={(e) => updateCostField('fxAppliedRate', e.target.value)} />
+                  <Input type="number" step="0.0001" className="currency-display" value={costInputs.fxAppliedRate || ''} onChange={(e) => updateCostField('fxAppliedRate', e.target.value)} disabled={!isEditMode} />
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -527,14 +542,14 @@ export function ShipmentDetail() {
                   <Label>Client Invoice (ZAR)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.clientInvoiceZar || ''} onChange={(e) => updateCostField('clientInvoiceZar', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.clientInvoiceZar || ''} onChange={(e) => updateCostField('clientInvoiceZar', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Bank Charges (ZAR)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R</span>
-                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.bankCharges || ''} onChange={(e) => updateCostField('bankCharges', e.target.value)} />
+                    <Input type="number" step="0.01" className="pl-8 currency-display" value={costInputs.bankCharges || ''} onChange={(e) => updateCostField('bankCharges', e.target.value)} disabled={!isEditMode} />
                   </div>
                 </div>
               </div>
