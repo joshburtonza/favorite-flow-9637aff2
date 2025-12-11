@@ -4,7 +4,6 @@ import { useCreateShipment } from '@/hooks/useShipments';
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
 import { useClients, useCreateClient } from '@/hooks/useClients';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -25,10 +24,11 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
-type ImportType = 'shipments' | 'suppliers' | 'payments';
+type ImportType = 'shipments' | 'suppliers' | 'clients';
 type Step = 'type' | 'upload' | 'map' | 'preview' | 'complete';
 
 interface ParsedRow {
@@ -58,6 +58,14 @@ const SUPPLIER_FIELDS = [
   { key: 'phone', label: 'Phone', required: false },
 ];
 
+const CLIENT_FIELDS = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'contact_person', label: 'Contact Person', required: false },
+  { key: 'email', label: 'Email', required: false },
+  { key: 'phone', label: 'Phone', required: false },
+  { key: 'address', label: 'Address', required: false },
+];
+
 export default function ImportData() {
   const [step, setStep] = useState<Step>('type');
   const [importType, setImportType] = useState<ImportType>('shipments');
@@ -75,7 +83,16 @@ export default function ImportData() {
   const createSupplier = useCreateSupplier();
   const createClient = useCreateClient();
 
-  const fields = importType === 'shipments' ? SHIPMENT_FIELDS : SUPPLIER_FIELDS;
+  const getFields = () => {
+    switch (importType) {
+      case 'shipments': return SHIPMENT_FIELDS;
+      case 'suppliers': return SUPPLIER_FIELDS;
+      case 'clients': return CLIENT_FIELDS;
+      default: return SHIPMENT_FIELDS;
+    }
+  };
+
+  const fields = getFields();
 
   const parseCSV = (text: string): { headers: string[]; data: ParsedRow[] } => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -94,12 +111,34 @@ export default function ImportData() {
     return { headers, data };
   };
 
+  const parseExcel = (buffer: ArrayBuffer): { headers: string[]; data: ParsedRow[] } => {
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
+    
+    if (jsonData.length === 0) return { headers: [], data: [] };
+    
+    const headers = (jsonData[0] as string[]).map(h => String(h || '').trim());
+    const data = jsonData.slice(1).map(row => {
+      const parsedRow: ParsedRow = {};
+      headers.forEach((header, index) => {
+        parsedRow[header] = String((row as string[])[index] || '').trim();
+      });
+      return parsedRow;
+    }).filter(row => Object.values(row).some(v => v)); // Filter out empty rows
+    
+    return { headers, data };
+  };
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = e.target.files?.[0];
     if (!uploadedFile) return;
 
-    if (!uploadedFile.name.endsWith('.csv')) {
-      toast.error('Please upload a CSV file');
+    const isCSV = uploadedFile.name.endsWith('.csv');
+    const isExcel = uploadedFile.name.endsWith('.xlsx') || uploadedFile.name.endsWith('.xls');
+
+    if (!isCSV && !isExcel) {
+      toast.error('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
       return;
     }
 
@@ -107,8 +146,19 @@ export default function ImportData() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const { headers, data } = parseCSV(text);
+      let headers: string[] = [];
+      let data: ParsedRow[] = [];
+
+      if (isCSV) {
+        const result = parseCSV(event.target?.result as string);
+        headers = result.headers;
+        data = result.data;
+      } else {
+        const result = parseExcel(event.target?.result as ArrayBuffer);
+        headers = result.headers;
+        data = result.data;
+      }
+
       setCsvHeaders(headers);
       setCsvData(data);
 
@@ -125,8 +175,22 @@ export default function ImportData() {
       });
       setColumnMapping(autoMapping);
     };
-    reader.readAsText(uploadedFile);
+
+    if (isCSV) {
+      reader.readAsText(uploadedFile);
+    } else {
+      reader.readAsArrayBuffer(uploadedFile);
+    }
   }, [fields]);
+
+  const downloadTemplate = () => {
+    const templateData = [fields.map(f => f.label)];
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, `${importType}_import_template.xlsx`);
+    toast.success('Template downloaded');
+  };
 
   const handleImport = async () => {
     setImporting(true);
@@ -208,6 +272,28 @@ export default function ImportData() {
             });
 
             results.success++;
+          } else if (importType === 'clients') {
+            const nameCol = Object.entries(columnMapping).find(([, v]) => v === 'name')?.[0];
+            
+            if (!nameCol || !row[nameCol]) {
+              results.errors.push(`Row ${i + 1}: Missing name`);
+              continue;
+            }
+
+            const contactCol = Object.entries(columnMapping).find(([, v]) => v === 'contact_person')?.[0];
+            const emailCol = Object.entries(columnMapping).find(([, v]) => v === 'email')?.[0];
+            const phoneCol = Object.entries(columnMapping).find(([, v]) => v === 'phone')?.[0];
+            const addressCol = Object.entries(columnMapping).find(([, v]) => v === 'address')?.[0];
+
+            await createClient.mutateAsync({
+              name: row[nameCol],
+              contact_person: contactCol ? row[contactCol] : undefined,
+              email: emailCol ? row[emailCol] : undefined,
+              phone: phoneCol ? row[phoneCol] : undefined,
+              address: addressCol ? row[addressCol] : undefined,
+            });
+
+            results.success++;
           }
         } catch (err: any) {
           results.errors.push(`Row ${i + 1}: ${err.message}`);
@@ -243,7 +329,7 @@ export default function ImportData() {
       <div className="space-y-6 max-w-4xl mx-auto">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Import Data</h1>
-          <p className="text-muted-foreground">Import shipments and data from CSV files</p>
+          <p className="text-muted-foreground">Import shipments and data from CSV or Excel files</p>
         </div>
 
         <Progress value={stepProgress[step]} className="h-2" />
@@ -267,12 +353,23 @@ export default function ImportData() {
                   <RadioGroupItem value="suppliers" id="suppliers" />
                   <Label htmlFor="suppliers" className="flex-1 cursor-pointer">
                     <p className="font-medium">Suppliers</p>
-                    <p className="text-sm text-muted-foreground">Import supplier names and contact details</p>
+                    <p className="text-sm text-muted-foreground">Import supplier names, currency, and contact details</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="clients" id="clients" />
+                  <Label htmlFor="clients" className="flex-1 cursor-pointer">
+                    <p className="font-medium">Clients</p>
+                    <p className="text-sm text-muted-foreground">Import client names and contact details</p>
                   </Label>
                 </div>
               </RadioGroup>
 
-              <div className="flex justify-end">
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={downloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Template
+                </Button>
                 <Button onClick={() => setStep('upload')}>
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -286,13 +383,13 @@ export default function ImportData() {
           <Card>
             <CardHeader>
               <CardTitle>Step 2: Upload File</CardTitle>
-              <CardDescription>Upload a CSV file with your data</CardDescription>
+              <CardDescription>Upload a CSV or Excel file with your {importType} data</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleFileUpload}
                   className="hidden"
                   id="file-upload"
@@ -310,11 +407,18 @@ export default function ImportData() {
                     <>
                       <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="font-medium mb-1">Click to upload or drag and drop</p>
-                      <p className="text-sm text-muted-foreground">CSV files only</p>
+                      <p className="text-sm text-muted-foreground">CSV or Excel files (.csv, .xlsx, .xls)</p>
                     </>
                   )}
                 </label>
               </div>
+
+              <Alert>
+                <FileSpreadsheet className="h-4 w-4" />
+                <AlertDescription>
+                  Need a template? Go back and click "Download Template" to get started.
+                </AlertDescription>
+              </Alert>
 
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setStep('type')}>
