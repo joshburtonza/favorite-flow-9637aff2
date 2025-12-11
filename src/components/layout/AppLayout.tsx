@@ -14,11 +14,9 @@ import {
   Landmark,
   Upload,
   LogOut,
-  Menu,
-  X,
   Home
 } from 'lucide-react';
-import { useState } from 'react';
+import { BottomNavigation } from './BottomNavigation';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -40,7 +38,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -49,15 +46,10 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const handleNavClick = (path: string) => {
     navigate(path);
-    if (isMobile) setSidebarOpen(false);
   };
 
   const Sidebar = () => (
-    <aside className={cn(
-      'fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-200',
-      isMobile ? 'w-64' : 'w-64',
-      isMobile && !sidebarOpen && '-translate-x-full'
-    )}>
+    <aside className="fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-sidebar border-r border-sidebar-border">
       <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
         <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
           <Package className="h-5 w-5 text-sidebar-primary-foreground" />
@@ -66,16 +58,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <h1 className="text-sm font-semibold text-sidebar-foreground truncate">Favorite Logistics</h1>
           <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
         </div>
-        {isMobile && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setSidebarOpen(false)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        )}
       </div>
       
       <ScrollArea className="flex-1 py-2">
@@ -115,39 +97,36 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
-      
-      {/* Overlay for mobile */}
-      {isMobile && sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Desktop sidebar */}
+      {!isMobile && <Sidebar />}
       
       {/* Main content */}
       <div className={cn('min-h-screen', !isMobile && 'ml-64')}>
         {/* Mobile header */}
         {isMobile && (
           <header className="sticky top-0 z-30 flex items-center gap-4 px-4 h-14 bg-background border-b border-border">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-primary" />
               <span className="font-semibold">Favorite Logistics</span>
             </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="ml-auto text-destructive hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </header>
         )}
         
-        <main className="p-4 md:p-6 lg:p-8">
+        <main className={cn('p-4 md:p-6 lg:p-8', isMobile && 'pb-20')}>
           {children}
         </main>
       </div>
+      
+      {/* Mobile bottom navigation */}
+      {isMobile && <BottomNavigation />}
     </div>
   );
 }

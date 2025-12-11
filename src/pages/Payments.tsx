@@ -171,6 +171,56 @@ export default function Payments() {
                   </Button>
                 </CardContent>
               </Card>
+            ) : isMobile ? (
+              <div className="space-y-3">
+                {pendingPayments?.map((payment) => (
+                  <Card key={payment.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-foreground">{payment.supplier?.name || 'Unknown'}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {payment.shipment?.lot_number || 'No LOT'} • {formatDate(payment.payment_date)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold currency-display">
+                            {formatCurrency(payment.amount_foreign, payment.currency)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatCurrency(payment.amount_zar)} ZAR
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Rate: {formatRate(payment.fx_rate)}</span>
+                        <span>{payment.bank_account?.name || 'No bank'}</span>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 min-h-[44px]"
+                          onClick={() => markPaid.mutate(payment.id)}
+                          disabled={markPaid.isPending}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Mark Paid
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="min-h-[44px]"
+                          onClick={() => deletePayment.mutate(payment.id)}
+                          disabled={deletePayment.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             ) : (
               <Card>
                 <Table>
@@ -235,6 +285,50 @@ export default function Payments() {
                   <p className="text-muted-foreground text-center">No completed payments yet.</p>
                 </CardContent>
               </Card>
+            ) : isMobile ? (
+              <div className="space-y-3">
+                {completedPayments?.map((payment) => (
+                  <Card key={payment.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-foreground">{payment.supplier?.name || 'Unknown'}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Paid {formatDate(payment.paid_date)}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="bg-status-completed/20 text-status-completed border-status-completed/30">
+                          Paid
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Amount</p>
+                          <p className="font-medium currency-display">
+                            {formatCurrency(payment.amount_foreign, payment.currency)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-muted-foreground">ZAR Paid</p>
+                          <p className="font-semibold currency-display">
+                            {formatCurrency(payment.amount_zar)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">FX Rate</p>
+                          <p className="font-medium currency-display">{formatRate(payment.fx_rate)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-muted-foreground">Commission</p>
+                          <p className="font-medium profit-positive currency-display">
+                            {formatCurrency(payment.commission_earned)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             ) : (
               <Card>
                 <Table>
