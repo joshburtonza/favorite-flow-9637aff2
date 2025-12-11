@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          error: string | null
+          id: string
+          lot_number: string | null
+          request_body: Json | null
+          response: Json | null
+          source: string
+          success: boolean | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          lot_number?: string | null
+          request_body?: Json | null
+          response?: Json | null
+          source: string
+          success?: boolean | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          lot_number?: string | null
+          request_body?: Json | null
+          response?: Json | null
+          source?: string
+          success?: boolean | null
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_number: string | null

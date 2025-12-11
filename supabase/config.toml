@@ -1,1 +1,22 @@
 project_id = "vodhvvkmxocxzhmdwsuu"
+
+[functions.shipments-create]
+verify_jwt = false
+
+[functions.shipments-update-status]
+verify_jwt = false
+
+[functions.shipments-add-costs]
+verify_jwt = false
+
+[functions.shipments-add-revenue]
+verify_jwt = false
+
+[functions.payments-create]
+verify_jwt = false
+
+[functions.shipments-query]
+verify_jwt = false
+
+[functions.suppliers-balance]
+verify_jwt = false
