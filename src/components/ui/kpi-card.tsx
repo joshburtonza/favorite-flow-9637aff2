@@ -11,6 +11,7 @@ interface KPICardProps {
     isPositive: boolean;
   };
   className?: string;
+  compact?: boolean;
 }
 
 export function KPICard({ 
@@ -19,8 +20,34 @@ export function KPICard({
   icon: Icon, 
   description,
   trend,
-  className 
+  className,
+  compact = false
 }: KPICardProps) {
+  if (compact) {
+    return (
+      <div className={cn(
+        'flex items-center gap-3 p-3 rounded-xl bg-card border border-border',
+        className
+      )}>
+        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-muted-foreground truncate">{title}</p>
+          <p className="text-lg font-bold text-foreground">{value}</p>
+        </div>
+        {trend && (
+          <span className={cn(
+            'text-xs font-medium px-1.5 py-0.5 rounded',
+            trend.isPositive ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'
+          )}>
+            {trend.isPositive ? '↑' : '↓'}{Math.abs(trend.value)}%
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={cn('kpi-card', className)}>
       <div className="flex items-start justify-between">

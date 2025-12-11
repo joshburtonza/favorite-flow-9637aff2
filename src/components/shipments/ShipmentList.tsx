@@ -95,162 +95,334 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
     );
   }
 
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFiltersCount = [
+    statusFilter !== 'all',
+    supplierFilter !== 'all',
+    clientFilter !== 'all',
+    dateRange?.from
+  ].filter(Boolean).length;
+
+  const handleExportReport = () => {
+    if (filteredShipments && filteredShipments.length > 0) {
+      exportProfitReportPDF(
+        filteredShipments.map(s => ({
+          lot_number: s.lot_number,
+          supplier_name: s.supplier?.name || null,
+          client_name: s.client?.name || null,
+          commodity: s.commodity || null,
+          eta: s.eta || null,
+          status: s.status,
+          document_submitted: s.document_submitted,
+          telex_released: s.telex_released,
+          delivery_date: s.delivery_date || null,
+          costs: s.costs ? {
+            source_currency: s.costs.source_currency,
+            supplier_cost: s.costs.supplier_cost,
+            freight_cost: s.costs.freight_cost,
+            clearing_cost: s.costs.clearing_cost,
+            transport_cost: s.costs.transport_cost,
+            total_foreign: s.costs.total_foreign,
+            fx_spot_rate: s.costs.fx_spot_rate,
+            fx_applied_rate: s.costs.fx_applied_rate,
+            fx_spread: s.costs.fx_spread,
+            total_zar: s.costs.total_zar,
+            client_invoice_zar: s.costs.client_invoice_zar,
+            gross_profit_zar: s.costs.gross_profit_zar,
+            fx_commission_zar: s.costs.fx_commission_zar,
+            fx_spread_profit_zar: s.costs.fx_spread_profit_zar,
+            bank_charges: s.costs.bank_charges,
+            net_profit_zar: s.costs.net_profit_zar,
+            profit_margin: s.costs.profit_margin,
+          } : null,
+        })),
+        dateRange?.from && dateRange?.to ? { from: dateRange.from, to: dateRange.to } : undefined
+      );
+      toast.success('Profit report exported');
+    } else {
+      toast.error('No shipments to export');
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Filters Row 1 */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search LOT, supplier, client..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ShipmentStatus | 'all')}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="in-transit">In Transit</SelectItem>
-            <SelectItem value="documents-submitted">Docs Submitted</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue placeholder="Supplier" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Suppliers</SelectItem>
-            {suppliers?.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue placeholder="Client" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Clients</SelectItem>
-            {clients?.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Filters Row 2 - Date Range */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  'justify-start text-left font-normal w-full sm:w-auto',
-                  !dateRange && 'text-muted-foreground'
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, 'LLL dd')} - {format(dateRange.to, 'LLL dd, y')}
-                    </>
-                  ) : (
-                    format(dateRange.from, 'LLL dd, y')
-                  )
-                ) : (
-                  'ETA Date Range'
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={2}
-                className="pointer-events-auto"
+    <div className="space-y-3 sm:space-y-4">
+      {/* Mobile: Search + Filter Toggle + Add Button */}
+      {isMobile ? (
+        <>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search LOT, supplier..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-11"
               />
-            </PopoverContent>
-          </Popover>
-          {dateRange && (
-            <Button variant="ghost" size="icon" onClick={clearDateRange} className="h-9 w-9">
-              <X className="h-4 w-4" />
+            </div>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-11 w-11 shrink-0 relative"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Search className="h-4 w-4" />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
             </Button>
-          )}
-        </div>
+            <Button onClick={onNewShipment} size="icon" className="h-11 w-11 shrink-0">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-2 ml-auto">
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              if (filteredShipments && filteredShipments.length > 0) {
-                exportProfitReportPDF(
-                  filteredShipments.map(s => ({
-                    lot_number: s.lot_number,
-                    supplier_name: s.supplier?.name || null,
-                    client_name: s.client?.name || null,
-                    commodity: s.commodity || null,
-                    eta: s.eta || null,
-                    status: s.status,
-                    document_submitted: s.document_submitted,
-                    telex_released: s.telex_released,
-                    delivery_date: s.delivery_date || null,
-                    costs: s.costs ? {
-                      source_currency: s.costs.source_currency,
-                      supplier_cost: s.costs.supplier_cost,
-                      freight_cost: s.costs.freight_cost,
-                      clearing_cost: s.costs.clearing_cost,
-                      transport_cost: s.costs.transport_cost,
-                      total_foreign: s.costs.total_foreign,
-                      fx_spot_rate: s.costs.fx_spot_rate,
-                      fx_applied_rate: s.costs.fx_applied_rate,
-                      fx_spread: s.costs.fx_spread,
-                      total_zar: s.costs.total_zar,
-                      client_invoice_zar: s.costs.client_invoice_zar,
-                      gross_profit_zar: s.costs.gross_profit_zar,
-                      fx_commission_zar: s.costs.fx_commission_zar,
-                      fx_spread_profit_zar: s.costs.fx_spread_profit_zar,
-                      bank_charges: s.costs.bank_charges,
-                      net_profit_zar: s.costs.net_profit_zar,
-                      profit_margin: s.costs.profit_margin,
-                    } : null,
-                  })),
-                  dateRange?.from && dateRange?.to ? { from: dateRange.from, to: dateRange.to } : undefined
-                );
-                toast.success('Profit report exported');
-              } else {
-                toast.error('No shipments to export');
-              }
-            }}
-            disabled={!filteredShipments || filteredShipments.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/import')}>
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
-          <Button onClick={onNewShipment}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Shipment
-          </Button>
-        </div>
-      </div>
+          {/* Collapsible Filters */}
+          {showFilters && (
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-border">
+              {/* Status Filter Chips */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'in-transit', label: 'In Transit' },
+                    { value: 'documents-submitted', label: 'Docs' },
+                    { value: 'completed', label: 'Done' },
+                  ].map((status) => (
+                    <button
+                      key={status.value}
+                      onClick={() => setStatusFilter(status.value as ShipmentStatus | 'all')}
+                      className={cn(
+                        'px-3 py-1.5 rounded-full text-sm font-medium transition-colors min-h-[36px]',
+                        statusFilter === status.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background border border-border text-foreground hover:bg-accent'
+                      )}
+                    >
+                      {status.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Supplier & Client Selects */}
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {suppliers?.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range */}
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'justify-start text-left font-normal flex-1 h-11',
+                        !dateRange && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, 'LLL dd')} - {format(dateRange.to, 'LLL dd')}
+                          </>
+                        ) : (
+                          format(dateRange.from, 'LLL dd, y')
+                        )
+                      ) : (
+                        'ETA Date Range'
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={1}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {dateRange && (
+                  <Button variant="ghost" size="icon" onClick={clearDateRange} className="h-11 w-11">
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex gap-2 pt-2 border-t border-border">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-10"
+                  onClick={handleExportReport}
+                  disabled={!filteredShipments || filteredShipments.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Export
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-10"
+                  onClick={() => navigate('/import')}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Import
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Desktop: Original Filter Layout */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search LOT, supplier, client..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ShipmentStatus | 'all')}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in-transit">In Transit</SelectItem>
+                <SelectItem value="documents-submitted">Docs Submitted</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Suppliers</SelectItem>
+                {suppliers?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clients</SelectItem>
+                {clients?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filters Row 2 - Date Range */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'justify-start text-left font-normal w-full sm:w-auto',
+                      !dateRange && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, 'LLL dd')} - {format(dateRange.to, 'LLL dd, y')}
+                        </>
+                      ) : (
+                        format(dateRange.from, 'LLL dd, y')
+                      )
+                    ) : (
+                      'ETA Date Range'
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange && (
+                <Button variant="ghost" size="icon" onClick={clearDateRange} className="h-9 w-9">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 ml-auto">
+              <Button 
+                variant="outline" 
+                onClick={handleExportReport}
+                disabled={!filteredShipments || filteredShipments.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/import')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </Button>
+              <Button onClick={onNewShipment}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Shipment
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Shipments list */}
       {filteredShipments?.length === 0 ? (
