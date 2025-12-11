@@ -9,6 +9,7 @@ import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { ShipmentStatus, CurrencyType } from '@/types/database';
 import { calculateShipmentCosts, CostInputs } from '@/lib/calculations';
 import { formatCurrency, formatRate, formatPercentage, getCurrencySymbol, getProfitClass } from '@/lib/formatters';
+import { exportShipmentPDF } from '@/lib/pdf-export';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,10 +47,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Save, Trash2, CalendarIcon, Loader2, Eye, CreditCard } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, CalendarIcon, Loader2, Eye, CreditCard, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
+import { toast } from 'sonner';
 
 export function ShipmentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -250,6 +252,47 @@ export function ShipmentDetail() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              const supplierName = suppliers?.find(s => s.id === supplierId)?.name || null;
+              const clientName = clients?.find(c => c.id === clientId)?.name || null;
+              exportShipmentPDF({
+                lot_number: shipment.lot_number,
+                supplier_name: supplierName,
+                client_name: clientName,
+                commodity,
+                eta: eta ? format(eta, 'yyyy-MM-dd') : null,
+                status,
+                document_submitted: documentSubmitted,
+                telex_released: telexReleased,
+                delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : null,
+                costs: shipment.costs ? {
+                  source_currency: sourceCurrency,
+                  supplier_cost: costInputs.supplierCost,
+                  freight_cost: costInputs.freightCost,
+                  clearing_cost: costInputs.clearingCost,
+                  transport_cost: costInputs.transportCost,
+                  total_foreign: calculations.totalForeign,
+                  fx_spot_rate: costInputs.fxSpotRate,
+                  fx_applied_rate: costInputs.fxAppliedRate,
+                  fx_spread: calculations.fxSpread,
+                  total_zar: calculations.totalZar,
+                  client_invoice_zar: costInputs.clientInvoiceZar,
+                  gross_profit_zar: calculations.grossProfit,
+                  fx_commission_zar: calculations.fxCommission,
+                  fx_spread_profit_zar: calculations.spreadProfit,
+                  bank_charges: costInputs.bankCharges,
+                  net_profit_zar: calculations.netProfit,
+                  profit_margin: calculations.profitMargin,
+                } : null,
+              });
+              toast.success('PDF exported successfully');
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
           {supplierId && (
             <>
               <Button variant="outline" onClick={() => setLedgerOpen(true)}>
