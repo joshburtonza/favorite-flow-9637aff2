@@ -3,10 +3,13 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KPICard } from '@/components/ui/kpi-card';
 import { ShipmentList } from '@/components/shipments/ShipmentList';
 import { NewShipmentDialog } from '@/components/shipments/NewShipmentDialog';
+import { AutomationStatus } from '@/components/automation/AutomationStatus';
+import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { formatCurrency } from '@/lib/formatters';
 import { Package, DollarSign, FileText, Truck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Dashboard() {
   const [newShipmentOpen, setNewShipmentOpen] = useState(false);
@@ -60,11 +63,26 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Shipments List */}
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">All Shipments</h2>
-          <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} />
-        </div>
+        {/* Tabs for Shipments, Automation Status, WhatsApp Commands */}
+        <Tabs defaultValue="shipments" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="shipments">Shipments</TabsTrigger>
+            <TabsTrigger value="automation">Automation Status</TabsTrigger>
+            <TabsTrigger value="commands">WhatsApp Commands</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="shipments" className="space-y-4">
+            <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} />
+          </TabsContent>
+
+          <TabsContent value="automation" className="space-y-4">
+            <AutomationStatus />
+          </TabsContent>
+
+          <TabsContent value="commands" className="space-y-4">
+            <WhatsAppCommands />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <NewShipmentDialog open={newShipmentOpen} onOpenChange={setNewShipmentOpen} />
