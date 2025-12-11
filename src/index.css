@@ -218,4 +218,9 @@
       transform: translateX(0);
     }
   }
+
+  /* Safe area padding for iOS devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 }
