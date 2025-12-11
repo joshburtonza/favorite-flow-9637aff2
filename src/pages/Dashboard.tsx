@@ -6,6 +6,7 @@ import { NewShipmentDialog } from '@/components/shipments/NewShipmentDialog';
 import { AutomationStatus } from '@/components/automation/AutomationStatus';
 import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
 import { Package, DollarSign, FileText, Truck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,6 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 export default function Dashboard() {
   const [newShipmentOpen, setNewShipmentOpen] = useState(false);
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  
+  // Enable real-time updates
+  useDashboardRealtime();
 
   return (
     <AppLayout>

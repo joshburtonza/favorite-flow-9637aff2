@@ -5,6 +5,7 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useClients } from '@/hooks/useClients';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { useCreatePayment } from '@/hooks/usePayments';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { ShipmentStatus, CurrencyType } from '@/types/database';
 import { calculateShipmentCosts, CostInputs } from '@/lib/calculations';
 import { formatCurrency, formatRate, formatPercentage, getCurrencySymbol, getProfitClass } from '@/lib/formatters';
@@ -60,6 +61,12 @@ export function ShipmentDetail() {
   const updateCosts = useUpdateShipmentCosts();
   const deleteShipment = useDeleteShipment();
   const createPayment = useCreatePayment();
+
+  // Enable real-time updates for this shipment
+  useRealtimeSubscription({
+    tables: ['shipments', 'shipment_costs', 'supplier_ledger'],
+    showToasts: true,
+  });
 
   // Form state
   const [supplierId, setSupplierId] = useState<string>('');
