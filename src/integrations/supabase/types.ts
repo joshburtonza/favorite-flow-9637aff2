@@ -220,10 +220,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_schedule_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_schedule_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedule_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
             referencedColumns: ["id"]
           },
         ]
@@ -333,6 +347,13 @@ export type Database = {
             referencedRelation: "shipments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "shipment_costs_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: true
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
         ]
       }
       shipments: {
@@ -402,6 +423,13 @@ export type Database = {
             referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "shipments_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
+            referencedColumns: ["id"]
+          },
         ]
       }
       supplier_ledger: {
@@ -453,10 +481,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "supplier_ledger_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "supplier_ledger_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_ledger_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
             referencedColumns: ["id"]
           },
         ]
@@ -502,7 +544,88 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_automation_summary: {
+        Row: {
+          date: string | null
+          failed_count: number | null
+          source: string | null
+          success_count: number | null
+          total_count: number | null
+          unique_lots: number | null
+        }
+        Relationships: []
+      }
+      v_creditors: {
+        Row: {
+          contact_person: string | null
+          created_at: string | null
+          currency: Database["public"]["Enums"]["currency_type"] | null
+          current_balance: number | null
+          email: string | null
+          id: string | null
+          last_transaction_date: string | null
+          phone: string | null
+          shipment_count: number | null
+          supplier_name: string | null
+          transaction_count: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      v_pending_payments: {
+        Row: {
+          amount_foreign: number | null
+          amount_zar: number | null
+          bank_account_name: string | null
+          commission_earned: number | null
+          created_at: string | null
+          currency: Database["public"]["Enums"]["currency_type"] | null
+          fx_rate: number | null
+          id: string | null
+          lot_number: string | null
+          notes: string | null
+          payment_date: string | null
+          status: Database["public"]["Enums"]["payment_status"] | null
+          supplier_name: string | null
+        }
+        Relationships: []
+      }
+      v_shipments_full: {
+        Row: {
+          bank_charges: number | null
+          clearing_cost: number | null
+          client_invoice_zar: number | null
+          client_name: string | null
+          commodity: string | null
+          created_at: string | null
+          delivery_date: string | null
+          document_submitted: boolean | null
+          eta: string | null
+          freight_cost: number | null
+          fx_applied_rate: number | null
+          fx_commission_zar: number | null
+          fx_spot_rate: number | null
+          fx_spread: number | null
+          fx_spread_profit_zar: number | null
+          gross_profit_zar: number | null
+          id: string | null
+          lot_number: string | null
+          net_profit_zar: number | null
+          notes: string | null
+          profit_margin: number | null
+          source_currency: Database["public"]["Enums"]["currency_type"] | null
+          status: Database["public"]["Enums"]["shipment_status"] | null
+          supplier_cost: number | null
+          supplier_currency: Database["public"]["Enums"]["currency_type"] | null
+          supplier_name: string | null
+          telex_released: boolean | null
+          total_foreign: number | null
+          total_zar: number | null
+          transport_cost: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
