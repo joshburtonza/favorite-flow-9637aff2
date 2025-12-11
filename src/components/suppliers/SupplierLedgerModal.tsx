@@ -3,6 +3,7 @@ import { useSupplier, useSupplierLedger, useCreateLedgerEntry } from '@/hooks/us
 import { useShipments } from '@/hooks/useShipments';
 import { LedgerType, CurrencyType } from '@/types/database';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { exportSupplierLedgerPDF } from '@/lib/pdf-export';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,6 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { CalendarIcon, Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface SupplierLedgerModalProps {
   supplierId: string;
@@ -150,9 +152,36 @@ export function SupplierLedgerModal({ supplierId, open, onOpenChange }: Supplier
                   <TabsTrigger value="transactions">Transactions</TabsTrigger>
                   <TabsTrigger value="add">Add Entry</TabsTrigger>
                 </TabsList>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    if (supplier && ledgerEntries) {
+                      exportSupplierLedgerPDF(
+                        {
+                          name: supplier.name,
+                          currency: supplier.currency,
+                          current_balance: supplier.current_balance,
+                          contact_person: supplier.contact_person,
+                          email: supplier.email,
+                          phone: supplier.phone,
+                        },
+                        ledgerEntries.map(e => ({
+                          transaction_date: e.transaction_date,
+                          invoice_number: e.invoice_number,
+                          description: e.description,
+                          ledger_type: e.ledger_type,
+                          amount: e.amount,
+                          balance_after: e.balance_after,
+                          lot_number: e.shipment ? (e.shipment as { lot_number: string }).lot_number : null,
+                        }))
+                      );
+                      toast.success('PDF exported successfully');
+                    }
+                  }}
+                >
                   <Download className="h-4 w-4 mr-2" />
-                  Export
+                  Export PDF
                 </Button>
               </div>
 

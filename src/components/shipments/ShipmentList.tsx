@@ -5,6 +5,7 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useClients } from '@/hooks/useClients';
 import { ShipmentStatus } from '@/types/database';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { exportProfitReportPDF } from '@/lib/pdf-export';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,11 +28,12 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Eye, Upload, CalendarIcon, X } from 'lucide-react';
+import { Plus, Search, Eye, Upload, CalendarIcon, X, Download } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import { toast } from 'sonner';
 
 interface ShipmentListProps {
   onNewShipment: () => void;
@@ -192,6 +194,53 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
 
         {/* Action buttons */}
         <div className="flex gap-2 ml-auto">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              if (filteredShipments && filteredShipments.length > 0) {
+                exportProfitReportPDF(
+                  filteredShipments.map(s => ({
+                    lot_number: s.lot_number,
+                    supplier_name: s.supplier?.name || null,
+                    client_name: s.client?.name || null,
+                    commodity: s.commodity || null,
+                    eta: s.eta || null,
+                    status: s.status,
+                    document_submitted: s.document_submitted,
+                    telex_released: s.telex_released,
+                    delivery_date: s.delivery_date || null,
+                    costs: s.costs ? {
+                      source_currency: s.costs.source_currency,
+                      supplier_cost: s.costs.supplier_cost,
+                      freight_cost: s.costs.freight_cost,
+                      clearing_cost: s.costs.clearing_cost,
+                      transport_cost: s.costs.transport_cost,
+                      total_foreign: s.costs.total_foreign,
+                      fx_spot_rate: s.costs.fx_spot_rate,
+                      fx_applied_rate: s.costs.fx_applied_rate,
+                      fx_spread: s.costs.fx_spread,
+                      total_zar: s.costs.total_zar,
+                      client_invoice_zar: s.costs.client_invoice_zar,
+                      gross_profit_zar: s.costs.gross_profit_zar,
+                      fx_commission_zar: s.costs.fx_commission_zar,
+                      fx_spread_profit_zar: s.costs.fx_spread_profit_zar,
+                      bank_charges: s.costs.bank_charges,
+                      net_profit_zar: s.costs.net_profit_zar,
+                      profit_margin: s.costs.profit_margin,
+                    } : null,
+                  })),
+                  dateRange?.from && dateRange?.to ? { from: dateRange.from, to: dateRange.to } : undefined
+                );
+                toast.success('Profit report exported');
+              } else {
+                toast.error('No shipments to export');
+              }
+            }}
+            disabled={!filteredShipments || filteredShipments.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
+          </Button>
           <Button variant="outline" onClick={() => navigate('/import')}>
             <Upload className="h-4 w-4 mr-2" />
             Import CSV
