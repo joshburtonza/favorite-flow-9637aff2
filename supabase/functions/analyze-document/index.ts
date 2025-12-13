@@ -73,7 +73,7 @@ const SYSTEM_PROMPT = `You are the AI document processor for Favorite Logistics,
 5. Supplier matching: Match to known suppliers (WINTEX, AMAGGI, COFCO, etc.) even if name varies slightly
 
 ## RESPONSE FORMAT
-Always respond with valid JSON:
+Always respond with valid JSON (no markdown code blocks):
 {
   "documentType": "invoice|bol|packing_list|payment|shipment|supplier|client|unknown",
   "summary": "Brief summary: what document is this, from whom, for what shipment, key amounts",
@@ -156,71 +156,104 @@ serve(async (req) => {
   }
 
   try {
-    const { documentContent, documentName, sendToTelegram = true, autoImport = false } = await req.json();
+    const { documentContent, documentName, sendToTelegram = false, autoImport = false, isChatMode = false } = await req.json();
 
     if (!documentContent) {
-      throw new Error('Document content is required');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Document content is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
     const TELEGRAM_CHAT_ID = Deno.env.get('TELEGRAM_CHAT_ID');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!DEEPSEEK_API_KEY) {
-      throw new Error('DEEPSEEK_API_KEY is not configured');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY is not configured');
+      return new Response(
+        JSON.stringify({ success: false, error: 'AI service is not configured. Please enable Lovable AI in project settings.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log(`Analyzing document: ${documentName || 'unnamed'}`);
     console.log(`Document content length: ${documentContent.length} characters`);
     console.log(`Auto-import enabled: ${autoImport}`);
+    console.log(`Chat mode: ${isChatMode}`);
 
-    // Call DeepSeek API for analysis
-    const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    // Call Lovable AI Gateway for analysis
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: `Analyze this document and extract structured data:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${documentContent}` }
         ],
-        temperature: 0.1,
-        max_tokens: 4000,
       }),
     });
 
-    if (!deepseekResponse.ok) {
-      const errorText = await deepseekResponse.text();
-      console.error('DeepSeek API error:', errorText);
-      throw new Error(`DeepSeek API error: ${deepseekResponse.status}`);
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('Lovable AI Gateway error:', aiResponse.status, errorText);
+      
+      if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'AI service is rate limited. Please try again in a moment.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (aiResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'AI usage limit reached. Please add credits to your Lovable workspace.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, error: `AI analysis failed: ${aiResponse.status}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const deepseekData = await deepseekResponse.json();
-    const rawAnalysis = deepseekData.choices?.[0]?.message?.content || '';
+    const aiData = await aiResponse.json();
+    const rawAnalysis = aiData.choices?.[0]?.message?.content || '';
 
-    console.log('Raw analysis:', rawAnalysis);
+    console.log('Raw analysis length:', rawAnalysis.length);
 
     // Parse the JSON response
     let analysisResult: AnalysisResult;
     try {
-      // Extract JSON from the response (handle markdown code blocks)
-      const jsonMatch = rawAnalysis.match(/```json\s*([\s\S]*?)\s*```/) || rawAnalysis.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : rawAnalysis;
+      // Extract JSON from the response (handle markdown code blocks if present)
+      let jsonStr = rawAnalysis.trim();
+      
+      // Remove markdown code blocks if present
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
+      
       analysisResult = JSON.parse(jsonStr.trim());
+      console.log('Successfully parsed analysis result');
     } catch (parseError) {
       console.error('Failed to parse analysis as JSON:', parseError);
+      console.log('Raw response (first 500 chars):', rawAnalysis.substring(0, 500));
+      
       // Return raw analysis if JSON parsing fails
       analysisResult = {
         documentType: 'unknown',
-        summary: rawAnalysis,
+        summary: rawAnalysis.substring(0, 500),
         extractedData: {},
-        issues: ['Failed to parse structured data'],
-        actionItems: [],
+        issues: ['Failed to parse structured data from AI response'],
+        actionItems: ['Please try uploading the document again or provide clearer content'],
         confidence: 'low'
       };
     }
@@ -228,8 +261,14 @@ serve(async (req) => {
     // Auto-import data if enabled
     let importResult = null;
     if (autoImport && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      importResult = await importData(supabase, analysisResult);
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        importResult = await importData(supabase, analysisResult);
+        console.log('Import result:', importResult);
+      } catch (importError) {
+        console.error('Import error:', importError);
+        importResult = { success: false, message: 'Failed to import data' };
+      }
     }
 
     console.log('Analysis completed successfully');
@@ -284,7 +323,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error('Error in analyze-document function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
       JSON.stringify({ 
         success: false, 
@@ -475,32 +514,18 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
           commodity: data.commodity,
           eta: data.eta,
           delivery_date: data.deliveryDate,
-          status: 'pending'
+          status: data.status || 'pending',
         })
         .select('id')
         .single();
 
-      if (error) {
-        console.error('Error creating shipment:', error);
-      } else {
-        shipmentId = newShipment?.id;
+      if (newShipment) {
+        shipmentId = newShipment.id;
         createdRecords.shipments++;
       }
-    } else {
-      // Update existing shipment
-      await supabase
-        .from('shipments')
-        .update({
-          supplier_id: supplierId || undefined,
-          client_id: clientId || undefined,
-          commodity: data.commodity || undefined,
-          eta: data.eta || undefined,
-          delivery_date: data.deliveryDate || undefined,
-        })
-        .eq('id', shipmentId);
     }
 
-    // Handle costs if present
+    // Handle costs
     if (shipmentId && (data.supplierCost || data.freightCost || data.clearingCost || data.transportCost || data.clientInvoiceZar)) {
       const { data: existingCosts } = await supabase
         .from('shipment_costs')
@@ -515,10 +540,10 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
         clearing_cost: data.clearingCost || 0,
         transport_cost: data.transportCost || 0,
         client_invoice_zar: data.clientInvoiceZar || 0,
+        fx_spot_rate: data.fxSpotRate || 18.5,
+        fx_applied_rate: data.fxRate || 18.5,
         bank_charges: data.bankCharges || 0,
         source_currency: data.currency || 'USD',
-        fx_applied_rate: data.fxRate || 0,
-        fx_spot_rate: data.fxRate || 0,
       };
 
       if (existingCosts) {
@@ -527,46 +552,36 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
           .update(costData)
           .eq('id', existingCosts.id);
       } else {
-        await supabase
+        const { error } = await supabase
           .from('shipment_costs')
           .insert(costData);
-        createdRecords.costs++;
-      }
-
-      // Create supplier ledger entry for costs
-      if (supplierId && data.supplierCost) {
-        await supabase
-          .from('supplier_ledger')
-          .insert({
-            supplier_id: supplierId,
-            shipment_id: shipmentId,
-            ledger_type: 'debit',
-            amount: data.supplierCost,
-            description: `Invoice for LOT ${data.lotNumber}`,
-            invoice_number: data.invoiceNumber,
-          });
+        
+        if (!error) {
+          createdRecords.costs++;
+        }
       }
     }
 
-    return { type: 'shipment', lotNumber: data.lotNumber, shipmentId };
-  }
+    // Handle payments
+    if (data.paymentAmount && data.paymentDate && supplierId) {
+      const { error } = await supabase
+        .from('payment_schedule')
+        .insert({
+          supplier_id: supplierId,
+          shipment_id: shipmentId,
+          amount_foreign: data.paymentAmount,
+          currency: data.currency || 'USD',
+          fx_rate: data.fxRate || 18.5,
+          payment_date: data.paymentDate,
+          status: 'pending',
+        });
 
-  // Handle payment records
-  if (documentType === 'payment' && data.paymentAmount && supplierId) {
-    const { data: payment, error } = await supabase
-      .from('payment_schedule')
-      .insert({
-        supplier_id: supplierId,
-        amount_foreign: data.paymentAmount,
-        currency: data.currency || 'USD',
-        fx_rate: data.fxRate || 0,
-        payment_date: data.paymentDate || new Date().toISOString().split('T')[0],
-        status: 'pending'
-      })
-      .select('id')
-      .single();
+      if (!error) {
+        createdRecords.payments++;
+      }
+    }
 
-    return { type: 'payment', paymentId: payment?.id };
+    return { lotNumber: data.lotNumber, shipmentId, supplierId, clientId };
   }
 
   return null;
