@@ -1,11 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
-  Home, 
+  Sparkles, 
   Package, 
   Users, 
   CreditCard, 
-  MoreHorizontal 
+  MoreHorizontal,
+  LayoutDashboard 
 } from 'lucide-react';
 import {
   Popover,
@@ -16,17 +17,18 @@ import { Building2, BarChart3, Landmark, Upload } from 'lucide-react';
 import { useState } from 'react';
 
 const mainNavItems = [
-  { path: '/', label: 'Home', icon: Home },
+  { path: '/', label: 'AI Entry', icon: Sparkles },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/shipments', label: 'Shipments', icon: Package },
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
   { path: '/payments', label: 'Payments', icon: CreditCard },
 ];
 
 const moreNavItems = [
+  { path: '/suppliers', label: 'Suppliers', icon: Users },
   { path: '/clients', label: 'Clients', icon: Building2 },
   { path: '/creditors', label: 'Creditors', icon: BarChart3 },
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
-  { path: '/import', label: 'Import Data', icon: Upload },
+  { path: '/import', label: 'Bulk Import', icon: Upload },
 ];
 
 export function BottomNavigation() {
