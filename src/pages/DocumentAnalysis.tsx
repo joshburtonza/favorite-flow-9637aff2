@@ -5,40 +5,63 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Upload, Link, Loader2, Send, CheckCircle } from 'lucide-react';
+import { FileText, Upload, Link, Loader2, Send, CheckCircle, Database, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import * as pdfjsLib from 'pdfjs-dist';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+interface StructuredData {
+  documentType: string;
+  summary: string;
+  extractedData: Record<string, any>;
+  bulkData?: Record<string, any>[];
+  issues: string[];
+  actionItems: string[];
+  confidence: string;
+}
+
+interface ImportResult {
+  success: boolean;
+  message: string;
+  details?: any[];
+}
 
 const DocumentAnalysis = () => {
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [documentUrl, setDocumentUrl] = useState('');
   const [documentContent, setDocumentContent] = useState('');
   const [documentName, setDocumentName] = useState('');
   const [sendToTelegram, setSendToTelegram] = useState(true);
+  const [autoImport, setAutoImport] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [structuredData, setStructuredData] = useState<StructuredData | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [telegramSent, setTelegramSent] = useState(false);
 
-  const extractTextFromPdf = async (arrayBuffer: ArrayBuffer): Promise<string> => {
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
+  const parseCSV = (text: string): string => {
+    // Simple CSV to readable format conversion
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return text;
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+    const headers = lines[0].split(',').map(h => h.trim());
+    let formatted = `CSV Data (${lines.length - 1} rows)\n\nColumns: ${headers.join(', ')}\n\n`;
+    
+    lines.slice(1, 51).forEach((line, idx) => {
+      const values = line.split(',').map(v => v.trim());
+      formatted += `Row ${idx + 1}:\n`;
+      headers.forEach((header, i) => {
+        formatted += `  ${header}: ${values[i] || 'N/A'}\n`;
+      });
+      formatted += '\n';
+    });
+    
+    if (lines.length > 51) {
+      formatted += `... and ${lines.length - 51} more rows\n`;
     }
     
-    return fullText;
+    return formatted;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,48 +69,31 @@ const DocumentAnalysis = () => {
     if (!file) return;
 
     setDocumentName(file.name);
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isCSV = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
     
-    if (isPdf) {
-      setIsParsingPdf(true);
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const text = await extractTextFromPdf(arrayBuffer);
-        setDocumentContent(text);
-        toast({
-          title: 'PDF parsed',
-          description: `${file.name} ready for analysis`,
-        });
-      } catch (error) {
-        console.error('PDF parsing error:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to parse PDF file',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsParsingPdf(false);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      let content = event.target?.result as string;
+      
+      // Format CSV for better readability
+      if (isCSV) {
+        content = parseCSV(content);
       }
-    } else {
-      // Read text file content
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setDocumentContent(content);
-        toast({
-          title: 'File loaded',
-          description: `${file.name} ready for analysis`,
-        });
-      };
-      reader.onerror = () => {
-        toast({
-          title: 'Error',
-          description: 'Failed to read file',
-          variant: 'destructive',
-        });
-      };
-      reader.readAsText(file);
-    }
+      
+      setDocumentContent(content);
+      toast({
+        title: 'File loaded',
+        description: `${file.name} ready for analysis`,
+      });
+    };
+    reader.onerror = () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to read file',
+        variant: 'destructive',
+      });
+    };
+    reader.readAsText(file);
   };
 
   const fetchDocumentFromUrl = async () => {
@@ -105,7 +111,12 @@ const DocumentAnalysis = () => {
       const response = await fetch(documentUrl);
       if (!response.ok) throw new Error('Failed to fetch document');
       
-      const content = await response.text();
+      let content = await response.text();
+      const isCSV = documentUrl.toLowerCase().endsWith('.csv');
+      if (isCSV) {
+        content = parseCSV(content);
+      }
+      
       setDocumentContent(content);
       setDocumentName(documentUrl.split('/').pop() || 'Document from URL');
       
@@ -136,6 +147,8 @@ const DocumentAnalysis = () => {
 
     setIsAnalyzing(true);
     setAnalysis(null);
+    setStructuredData(null);
+    setImportResult(null);
     setTelegramSent(false);
 
     try {
@@ -144,6 +157,7 @@ const DocumentAnalysis = () => {
           documentContent,
           documentName,
           sendToTelegram,
+          autoImport,
         },
       });
 
@@ -151,12 +165,16 @@ const DocumentAnalysis = () => {
 
       if (data.success) {
         setAnalysis(data.analysis);
+        setStructuredData(data.structuredData);
+        setImportResult(data.importResult);
         setTelegramSent(data.telegramSent);
         toast({
           title: 'Analysis complete',
-          description: data.telegramSent 
-            ? 'Results sent to Telegram' 
-            : 'Analysis ready',
+          description: data.importResult?.success 
+            ? `${data.importResult.message}` 
+            : data.telegramSent 
+              ? 'Results sent to Telegram' 
+              : 'Analysis ready',
         });
       } else {
         throw new Error(data.error || 'Analysis failed');
@@ -178,7 +196,20 @@ const DocumentAnalysis = () => {
     setDocumentContent('');
     setDocumentName('');
     setAnalysis(null);
+    setStructuredData(null);
+    setImportResult(null);
     setTelegramSent(false);
+  };
+
+  const getConfidenceBadge = (confidence: string) => {
+    switch (confidence) {
+      case 'high':
+        return <Badge className="bg-green-500/20 text-green-600">High Confidence</Badge>;
+      case 'medium':
+        return <Badge className="bg-yellow-500/20 text-yellow-600">Medium Confidence</Badge>;
+      default:
+        return <Badge className="bg-red-500/20 text-red-600">Low Confidence</Badge>;
+    }
   };
 
   return (
@@ -187,7 +218,7 @@ const DocumentAnalysis = () => {
         <div>
           <h1 className="text-2xl font-bold">Document Analysis</h1>
           <p className="text-muted-foreground">
-            Upload documents for AI-powered analysis with Telegram notifications
+            Upload invoices, BOLs, CSVs, or payment records for AI analysis and auto-import
           </p>
         </div>
 
@@ -200,19 +231,18 @@ const DocumentAnalysis = () => {
                 Upload Document
               </CardTitle>
               <CardDescription>
-                Upload a file or provide a URL to analyze
+                Upload invoices, BOLs, CSVs, or payment records
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* File Upload */}
               <div className="space-y-2">
-                <Label>Upload File (including PDF)</Label>
+                <Label>Upload File (CSV, TXT, JSON, XML)</Label>
                 <Input
                   type="file"
-                  accept=".txt,.csv,.json,.xml,.md,.pdf"
+                  accept=".txt,.csv,.json,.xml,.md"
                   onChange={handleFileUpload}
                   className="cursor-pointer"
-                  disabled={isParsingPdf}
                 />
               </div>
 
@@ -221,7 +251,7 @@ const DocumentAnalysis = () => {
                 <Label>Or fetch from URL</Label>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="https://example.com/document.txt"
+                    placeholder="https://example.com/document.csv"
                     value={documentUrl}
                     onChange={(e) => setDocumentUrl(e.target.value)}
                   />
@@ -239,35 +269,43 @@ const DocumentAnalysis = () => {
               <div className="space-y-2">
                 <Label>Or paste content directly</Label>
                 <Textarea
-                  placeholder="Paste document content here..."
+                  placeholder="Paste invoice, BOL, or CSV content here..."
                   value={documentContent}
                   onChange={(e) => setDocumentContent(e.target.value)}
                   rows={6}
                 />
               </div>
 
-              {(documentName || isParsingPdf) && (
+              {documentName && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {isParsingPdf ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Parsing PDF...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4" />
-                      {documentName}
-                    </>
-                  )}
+                  <FileText className="h-4 w-4" />
+                  {documentName}
                 </div>
               )}
+
+              {/* Auto-Import Toggle */}
+              <div className="flex items-center justify-between rounded-lg border p-3 bg-primary/5">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    Auto-Import to Database
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically create/update shipments, costs, and payments
+                  </p>
+                </div>
+                <Switch
+                  checked={autoImport}
+                  onCheckedChange={setAutoImport}
+                />
+              </div>
 
               {/* Telegram Toggle */}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
                   <Label>Send to Telegram</Label>
                   <p className="text-xs text-muted-foreground">
-                    Receive analysis results via Telegram
+                    Receive analysis summary via Telegram
                   </p>
                 </div>
                 <Switch
@@ -280,7 +318,7 @@ const DocumentAnalysis = () => {
               <div className="flex gap-2">
                 <Button
                   onClick={analyzeDocument}
-                  disabled={isAnalyzing || isParsingPdf || !documentContent}
+                  disabled={isAnalyzing || !documentContent}
                   className="flex-1"
                 >
                   {isAnalyzing ? (
@@ -291,7 +329,7 @@ const DocumentAnalysis = () => {
                   ) : (
                     <>
                       <Send className="mr-2 h-4 w-4" />
-                      Analyze Document
+                      Analyze & {autoImport ? 'Import' : 'Review'}
                     </>
                   )}
                 </Button>
@@ -316,14 +354,46 @@ const DocumentAnalysis = () => {
             <CardContent>
               {analysis ? (
                 <div className="space-y-4">
-                  {telegramSent && (
-                    <div className="flex items-center gap-2 rounded-lg bg-green-500/10 p-3 text-green-600">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm">Sent to Telegram</span>
+                  {/* Status badges */}
+                  <div className="flex flex-wrap gap-2">
+                    {structuredData && getConfidenceBadge(structuredData.confidence)}
+                    {structuredData && (
+                      <Badge variant="outline" className="capitalize">
+                        {structuredData.documentType}
+                      </Badge>
+                    )}
+                    {telegramSent && (
+                      <Badge className="bg-green-500/10 text-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Sent to Telegram
+                      </Badge>
+                    )}
+                    {importResult?.success && (
+                      <Badge className="bg-blue-500/10 text-blue-600">
+                        <Database className="h-3 w-3 mr-1" />
+                        {importResult.message}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Issues warning */}
+                  {structuredData?.issues && structuredData.issues.length > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg bg-yellow-500/10 p-3 text-yellow-700 dark:text-yellow-400">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium">Issues Found:</p>
+                        <ul className="list-disc list-inside mt-1">
+                          {structuredData.issues.map((issue, i) => (
+                            <li key={i}>{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   )}
+
+                  {/* Analysis output */}
                   <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <pre className="whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
+                    <pre className="whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm overflow-auto max-h-96">
                       {analysis}
                     </pre>
                   </div>
