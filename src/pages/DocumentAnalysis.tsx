@@ -6,10 +6,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Upload, Link, Loader2, Send, CheckCircle, Database, AlertTriangle } from 'lucide-react';
+import { FileText, Upload, Link, Loader2, Send, CheckCircle, Database, AlertTriangle, Image, ScanLine } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import Tesseract from 'tesseract.js';
 
 interface StructuredData {
   documentType: string;
@@ -30,6 +32,8 @@ interface ImportResult {
 const DocumentAnalysis = () => {
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
   const [documentUrl, setDocumentUrl] = useState('');
   const [documentContent, setDocumentContent] = useState('');
   const [documentName, setDocumentName] = useState('');
@@ -39,9 +43,9 @@ const DocumentAnalysis = () => {
   const [structuredData, setStructuredData] = useState<StructuredData | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [telegramSent, setTelegramSent] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const parseCSV = (text: string): string => {
-    // Simple CSV to readable format conversion
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length === 0) return text;
     
@@ -64,36 +68,115 @@ const DocumentAnalysis = () => {
     return formatted;
   };
 
+  const performOCR = async (file: File): Promise<string> => {
+    setIsOcrProcessing(true);
+    setOcrProgress(0);
+
+    try {
+      const result = await Tesseract.recognize(file, 'eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            setOcrProgress(Math.round(m.progress * 100));
+          }
+        },
+      });
+
+      return result.data.text;
+    } finally {
+      setIsOcrProcessing(false);
+      setOcrProgress(0);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setDocumentName(file.name);
-    const isCSV = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+    setPreviewImage(null);
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      let content = event.target?.result as string;
-      
-      // Format CSV for better readability
-      if (isCSV) {
-        content = parseCSV(content);
-      }
-      
-      setDocumentContent(content);
+    const isImage = file.type.startsWith('image/');
+    const isCSV = file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+
+    if (isImage) {
+      // Show image preview
+      const imageUrl = URL.createObjectURL(file);
+      setPreviewImage(imageUrl);
+
       toast({
-        title: 'File loaded',
-        description: `${file.name} ready for analysis`,
+        title: 'Image loaded',
+        description: 'Starting OCR text extraction...',
       });
-    };
-    reader.onerror = () => {
+
+      try {
+        const extractedText = await performOCR(file);
+        setDocumentContent(extractedText);
+        toast({
+          title: 'OCR Complete',
+          description: `Extracted ${extractedText.length} characters from image`,
+        });
+      } catch (error) {
+        console.error('OCR error:', error);
+        toast({
+          title: 'OCR Error',
+          description: 'Failed to extract text from image',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        let content = event.target?.result as string;
+        
+        if (isCSV) {
+          content = parseCSV(content);
+        }
+        
+        setDocumentContent(content);
+        toast({
+          title: 'File loaded',
+          description: `${file.name} ready for analysis`,
+        });
+      };
+      reader.onerror = () => {
+        toast({
+          title: 'Error',
+          description: 'Failed to read file',
+          variant: 'destructive',
+        });
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setDocumentName(file.name);
+    const imageUrl = URL.createObjectURL(file);
+    setPreviewImage(imageUrl);
+
+    toast({
+      title: 'Image loaded',
+      description: 'Starting OCR text extraction...',
+    });
+
+    try {
+      const extractedText = await performOCR(file);
+      setDocumentContent(extractedText);
       toast({
-        title: 'Error',
-        description: 'Failed to read file',
+        title: 'OCR Complete',
+        description: `Extracted ${extractedText.length} characters from image`,
+      });
+    } catch (error) {
+      console.error('OCR error:', error);
+      toast({
+        title: 'OCR Error',
+        description: 'Failed to extract text from image',
         variant: 'destructive',
       });
-    };
-    reader.readAsText(file);
+    }
   };
 
   const fetchDocumentFromUrl = async () => {
@@ -199,6 +282,7 @@ const DocumentAnalysis = () => {
     setStructuredData(null);
     setImportResult(null);
     setTelegramSent(false);
+    setPreviewImage(null);
   };
 
   const getConfidenceBadge = (confidence: string) => {
@@ -218,7 +302,7 @@ const DocumentAnalysis = () => {
         <div>
           <h1 className="text-2xl font-bold">Document Analysis</h1>
           <p className="text-muted-foreground">
-            Upload invoices, BOLs, CSVs, or payment records for AI analysis and auto-import
+            Upload invoices, BOLs, CSVs, images, or payment records for AI analysis and auto-import
           </p>
         </div>
 
@@ -231,20 +315,59 @@ const DocumentAnalysis = () => {
                 Upload Document
               </CardTitle>
               <CardDescription>
-                Upload invoices, BOLs, CSVs, or payment records
+                Upload documents or images with OCR text extraction
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* File Upload */}
+              {/* Text File Upload */}
               <div className="space-y-2">
-                <Label>Upload File (CSV, TXT, JSON, XML)</Label>
+                <Label>Upload Text File (CSV, TXT, JSON, XML)</Label>
                 <Input
                   type="file"
                   accept=".txt,.csv,.json,.xml,.md"
                   onChange={handleFileUpload}
                   className="cursor-pointer"
+                  disabled={isOcrProcessing}
                 />
               </div>
+
+              {/* Image Upload with OCR */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <ScanLine className="h-4 w-4" />
+                  Upload Image for OCR
+                </Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="cursor-pointer"
+                  disabled={isOcrProcessing}
+                />
+                {isOcrProcessing && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Extracting text... {ocrProgress}%
+                    </div>
+                    <Progress value={ocrProgress} className="h-2" />
+                  </div>
+                )}
+              </div>
+
+              {/* Image Preview */}
+              {previewImage && (
+                <div className="space-y-2">
+                  <Label>Image Preview</Label>
+                  <div className="rounded-lg border overflow-hidden">
+                    <img 
+                      src={previewImage} 
+                      alt="Document preview" 
+                      className="w-full h-32 object-contain bg-muted"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* URL Input */}
               <div className="space-y-2">
@@ -272,11 +395,11 @@ const DocumentAnalysis = () => {
                   placeholder="Paste invoice, BOL, or CSV content here..."
                   value={documentContent}
                   onChange={(e) => setDocumentContent(e.target.value)}
-                  rows={6}
+                  rows={4}
                 />
               </div>
 
-              {documentName && (
+              {documentName && !previewImage && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileText className="h-4 w-4" />
                   {documentName}
@@ -318,7 +441,7 @@ const DocumentAnalysis = () => {
               <div className="flex gap-2">
                 <Button
                   onClick={analyzeDocument}
-                  disabled={isAnalyzing || !documentContent}
+                  disabled={isAnalyzing || isOcrProcessing || !documentContent}
                   className="flex-1"
                 >
                   {isAnalyzing ? (
@@ -405,8 +528,16 @@ const DocumentAnalysis = () => {
                       <Loader2 className="h-8 w-8 animate-spin" />
                       <span>Analyzing document...</span>
                     </div>
+                  ) : isOcrProcessing ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <ScanLine className="h-8 w-8 animate-pulse" />
+                      <span>Extracting text from image...</span>
+                    </div>
                   ) : (
-                    <span>Upload a document to see analysis results</span>
+                    <div className="flex flex-col items-center gap-2 text-center">
+                      <Image className="h-8 w-8 opacity-50" />
+                      <span>Upload a document or image to see analysis results</span>
+                    </div>
                   )}
                 </div>
               )}
