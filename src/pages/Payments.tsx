@@ -140,24 +140,24 @@ export default function Payments() {
         </header>
 
         {/* Summary KPIs */}
-        <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <KPICard
-            title="Pending Payments"
+            title="Pending"
             value={formatCurrency(totalPending, 'ZAR', { compact: true })}
             icon={DollarSign}
             description={`${pendingPayments?.length || 0} scheduled`}
           />
           <KPICard
-            title="Paid This Month"
+            title="Paid"
             value={formatCurrency(totalCompleted, 'ZAR', { compact: true })}
             icon={CreditCard}
             description={`${completedPayments?.length || 0} completed`}
           />
           <KPICard
-            title="Commission Earned"
+            title="Commission"
             value={formatCurrency(totalCommission, 'ZAR', { compact: true })}
             icon={TrendingUp}
-            description="From FX transactions"
+            description="From FX"
           />
         </div>
 
@@ -216,40 +216,43 @@ export default function Payments() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {currentPayments?.map((payment) => (
-              <div key={payment.id} className="glass-card">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg">{payment.supplier?.name || 'Unknown'}</h3>
-                    <p className="text-sm text-muted-foreground">
+              <div key={payment.id} className="glass-card p-5">
+                {/* Header: Supplier & Amount */}
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-base truncate">{payment.supplier?.name || 'Unknown'}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {payment.shipment?.lot_number || 'No LOT'} • {formatDate(activeTab === 'upcoming' ? payment.payment_date : payment.paid_date)}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold">
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold">
                       {formatCurrency(payment.amount_foreign, payment.currency)}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {formatCurrency(payment.amount_zar)} ZAR
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                {/* Details Row */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>Rate: {formatRate(payment.fx_rate)}</span>
                   <span>{payment.bank_account?.name || 'No bank'}</span>
-                  {activeTab === 'completed' && (
-                    <span className="text-success">Commission: {formatCurrency(payment.commission_earned)}</span>
+                  {activeTab === 'completed' && payment.commission_earned && (
+                    <span className="text-success">+{formatCurrency(payment.commission_earned)}</span>
                   )}
                 </div>
 
+                {/* Actions */}
                 {activeTab === 'upcoming' && (
-                  <div className="flex gap-2 pt-4 border-t border-glass-border">
+                  <div className="flex gap-3 mt-4 pt-4 border-t border-border/10">
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      className="flex-1 rounded-xl hover:bg-success/20 hover:text-success"
+                      className="flex-1 rounded-xl hover:bg-success/20 hover:text-success h-9"
                       onClick={() => markPaid.mutate(payment.id)}
                       disabled={markPaid.isPending}
                     >
@@ -259,7 +262,7 @@ export default function Payments() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
+                      className="rounded-xl hover:bg-destructive/20 hover:text-destructive h-9 px-3"
                       onClick={() => deletePayment.mutate(payment.id)}
                       disabled={deletePayment.isPending}
                     >
@@ -269,8 +272,8 @@ export default function Payments() {
                 )}
 
                 {activeTab === 'completed' && (
-                  <div className="pt-4 border-t border-glass-border">
-                    <Badge className="trend-badge trend-up">
+                  <div className="mt-4 pt-4 border-t border-border/10">
+                    <Badge className="trend-badge trend-up text-xs">
                       <Check className="h-3 w-3 mr-1" />
                       Paid
                     </Badge>
