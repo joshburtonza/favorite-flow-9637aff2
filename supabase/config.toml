@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.telegram-query]
 verify_jwt = false
+
+[functions.query]
+verify_jwt = false
