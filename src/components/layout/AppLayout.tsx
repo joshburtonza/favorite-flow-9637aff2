@@ -14,7 +14,8 @@ import {
   Landmark,
   Upload,
   LogOut,
-  Home
+  Home,
+  FileSearch
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -31,6 +32,7 @@ const navItems = [
   { path: '/creditors', label: 'Creditors', icon: BarChart3 },
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
   { path: '/import', label: 'Import Data', icon: Upload },
+  { path: '/analyze', label: 'AI Analysis', icon: FileSearch },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
