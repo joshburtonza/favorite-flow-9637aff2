@@ -28,11 +28,12 @@ const navItems = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/shipments', label: 'Shipments', icon: Globe },
+  { path: '/financials', label: 'Financials', icon: BarChart3 },
   { path: '/suppliers', label: 'Suppliers', icon: Users },
   { path: '/clients', label: 'Clients', icon: Building2 },
   { path: '/payments', label: 'Payments', icon: CreditCard },
-  { path: '/creditors', label: 'Creditors', icon: BarChart3 },
-  { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
+  { path: '/creditors', label: 'Creditors', icon: Landmark },
+  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings },
   { path: '/import', label: 'Bulk Import', icon: Upload },
 ];
 

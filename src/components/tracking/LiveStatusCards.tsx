@@ -4,8 +4,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export function LiveStatusCards() {
+  const navigate = useNavigate();
   const { data: shipments, isLoading } = useShipments({ status: undefined });
 
   // Get active shipments (not completed), limit to 6
@@ -47,8 +49,9 @@ export function LiveStatusCards() {
         {activeShipments.map((shipment) => (
           <div
             key={shipment.id}
+            onClick={() => navigate(`/shipments/${shipment.id}`)}
             className={cn(
-              'relative p-4 rounded-xl border transition-all hover:scale-[1.02]',
+              'relative p-4 rounded-xl border transition-all hover:scale-[1.02] cursor-pointer',
               'bg-gradient-to-br from-background/50 to-background/20',
               'border-border/50 hover:border-primary/30'
             )}

@@ -2,6 +2,7 @@ import { useShipments } from '@/hooks/useShipments';
 import { CheckCircle2, Circle, Package, Truck, FileText, Flag } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 const STAGES = [
   { id: 'pending', label: 'Pending', icon: Package },
@@ -16,6 +17,7 @@ function getStageIndex(status: string): number {
 }
 
 export function ShipmentTimeline() {
+  const navigate = useNavigate();
   const { data: shipments, isLoading } = useShipments({ status: undefined });
 
   // Get active shipments (not completed)
@@ -56,7 +58,11 @@ export function ShipmentTimeline() {
           const currentStageIndex = getStageIndex(shipment.status);
           
           return (
-            <div key={shipment.id} className="space-y-3">
+            <div 
+              key={shipment.id} 
+              className="space-y-3 p-3 rounded-xl hover:bg-muted/20 cursor-pointer transition-colors"
+              onClick={() => navigate(`/shipments/${shipment.id}`)}
+            >
               <div className="flex items-center justify-between">
                 <span className="font-medium text-sm">LOT {shipment.lot_number}</span>
                 <span className="text-xs text-muted-foreground">
