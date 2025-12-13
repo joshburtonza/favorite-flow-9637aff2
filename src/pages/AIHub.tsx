@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,10 +8,12 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   FileText, Upload, Loader2, Send, CheckCircle, Database, AlertTriangle, 
   Image, ScanLine, MessageSquare, Bot, User, Sparkles, X, FileSpreadsheet,
-  Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2, Download
+  Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2, Download,
+  Plus, Trash2
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import Tesseract from 'tesseract.js';
@@ -51,7 +53,13 @@ interface ChatMessage {
   timestamp: Date;
   analysis?: StructuredData;
   importResult?: ImportResult;
-  csvData?: string; // CSV data for download
+  csvData?: string;
+}
+
+interface Conversation {
+  id: string;
+  title: string | null;
+  created_at: string;
 }
 
 interface FileUpload {
@@ -64,6 +72,7 @@ interface FileUpload {
 
 const AIHub = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'chat'>('upload');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
@@ -80,11 +89,146 @@ const AIHub = () => {
   // Chat mode state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Load conversations on mount
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user]);
+
+  // Load messages when conversation changes
+  useEffect(() => {
+    if (currentConversationId) {
+      loadMessages(currentConversationId);
+    }
+  }, [currentConversationId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  const loadConversations = async () => {
+    if (!user) return;
+    setIsLoadingConversations(true);
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('id, title, created_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setConversations(data || []);
+      
+      // Select most recent conversation if exists
+      if (data && data.length > 0 && !currentConversationId) {
+        setCurrentConversationId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  };
+
+  const loadMessages = async (conversationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      const messages: ChatMessage[] = (data || []).map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        csvData: msg.csv_data || undefined,
+      }));
+      
+      setChatMessages(messages);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  const createNewConversation = async () => {
+    if (!user) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .insert({ user_id: user.id, title: 'New Chat' })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setConversations(prev => [data, ...prev]);
+      setCurrentConversationId(data.id);
+      setChatMessages([]);
+      return data.id;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      return null;
+    }
+  };
+
+  const deleteConversation = async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('chat_conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (error) throw error;
+      
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (currentConversationId === conversationId) {
+        const remaining = conversations.filter(c => c.id !== conversationId);
+        setCurrentConversationId(remaining.length > 0 ? remaining[0].id : null);
+        setChatMessages([]);
+      }
+      toast({ title: 'Conversation deleted' });
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+    }
+  };
+
+  const saveMessage = async (conversationId: string, message: ChatMessage) => {
+    try {
+      await supabase.from('chat_messages').insert({
+        conversation_id: conversationId,
+        role: message.role,
+        content: message.content,
+        csv_data: message.csvData || null,
+      });
+      
+      // Update conversation title based on first user message
+      if (message.role === 'user') {
+        const title = message.content.slice(0, 50) + (message.content.length > 50 ? '...' : '');
+        await supabase
+          .from('chat_conversations')
+          .update({ title, updated_at: new Date().toISOString() })
+          .eq('id', conversationId);
+        
+        setConversations(prev => prev.map(c => 
+          c.id === conversationId ? { ...c, title } : c
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to save message:', error);
+    }
+  };
 
   const parseCSV = (text: string): string => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -306,6 +450,16 @@ const AIHub = () => {
   const sendChatMessage = async () => {
     if (!chatInput.trim()) return;
 
+    // Ensure we have a conversation
+    let convId = currentConversationId;
+    if (!convId) {
+      convId = await createNewConversation();
+      if (!convId) {
+        toast({ title: 'Error', description: 'Please sign in to use chat', variant: 'destructive' });
+        return;
+      }
+    }
+
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -316,6 +470,9 @@ const AIHub = () => {
     setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setIsAnalyzing(true);
+
+    // Save user message to database
+    await saveMessage(convId, userMessage);
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-document', {
@@ -337,10 +494,13 @@ const AIHub = () => {
         timestamp: new Date(),
         analysis: data.structuredData,
         importResult: data.importResult,
-        csvData: data.csvData, // Include CSV data if present
+        csvData: data.csvData,
       };
 
       setChatMessages(prev => [...prev, assistantMessage]);
+      
+      // Save assistant message to database
+      await saveMessage(convId, assistantMessage);
 
       if (data.importResult?.success) {
         toast({
@@ -356,6 +516,7 @@ const AIHub = () => {
         timestamp: new Date(),
       };
       setChatMessages(prev => [...prev, errorMessage]);
+      await saveMessage(convId, errorMessage);
     } finally {
       setIsAnalyzing(false);
     }
@@ -647,14 +808,69 @@ const AIHub = () => {
           </div>
         ) : (
           /* Chat Mode */
-          <div className="glass-card" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
-            <div className="card-label border-b border-glass-border pb-4 mb-4">
-              <Bot className="h-4 w-4 text-primary" />
-              Chat with AI
-              <span className="text-muted-foreground ml-2 normal-case tracking-normal">
-                Describe shipments, paste data — AI extracts and creates records
-              </span>
+          <div className="grid gap-6 lg:grid-cols-4">
+            {/* Conversation Sidebar */}
+            <div className="glass-card lg:col-span-1" style={{ maxHeight: '600px' }}>
+              <div className="card-label border-b border-glass-border pb-3 mb-3 flex justify-between items-center">
+                <span className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                  Conversations
+                </span>
+                <button
+                  onClick={createNewConversation}
+                  className="p-1.5 rounded-lg hover:bg-glass-surface transition-colors"
+                  title="New Chat"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <ScrollArea className="h-[500px]">
+                <div className="space-y-2 pr-2">
+                  {isLoadingConversations ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 mx-auto animate-spin" />
+                    </div>
+                  ) : conversations.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No conversations yet
+                    </div>
+                  ) : (
+                    conversations.map(conv => (
+                      <div
+                        key={conv.id}
+                        className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                          currentConversationId === conv.id 
+                            ? 'bg-primary/20 border border-primary/30' 
+                            : 'hover:bg-glass-surface'
+                        }`}
+                        onClick={() => setCurrentConversationId(conv.id)}
+                      >
+                        <span className="text-sm truncate flex-1">{conv.title || 'New Chat'}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteConversation(conv.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
+
+            {/* Chat Area */}
+            <div className="glass-card lg:col-span-3" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+              <div className="card-label border-b border-glass-border pb-4 mb-4">
+                <Bot className="h-4 w-4 text-primary" />
+                Chat with AI
+                <span className="text-muted-foreground ml-2 normal-case tracking-normal">
+                  Describe shipments, paste data — AI extracts and creates records
+                </span>
+              </div>
             
             <ScrollArea className="flex-1 pr-4">
               <div className="space-y-4">
@@ -793,6 +1009,7 @@ const AIHub = () => {
                 </Button>
               </div>
             </div>
+          </div>
           </div>
         )}
       </div>
