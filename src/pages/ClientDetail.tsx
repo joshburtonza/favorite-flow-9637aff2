@@ -42,12 +42,23 @@ export default function ClientDetail() {
     queryKey: ['client-shipments', id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('v_shipments_full')
-        .select('*')
+        .from('shipments')
+        .select(`
+          *,
+          supplier:suppliers(name),
+          costs:shipment_costs(*)
+        `)
+        .eq('client_id', id!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      // Filter in memory since v_shipments_full might not have client_id directly accessible
-      return (data || []).filter(s => (s as any).client_id === id);
+      // Transform to match expected shape
+      return (data || []).map(s => ({
+        ...s,
+        client_invoice_zar: s.costs?.client_invoice_zar || 0,
+        net_profit_zar: s.costs?.net_profit_zar || 0,
+        profit_margin: s.costs?.profit_margin || 0,
+        supplier_name: s.supplier?.name,
+      }));
     },
     enabled: !!id,
   });
