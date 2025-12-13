@@ -109,26 +109,64 @@ const AIHub = () => {
   };
 
   const parseExcel = (buffer: ArrayBuffer, fileName: string): string => {
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    let formatted = `=== Excel File: ${fileName} ===\n`;
     
-    if (jsonData.length === 0) return '';
-    
-    const headers = (jsonData[0] as string[]).map(h => String(h || '').trim());
-    let formatted = `Excel Data from ${fileName} (${jsonData.length - 1} rows)\n\nColumns: ${headers.join(', ')}\n\n`;
-    
-    jsonData.slice(1, 21).forEach((row, idx) => {
-      formatted += `Row ${idx + 1}: `;
-      headers.forEach((header, i) => {
-        formatted += `${header}=${(row as string[])[i] || 'N/A'}, `;
+    // Process ALL sheets in the workbook
+    workbook.SheetNames.forEach((sheetName, sheetIdx) => {
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
+      
+      if (jsonData.length === 0) return;
+      
+      formatted += `\n--- Sheet: ${sheetName} (${jsonData.length} rows) ---\n`;
+      
+      // Find the header row (first row with multiple non-empty values)
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+        const row = jsonData[i] as any[];
+        const nonEmptyCount = row.filter(v => v !== null && v !== undefined && String(v).trim() !== '').length;
+        if (nonEmptyCount >= 2) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+      
+      const headerRow = jsonData[headerRowIdx] as any[];
+      const headers = headerRow.map((h, idx) => {
+        const val = String(h || '').trim();
+        return val || `Column_${idx + 1}`;
       });
-      formatted += '\n';
+      
+      formatted += `Columns: ${headers.filter(h => !h.startsWith('Column_')).join(', ')}\n\n`;
+      
+      // Include ALL rows (up to 100 for practical limit)
+      const dataRows = jsonData.slice(headerRowIdx + 1, headerRowIdx + 101);
+      dataRows.forEach((row, idx) => {
+        const rowData = row as any[];
+        const nonEmptyValues: string[] = [];
+        
+        headers.forEach((header, i) => {
+          const value = rowData[i];
+          if (value !== null && value !== undefined && String(value).trim() !== '') {
+            // Format dates properly
+            let formattedValue = value;
+            if (value instanceof Date) {
+              formattedValue = value.toISOString().split('T')[0];
+            }
+            nonEmptyValues.push(`${header}=${formattedValue}`);
+          }
+        });
+        
+        if (nonEmptyValues.length > 0) {
+          formatted += `Row ${idx + 1}: ${nonEmptyValues.join(', ')}\n`;
+        }
+      });
+      
+      if (jsonData.length > headerRowIdx + 101) {
+        formatted += `... and ${jsonData.length - headerRowIdx - 101} more rows\n`;
+      }
     });
-    
-    if (jsonData.length > 21) {
-      formatted += `... and ${jsonData.length - 21} more rows\n`;
-    }
     
     return formatted;
   };
