@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
+import AIHub from "./pages/AIHub";
 import Dashboard from "./pages/Dashboard";
 import ShipmentDetail from "./pages/ShipmentDetail";
 import Suppliers from "./pages/Suppliers";
@@ -13,7 +14,6 @@ import Payments from "./pages/Payments";
 import Creditors from "./pages/Creditors";
 import BankAccounts from "./pages/BankAccounts";
 import ImportData from "./pages/ImportData";
-import DocumentAnalysis from "./pages/DocumentAnalysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,7 +62,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
           <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
@@ -71,7 +72,6 @@ const App = () => (
           <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
           <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
           <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
-          <Route path="/analyze" element={<ProtectedRoute><DocumentAnalysis /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

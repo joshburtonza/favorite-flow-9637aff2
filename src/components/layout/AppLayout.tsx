@@ -14,8 +14,8 @@ import {
   Landmark,
   Upload,
   LogOut,
-  Home,
-  FileSearch
+  Sparkles,
+  LayoutDashboard
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -24,15 +24,15 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: Home },
+  { path: '/', label: 'AI Data Entry', icon: Sparkles },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/shipments', label: 'Shipments', icon: Package },
   { path: '/suppliers', label: 'Suppliers', icon: Users },
   { path: '/clients', label: 'Clients', icon: Building2 },
   { path: '/payments', label: 'Payments', icon: CreditCard },
   { path: '/creditors', label: 'Creditors', icon: BarChart3 },
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
-  { path: '/import', label: 'Import Data', icon: Upload },
-  { path: '/analyze', label: 'AI Analysis', icon: FileSearch },
+  { path: '/import', label: 'Bulk Import', icon: Upload },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {

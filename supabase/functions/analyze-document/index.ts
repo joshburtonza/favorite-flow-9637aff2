@@ -349,21 +349,28 @@ function formatAnalysisForDisplay(result: AnalysisResult): string {
   return output;
 }
 
-async function importData(supabase: any, analysis: AnalysisResult): Promise<{ success: boolean; message: string; details?: any }> {
+async function importData(supabase: any, analysis: AnalysisResult): Promise<{ success: boolean; message: string; details?: any; createdRecords?: any }> {
   const { documentType, extractedData, bulkData } = analysis;
   const results: any[] = [];
+  const createdRecords = {
+    shipments: 0,
+    costs: 0,
+    payments: 0,
+    suppliers: 0,
+    clients: 0
+  };
 
   try {
     // Handle single record import
     if (extractedData && Object.keys(extractedData).length > 0) {
-      const result = await importSingleRecord(supabase, documentType, extractedData);
+      const result = await importSingleRecord(supabase, documentType, extractedData, createdRecords);
       if (result) results.push(result);
     }
 
     // Handle bulk data import
     if (bulkData && bulkData.length > 0) {
       for (const record of bulkData) {
-        const result = await importSingleRecord(supabase, documentType, record);
+        const result = await importSingleRecord(supabase, documentType, record, createdRecords);
         if (result) results.push(result);
       }
     }
@@ -372,10 +379,18 @@ async function importData(supabase: any, analysis: AnalysisResult): Promise<{ su
       return { success: false, message: 'No data to import' };
     }
 
+    const summary = [];
+    if (createdRecords.shipments) summary.push(`${createdRecords.shipments} shipment(s)`);
+    if (createdRecords.costs) summary.push(`${createdRecords.costs} cost record(s)`);
+    if (createdRecords.payments) summary.push(`${createdRecords.payments} payment(s)`);
+    if (createdRecords.suppliers) summary.push(`${createdRecords.suppliers} supplier(s)`);
+    if (createdRecords.clients) summary.push(`${createdRecords.clients} client(s)`);
+
     return { 
       success: true, 
-      message: `Imported ${results.length} record(s)`,
-      details: results 
+      message: summary.length > 0 ? `Created: ${summary.join(', ')}` : `Processed ${results.length} record(s)`,
+      details: results,
+      createdRecords
     };
   } catch (error) {
     console.error('Import error:', error);
@@ -386,7 +401,7 @@ async function importData(supabase: any, analysis: AnalysisResult): Promise<{ su
   }
 }
 
-async function importSingleRecord(supabase: any, documentType: string, data: ExtractedData): Promise<any> {
+async function importSingleRecord(supabase: any, documentType: string, data: ExtractedData, createdRecords: any): Promise<any> {
   // Find or create supplier
   let supplierId = null;
   if (data.supplierName) {
@@ -408,7 +423,10 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
         .select('id')
         .single();
       
-      if (newSupplier) supplierId = newSupplier.id;
+      if (newSupplier) {
+        supplierId = newSupplier.id;
+        createdRecords.suppliers++;
+      }
     }
   }
 
@@ -430,7 +448,10 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
         .select('id')
         .single();
       
-      if (newClient) clientId = newClient.id;
+      if (newClient) {
+        clientId = newClient.id;
+        createdRecords.clients++;
+      }
     }
   }
 
@@ -463,6 +484,7 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
         console.error('Error creating shipment:', error);
       } else {
         shipmentId = newShipment?.id;
+        createdRecords.shipments++;
       }
     } else {
       // Update existing shipment
@@ -508,6 +530,7 @@ async function importSingleRecord(supabase: any, documentType: string, data: Ext
         await supabase
           .from('shipment_costs')
           .insert(costData);
+        createdRecords.costs++;
       }
 
       // Create supplier ledger entry for costs
