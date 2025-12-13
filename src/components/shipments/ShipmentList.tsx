@@ -47,6 +47,7 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
   const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: shipments, isLoading } = useShipments({
     status: statusFilter,
@@ -95,7 +96,6 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
     );
   }
 
-  const [showFilters, setShowFilters] = useState(false);
 
   const activeFiltersCount = [
     statusFilter !== 'all',
