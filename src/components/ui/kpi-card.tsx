@@ -26,50 +26,51 @@ export function KPICard({
   if (compact) {
     return (
       <div className={cn(
-        'flex items-center gap-3 p-3 rounded-xl bg-card border border-border',
+        'glass-card p-4',
         className
       )}>
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5 text-primary" />
+        <div className="flex items-center gap-3">
+          <div 
+            className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'hsl(var(--primary) / 0.2)' }}
+          >
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-muted-foreground truncate uppercase tracking-wider">{title}</p>
+            <p className="text-xl font-bold text-foreground">{value}</p>
+          </div>
+          {trend && (
+            <span className={cn(
+              'trend-badge',
+              trend.isPositive ? 'trend-up' : 'trend-danger'
+            )}>
+              {trend.isPositive ? '↑' : '↓'}{Math.abs(trend.value)}%
+            </span>
+          )}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-muted-foreground truncate">{title}</p>
-          <p className="text-lg font-bold text-foreground">{value}</p>
-        </div>
-        {trend && (
-          <span className={cn(
-            'text-xs font-medium px-1.5 py-0.5 rounded',
-            trend.isPositive ? 'text-success bg-success/10' : 'text-destructive bg-destructive/10'
-          )}>
-            {trend.isPositive ? '↑' : '↓'}{Math.abs(trend.value)}%
-          </span>
-        )}
       </div>
     );
   }
 
   return (
-    <div className={cn('kpi-card', className)}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <h3 className="text-2xl font-bold mt-1 text-foreground">{value}</h3>
-          {description && (
-            <p className="text-sm text-muted-foreground mt-1">{description}</p>
-          )}
-          {trend && (
-            <p className={cn(
-              'text-sm font-medium mt-1',
-              trend.isPositive ? 'text-success' : 'text-destructive'
-            )}>
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
-            </p>
-          )}
-        </div>
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-primary" />
-        </div>
+    <div className={cn('glass-card', className)}>
+      <div className="card-label">
+        <Icon className="h-4 w-4 text-accent" />
+        {title}
       </div>
+      <div className="big-number">{value}</div>
+      {description && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
+      {trend && (
+        <span className={cn(
+          'trend-badge mt-2',
+          trend.isPositive ? 'trend-up' : 'trend-danger'
+        )}>
+          {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+        </span>
+      )}
     </div>
   );
 }

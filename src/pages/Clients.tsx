@@ -4,15 +4,6 @@ import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import { 
   Dialog, 
   DialogContent, 
@@ -31,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2, Building2, Search, Mail, Phone } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Client } from '@/types/database';
 
@@ -45,12 +36,18 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [name, setName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+
+  const filteredClients = clients?.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.contact_person?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const resetForm = () => {
     setName('');
@@ -109,9 +106,13 @@ export default function Clients() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-64" />
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-48 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+            ))}
+          </div>
         </div>
       </AppLayout>
     );
@@ -119,129 +120,167 @@ export default function Clients() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Clients</h1>
-            <p className="text-muted-foreground">Manage your client relationships</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Management</p>
+            <h1 className="text-3xl font-semibold gradient-text">Clients</h1>
           </div>
-          <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Client
-          </Button>
-        </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <div className="search-glass flex-1 md:w-64">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search clients..." 
+                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={() => { resetForm(); setDialogOpen(true); }}
+              className="rounded-xl"
+              style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </header>
 
-        {clients?.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <p className="text-muted-foreground text-center">
-                No clients found. Add your first client to get started.
-              </p>
-              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+        {/* Clients Grid */}
+        {filteredClients?.length === 0 ? (
+          <div className="glass-card flex flex-col items-center justify-center py-16">
+            <Building2 className="h-16 w-16 text-muted-foreground/30 mb-4" />
+            <p className="text-muted-foreground text-center">
+              {searchQuery ? 'No clients match your search' : 'No clients found. Add your first client.'}
+            </p>
+            {!searchQuery && (
+              <Button 
+                className="mt-4 rounded-xl"
+                onClick={() => setDialogOpen(true)}
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Client
               </Button>
-            </CardContent>
-          </Card>
-        ) : isMobile ? (
-          <div className="space-y-3">
-            {clients?.map((client) => (
-              <Card key={client.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-foreground">{client.name}</p>
-                      {client.contact_person && (
-                        <p className="text-sm text-muted-foreground">{client.contact_person}</p>
-                      )}
-                      {client.email && (
-                        <p className="text-sm text-muted-foreground">{client.email}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(client)}>
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(client.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            )}
           </div>
         ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact Person</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients?.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.name}</TableCell>
-                    <TableCell>{client.contact_person || '-'}</TableCell>
-                    <TableCell>{client.email || '-'}</TableCell>
-                    <TableCell>{client.phone || '-'}</TableCell>
-                    <TableCell>{client.address || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(client)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(client.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredClients?.map((client) => (
+              <div key={client.id} className="glass-card group">
+                <div className="mb-4">
+                  <h3 className="font-semibold text-lg">{client.name}</h3>
+                  {client.contact_person && (
+                    <p className="text-sm text-muted-foreground">{client.contact_person}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2 text-sm text-muted-foreground mb-4">
+                  {client.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span>{client.email}</span>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      <span>{client.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t border-glass-border">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex-1 rounded-xl hover:bg-glass-highlight"
+                    onClick={() => openEditDialog(client)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
+                    onClick={() => setDeleteConfirmId(client.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md glass-card border-glass-border">
           <DialogHeader>
-            <DialogTitle>{editingClient ? 'Edit Client' : 'Add Client'}</DialogTitle>
+            <DialogTitle className="gradient-text">{editingClient ? 'Edit Client' : 'Add Client'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
+              <Label className="text-muted-foreground">Name *</Label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="Client name"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Contact Person</Label>
-              <Input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Contact name" />
+              <Label className="text-muted-foreground">Contact Person</Label>
+              <Input 
+                value={contactPerson} 
+                onChange={(e) => setContactPerson(e.target.value)} 
+                placeholder="Contact name"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+              <Label className="text-muted-foreground">Email</Label>
+              <Input 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="email@example.com"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+27 12 345 6789" />
+              <Label className="text-muted-foreground">Phone</Label>
+              <Input 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="+27 12 345 6789"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Address</Label>
-              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address, city" />
+              <Label className="text-muted-foreground">Address</Label>
+              <Input 
+                value={address} 
+                onChange={(e) => setAddress(e.target.value)} 
+                placeholder="Street address, city"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingClient ? 'Save Changes' : 'Add Client')}
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="rounded-xl"
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingClient ? 'Save' : 'Add')}
               </Button>
             </DialogFooter>
           </form>
@@ -250,16 +289,19 @@ export default function Clients() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-glass-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Client</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this client? This action cannot be undone.
+            <AlertDialogDescription className="text-muted-foreground">
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              className="rounded-xl bg-destructive hover:bg-destructive/90"
+            >
               {deleteClient.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
