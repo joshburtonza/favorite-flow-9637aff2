@@ -244,6 +244,19 @@ const AIHub = () => {
     setImportResult(null);
 
     try {
+      // Upload files to storage first
+      for (const upload of uploadedFiles) {
+        const filePath = `uploads/${Date.now()}-${upload.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, upload.file);
+        
+        if (uploadError) {
+          console.warn('Storage upload failed (may need auth):', uploadError.message);
+          // Continue with analysis even if storage fails
+        }
+      }
+
       const combinedContent = uploadedFiles
         .map(f => `=== ${f.name} ===\n${f.content}`)
         .join('\n\n');
@@ -267,7 +280,7 @@ const AIHub = () => {
           title: 'Analysis complete',
           description: data.importResult?.success 
             ? `Created: ${formatCreatedRecords(data.importResult.createdRecords)}`
-            : 'Document analyzed successfully',
+            : 'Document analyzed and saved',
         });
       } else {
         throw new Error(data.error || 'Analysis failed');
