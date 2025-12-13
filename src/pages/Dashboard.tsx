@@ -5,6 +5,9 @@ import { ShipmentList } from '@/components/shipments/ShipmentList';
 import { NewShipmentDialog } from '@/components/shipments/NewShipmentDialog';
 import { AutomationStatus } from '@/components/automation/AutomationStatus';
 import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
+import { ShipmentTimeline } from '@/components/tracking/ShipmentTimeline';
+import { LiveStatusCards } from '@/components/tracking/LiveStatusCards';
+import { ActivityFeed } from '@/components/tracking/ActivityFeed';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
@@ -77,6 +80,18 @@ export default function Dashboard() {
             />
           </div>
         )}
+
+        {/* Tracking Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <ShipmentTimeline />
+          </div>
+          <div>
+            <ActivityFeed />
+          </div>
+        </div>
+        
+        <LiveStatusCards />
 
         {/* Tab Switcher */}
         <div className="glass-card p-2">
