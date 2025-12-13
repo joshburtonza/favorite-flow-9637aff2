@@ -296,15 +296,17 @@
   }
 
   .nav-item:hover {
-    background: hsl(var(--glass-surface));
-    color: hsl(var(--foreground));
+    @apply bg-muted text-foreground;
     transform: translateY(-2px);
   }
 
   .nav-item.active {
-    background: linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2));
-    border: 1px solid hsl(239 84% 67% / 0.3);
-    color: hsl(var(--foreground));
+    @apply text-foreground border;
+    background: linear-gradient(135deg, hsl(239 84% 67% / 0.15), hsl(187 94% 43% / 0.15));
+    border-color: hsl(239 84% 67% / 0.3);
+  }
+
+  .dark .nav-item.active {
     box-shadow: 0 4px 15px hsl(0 0% 0% / 0.2);
   }
 
@@ -314,9 +316,12 @@
     left: -12px;
     width: 4px;
     height: 20px;
-    background: hsl(var(--accent));
+    background: hsl(var(--primary));
     border-radius: 4px;
-    box-shadow: 0 0 10px hsl(var(--accent));
+  }
+
+  .dark .nav-item.active::after {
+    box-shadow: 0 0 10px hsl(var(--primary));
   }
 
   /* Floating AI FAB */
@@ -487,8 +492,12 @@
     animation: dash 30s linear infinite;
   }
 
-  /* Gradient text */
+  /* Gradient text - adapts to theme */
   .gradient-text {
+    @apply text-foreground;
+  }
+
+  .dark .gradient-text {
     background: linear-gradient(to right, hsl(0 0% 100%), hsl(239 84% 80%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;

@@ -59,12 +59,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const FloatingDock = () => (
-    <aside className="fixed left-5 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center py-8 px-4 rounded-[30px] border border-glass-border"
-      style={{
-        background: 'rgba(10, 10, 20, 0.6)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-      }}
+    <aside 
+      className={cn(
+        "fixed left-5 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center py-8 px-4 rounded-[30px] border",
+        "backdrop-blur-xl bg-card/90 border-border shadow-lg",
+        "dark:bg-[rgba(10,10,20,0.6)] dark:border-[hsl(0_0%_100%/0.08)]"
+      )}
     >
       {/* Logo */}
       <div 

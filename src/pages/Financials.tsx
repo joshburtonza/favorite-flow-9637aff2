@@ -296,15 +296,15 @@ export default function Financials() {
           </h3>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.marginByShipment}>
+              <BarChart data={data.marginByShipment} barCategoryGap="60%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis 
                   dataKey="name" 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                 />
                 <YAxis 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickFormatter={(value) => `${value}%`}
                 />
@@ -320,7 +320,8 @@ export default function Financials() {
                 <Bar 
                   dataKey="margin" 
                   fill="hsl(239, 84%, 67%)" 
-                  radius={[8, 8, 0, 0]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
                 />
               </BarChart>
             </ResponsiveContainer>
