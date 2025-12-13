@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { 
   Package, 
   Users, 
@@ -97,6 +98,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Bottom actions */}
       <div className="flex flex-col items-center gap-2 mt-auto pt-8">
+        <ThemeToggle />
         <button
           onClick={handleSignOut}
           className="nav-item text-destructive hover:text-destructive"

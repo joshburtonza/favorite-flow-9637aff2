@@ -6,6 +6,85 @@
 
 @layer base {
   :root {
+    /* Light Mode - Clean Professional */
+    --background: 0 0% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 187 94% 43%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 45 93% 47%;
+    --warning-foreground: 222 47% 11%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 239 84% 67%;
+
+    --radius: 1rem;
+
+    /* Glass surfaces - Light */
+    --glass-surface: 220 14% 96%;
+    --glass-border: 220 13% 91%;
+    --glass-highlight: 0 0% 100%;
+
+    /* Glow colors */
+    --primary-glow: 239 84% 67%;
+    --accent-glow: 187 94% 43%;
+
+    /* Sidebar - Light */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 239 84% 67%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 239 84% 67%;
+
+    /* Status colors */
+    --status-pending: 45 93% 47%;
+    --status-in-transit: 217 91% 60%;
+    --status-documents: 271 91% 65%;
+    --status-completed: 160 84% 39%;
+
+    /* Profit colors */
+    --profit-positive: 160 84% 39%;
+    --profit-negative: 0 84% 60%;
+    --profit-neutral: 220 9% 46%;
+
+    /* Chart colors */
+    --chart-1: 239 84% 67%;
+    --chart-2: 187 94% 43%;
+    --chart-3: 160 84% 39%;
+    --chart-4: 45 93% 47%;
+    --chart-5: 271 91% 65%;
+  }
+
+  .dark {
     /* Premium Dark Void Theme */
     --background: 260 100% 3%;
     --foreground: 0 0% 100%;
@@ -44,18 +123,12 @@
     --input: 0 0% 100% / 0.08;
     --ring: 239 84% 67%;
 
-    --radius: 1rem;
-
-    /* Glass surfaces */
+    /* Glass surfaces - Dark */
     --glass-surface: 0 0% 100% / 0.03;
     --glass-border: 0 0% 100% / 0.08;
     --glass-highlight: 0 0% 100% / 0.15;
 
-    /* Glow colors */
-    --primary-glow: 239 84% 67%;
-    --accent-glow: 187 94% 43%;
-
-    /* Sidebar */
+    /* Sidebar - Dark */
     --sidebar-background: 260 40% 4%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 239 84% 67%;
@@ -65,16 +138,12 @@
     --sidebar-border: 0 0% 100% / 0.08;
     --sidebar-ring: 239 84% 67%;
 
-    /* Status colors */
-    --status-pending: 45 93% 47%;
-    --status-in-transit: 217 91% 60%;
-    --status-documents: 271 91% 65%;
-    --status-completed: 160 84% 39%;
-
-    /* Profit colors */
-    --profit-positive: 160 84% 39%;
-    --profit-negative: 0 84% 60%;
-    --profit-neutral: 215 20% 65%;
+    /* Chart colors - Dark */
+    --chart-1: 239 84% 67%;
+    --chart-2: 187 94% 43%;
+    --chart-3: 160 84% 39%;
+    --chart-4: 45 93% 47%;
+    --chart-5: 271 91% 65%;
   }
 }
 
@@ -87,10 +156,14 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  .dark body,
+  body.dark {
     background-image: 
       radial-gradient(circle at 15% 50%, hsl(239 84% 67% / 0.15) 0%, transparent 35%),
       radial-gradient(circle at 85% 30%, hsl(187 94% 43% / 0.12) 0%, transparent 35%);
-    min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -105,7 +178,7 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(0 0% 100% / 0.1);
+    @apply bg-muted-foreground/20;
     border-radius: 10px;
   }
 }
@@ -113,22 +186,30 @@
 @layer components {
   /* Glass Card Component */
   .glass-card {
-    @apply relative overflow-hidden rounded-3xl p-6;
-    background: linear-gradient(160deg, hsl(0 0% 100% / 0.03) 0%, hsl(0 0% 100% / 0.01) 100%);
+    @apply relative overflow-hidden rounded-3xl p-6 bg-card;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--glass-border));
+    border: 1px solid hsl(var(--border));
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .dark .glass-card {
+    background: linear-gradient(160deg, hsl(0 0% 100% / 0.03) 0%, hsl(0 0% 100% / 0.01) 100%);
+    border: 1px solid hsl(var(--glass-border));
   }
 
   .glass-card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 10px 30px hsl(0 0% 0% / 0.1);
+  }
+
+  .dark .glass-card:hover {
     box-shadow: 0 10px 30px hsl(0 0% 0% / 0.3);
     border-color: hsl(var(--glass-highlight));
   }
 
-  /* Inner glow effect */
-  .glass-card::before {
+  /* Inner glow effect - dark mode only */
+  .dark .glass-card::before {
     content: '';
     position: absolute;
     top: 0;
