@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download, FileText, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -38,6 +39,13 @@ interface ParsedRow {
 
 interface ColumnMapping {
   [csvColumn: string]: string;
+}
+
+interface RowAnalysis {
+  rowIndex: number;
+  status: 'pending' | 'analyzing' | 'complete' | 'error';
+  result?: any;
+  error?: string;
 }
 
 const SHIPMENT_FIELDS = [
@@ -79,6 +87,9 @@ export default function ImportData() {
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] }>({ success: 0, errors: [] });
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [rowAnalyses, setRowAnalyses] = useState<Map<number, RowAnalysis>>(new Map());
+  const [bulkAnalysisProgress, setBulkAnalysisProgress] = useState(0);
 
   const { data: existingSuppliers } = useSuppliers();
   const { data: existingClients } = useClients();
@@ -199,6 +210,26 @@ export default function ImportData() {
     toast.success('Template downloaded');
   };
 
+  const toggleRowSelection = (index: number) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllRows = () => {
+    if (selectedRows.size === csvData.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(csvData.map((_, i) => i)));
+    }
+  };
+
   const analyzeWithAI = async () => {
     if (csvData.length === 0) return;
 
@@ -227,6 +258,67 @@ export default function ImportData() {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const analyzeSelectedRows = async () => {
+    const rowsToAnalyze = selectedRows.size > 0 
+      ? Array.from(selectedRows) 
+      : csvData.map((_, i) => i);
+    
+    if (rowsToAnalyze.length === 0) {
+      toast.error('No rows to analyze');
+      return;
+    }
+
+    setAnalyzing(true);
+    setBulkAnalysisProgress(0);
+    
+    // Initialize all rows as pending
+    const initialAnalyses = new Map<number, RowAnalysis>();
+    rowsToAnalyze.forEach(idx => {
+      initialAnalyses.set(idx, { rowIndex: idx, status: 'pending' });
+    });
+    setRowAnalyses(initialAnalyses);
+
+    let completed = 0;
+    
+    for (const rowIndex of rowsToAnalyze) {
+      // Update status to analyzing
+      setRowAnalyses(prev => new Map(prev).set(rowIndex, { rowIndex, status: 'analyzing' }));
+      
+      try {
+        const row = csvData[rowIndex];
+        const rowText = csvHeaders.map(h => `${h}: ${row[h] || 'N/A'}`).join('\n');
+
+        const { data, error } = await supabase.functions.invoke('analyze-document', {
+          body: { 
+            text: rowText,
+            fileName: `row_${rowIndex + 1}.txt`
+          }
+        });
+
+        if (error) throw error;
+
+        setRowAnalyses(prev => new Map(prev).set(rowIndex, { 
+          rowIndex, 
+          status: 'complete', 
+          result: data 
+        }));
+      } catch (err: any) {
+        console.error(`Error analyzing row ${rowIndex}:`, err);
+        setRowAnalyses(prev => new Map(prev).set(rowIndex, { 
+          rowIndex, 
+          status: 'error', 
+          error: err.message 
+        }));
+      }
+
+      completed++;
+      setBulkAnalysisProgress(Math.round((completed / rowsToAnalyze.length) * 100));
+    }
+
+    setAnalyzing(false);
+    toast.success(`Analyzed ${completed} rows`);
   };
 
   const handleImport = async () => {
@@ -564,20 +656,45 @@ export default function ImportData() {
             </CardHeader>
             <CardContent className="space-y-4">
               {isGeneric && (
-                <div className="flex gap-2 mb-4">
+                <div className="flex flex-wrap gap-2 mb-4">
                   <Button 
                     onClick={analyzeWithAI} 
                     disabled={analyzing}
                     variant="outline"
                     className="flex items-center gap-2"
                   >
-                    {analyzing ? (
+                    {analyzing && !selectedRows.size ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {analyzing ? 'Analyzing...' : 'Analyze with AI'}
+                    Analyze Entire File
                   </Button>
+                  <Button 
+                    onClick={analyzeSelectedRows} 
+                    disabled={analyzing}
+                    variant="default"
+                    className="flex items-center gap-2"
+                  >
+                    {analyzing && selectedRows.size > 0 ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {selectedRows.size > 0 
+                      ? `Analyze ${selectedRows.size} Selected Rows` 
+                      : `Analyze All ${csvData.length} Rows`}
+                  </Button>
+                </div>
+              )}
+
+              {analyzing && bulkAnalysisProgress > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Analyzing rows...</span>
+                    <span>{bulkAnalysisProgress}%</span>
+                  </div>
+                  <Progress value={bulkAnalysisProgress} className="h-2" />
                 </div>
               )}
 
@@ -614,6 +731,15 @@ export default function ImportData() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {isGeneric && (
+                        <TableHead className="w-12">
+                          <Checkbox 
+                            checked={selectedRows.size === csvData.length && csvData.length > 0}
+                            onCheckedChange={toggleAllRows}
+                          />
+                        </TableHead>
+                      )}
+                      {isGeneric && <TableHead className="w-20">Status</TableHead>}
                       {isGeneric ? (
                         csvHeaders.map((header) => (
                           <TableHead key={header}>{header}</TableHead>
@@ -625,29 +751,87 @@ export default function ImportData() {
                           </TableHead>
                         ))
                       )}
+                      {isGeneric && rowAnalyses.size > 0 && (
+                        <TableHead className="min-w-[200px]">AI Analysis</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {csvData.slice(0, 10).map((row, i) => (
-                      <TableRow key={i}>
-                        {isGeneric ? (
-                          csvHeaders.map((header) => (
-                            <TableCell key={header}>{row[header] || '-'}</TableCell>
-                          ))
-                        ) : (
-                          Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol]) => (
-                            <TableCell key={csvCol}>{row[csvCol] || '-'}</TableCell>
-                          ))
-                        )}
-                      </TableRow>
-                    ))}
+                    {csvData.slice(0, isGeneric ? 50 : 10).map((row, i) => {
+                      const analysis = rowAnalyses.get(i);
+                      return (
+                        <TableRow key={i} className={selectedRows.has(i) ? 'bg-muted/50' : ''}>
+                          {isGeneric && (
+                            <TableCell>
+                              <Checkbox 
+                                checked={selectedRows.has(i)}
+                                onCheckedChange={() => toggleRowSelection(i)}
+                              />
+                            </TableCell>
+                          )}
+                          {isGeneric && (
+                            <TableCell>
+                              {analysis?.status === 'analyzing' && (
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              )}
+                              {analysis?.status === 'complete' && (
+                                <Check className="h-4 w-4 text-success" />
+                              )}
+                              {analysis?.status === 'error' && (
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                              )}
+                              {analysis?.status === 'pending' && (
+                                <span className="text-xs text-muted-foreground">Pending</span>
+                              )}
+                            </TableCell>
+                          )}
+                          {isGeneric ? (
+                            csvHeaders.map((header) => (
+                              <TableCell key={header} className="max-w-[200px] truncate">
+                                {row[header] || '-'}
+                              </TableCell>
+                            ))
+                          ) : (
+                            Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol]) => (
+                              <TableCell key={csvCol}>{row[csvCol] || '-'}</TableCell>
+                            ))
+                          )}
+                          {isGeneric && rowAnalyses.size > 0 && (
+                            <TableCell className="text-xs">
+                              {analysis?.status === 'complete' && analysis.result && (
+                                <div className="space-y-1">
+                                  {analysis.result.documentType && (
+                                    <span className="inline-block bg-primary/10 text-primary px-2 py-0.5 rounded mr-1">
+                                      {analysis.result.documentType}
+                                    </span>
+                                  )}
+                                  {analysis.result.lotNumber && (
+                                    <span className="inline-block bg-muted px-2 py-0.5 rounded mr-1">
+                                      LOT: {analysis.result.lotNumber}
+                                    </span>
+                                  )}
+                                  {analysis.result.totalAmount && (
+                                    <span className="inline-block bg-success/10 text-success px-2 py-0.5 rounded">
+                                      {analysis.result.currency} {analysis.result.totalAmount}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {analysis?.status === 'error' && (
+                                <span className="text-destructive">{analysis.error}</span>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
 
-              {csvData.length > 10 && (
+              {csvData.length > (isGeneric ? 50 : 10) && (
                 <p className="text-sm text-muted-foreground text-center">
-                  Showing 10 of {csvData.length} rows
+                  Showing {isGeneric ? 50 : 10} of {csvData.length} rows
                 </p>
               )}
 
