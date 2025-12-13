@@ -8,64 +8,49 @@ import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
-import { Package, DollarSign, FileText, Truck } from 'lucide-react';
+import { Package, DollarSign, FileText, Truck, Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Dashboard() {
   const [newShipmentOpen, setNewShipmentOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'shipments' | 'automation' | 'commands'>('shipments');
+  const [searchQuery, setSearchQuery] = useState('');
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const isMobile = useIsMobile();
   
-  // Enable real-time updates
   useDashboardRealtime();
 
   return (
     <AppLayout>
-      <div className="space-y-4 sm:space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Overview of your shipment operations</p>
-        </div>
+      <div className="space-y-8">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Control Tower</p>
+            <h1 className="text-3xl font-semibold gradient-text">Dashboard</h1>
+          </div>
+          <div className="search-glass w-full md:w-80">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search shipments..." 
+              className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </header>
 
-        {/* KPI Cards - Compact on mobile, grid on desktop */}
+        {/* KPI Cards Bento Grid */}
         {statsLoading ? (
-          <div className={isMobile ? 'space-y-2' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4'}>
+          <div className="bento-grid">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className={isMobile ? 'h-16' : 'h-28'} />
+              <Skeleton key={i} className="h-32 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
             ))}
           </div>
-        ) : isMobile ? (
-          <div className="grid grid-cols-2 gap-2">
-            <KPICard
-              title="Active"
-              value={stats?.activeShipments || 0}
-              icon={Package}
-              compact
-            />
-            <KPICard
-              title="In Transit"
-              value={formatCurrency(stats?.totalValueInTransit || 0, 'ZAR', { compact: true })}
-              icon={DollarSign}
-              compact
-            />
-            <KPICard
-              title="Docs Pending"
-              value={stats?.documentsPending || 0}
-              icon={FileText}
-              compact
-            />
-            <KPICard
-              title="This Week"
-              value={stats?.deliveriesThisWeek || 0}
-              icon={Truck}
-              compact
-            />
-          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="bento-grid">
             <KPICard
               title="Active Shipments"
               value={stats?.activeShipments || 0}
@@ -93,32 +78,42 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tabs for Shipments, Automation Status, WhatsApp Commands */}
-        <Tabs defaultValue="shipments" className="space-y-4">
-          <TabsList className="w-full sm:w-auto overflow-x-auto">
-            <TabsTrigger value="shipments" className="flex-1 sm:flex-none min-h-[44px]">
-              Shipments
-            </TabsTrigger>
-            <TabsTrigger value="automation" className="flex-1 sm:flex-none min-h-[44px]">
-              Automation
-            </TabsTrigger>
-            <TabsTrigger value="commands" className="flex-1 sm:flex-none min-h-[44px]">
-              Commands
-            </TabsTrigger>
-          </TabsList>
+        {/* Tab Switcher */}
+        <div className="glass-card p-2">
+          <div className="flex gap-2">
+            {[
+              { id: 'shipments', label: 'Shipments' },
+              { id: 'automation', label: 'Automation' },
+              { id: 'commands', label: 'Commands' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'text-foreground border border-primary/30'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                style={{
+                  background: activeTab === tab.id
+                    ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))'
+                    : 'transparent',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <TabsContent value="shipments" className="space-y-4">
+        {/* Tab Content */}
+        <div className="animate-fade-in">
+          {activeTab === 'shipments' && (
             <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} />
-          </TabsContent>
-
-          <TabsContent value="automation" className="space-y-4">
-            <AutomationStatus />
-          </TabsContent>
-
-          <TabsContent value="commands" className="space-y-4">
-            <WhatsAppCommands />
-          </TabsContent>
-        </Tabs>
+          )}
+          {activeTab === 'automation' && <AutomationStatus />}
+          {activeTab === 'commands' && <WhatsAppCommands />}
+        </div>
       </div>
 
       <NewShipmentDialog open={newShipmentOpen} onOpenChange={setNewShipmentOpen} />

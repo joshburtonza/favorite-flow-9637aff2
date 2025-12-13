@@ -5,15 +5,6 @@ import { formatCurrency } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import { 
   Dialog, 
   DialogContent, 
@@ -39,7 +30,7 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Loader2, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Eye, Pencil, Trash2, Users, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CurrencyType, Supplier } from '@/types/database';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -56,12 +47,18 @@ export default function Suppliers() {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [ledgerSupplierId, setLedgerSupplierId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState<CurrencyType>('USD');
   const [contactPerson, setContactPerson] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+
+  const filteredSuppliers = suppliers?.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.contact_person?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const resetForm = () => {
     setName('');
@@ -116,9 +113,9 @@ export default function Suppliers() {
   };
 
   const getBalanceClass = (balance: number) => {
-    if (balance > 0) return 'profit-negative';
-    if (balance < 0) return 'profit-positive';
-    return 'profit-neutral';
+    if (balance > 0) return 'text-destructive';
+    if (balance < 0) return 'text-success';
+    return 'text-muted-foreground';
   };
 
   const isSubmitting = createSupplier.isPending || updateSupplier.isPending;
@@ -126,9 +123,13 @@ export default function Suppliers() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-64" />
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-48 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+            ))}
+          </div>
         </div>
       </AppLayout>
     );
@@ -136,128 +137,131 @@ export default function Suppliers() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Suppliers</h1>
-            <p className="text-muted-foreground">Manage your supplier relationships</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Management</p>
+            <h1 className="text-3xl font-semibold gradient-text">Suppliers</h1>
           </div>
-          <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Supplier
-          </Button>
-        </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <div className="search-glass flex-1 md:w-64">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search suppliers..." 
+                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={() => { resetForm(); setDialogOpen(true); }}
+              className="rounded-xl"
+              style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add
+            </Button>
+          </div>
+        </header>
 
-        {suppliers?.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <p className="text-muted-foreground text-center">
-                No suppliers found. Add your first supplier to get started.
-              </p>
-              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+        {/* Suppliers Grid */}
+        {filteredSuppliers?.length === 0 ? (
+          <div className="glass-card flex flex-col items-center justify-center py-16">
+            <Users className="h-16 w-16 text-muted-foreground/30 mb-4" />
+            <p className="text-muted-foreground text-center">
+              {searchQuery ? 'No suppliers match your search' : 'No suppliers found. Add your first supplier.'}
+            </p>
+            {!searchQuery && (
+              <Button 
+                className="mt-4 rounded-xl"
+                onClick={() => setDialogOpen(true)}
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Supplier
               </Button>
-            </CardContent>
-          </Card>
-        ) : isMobile ? (
-          <div className="space-y-3">
-            {suppliers?.map((supplier) => (
-              <Card key={supplier.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="cursor-pointer" onClick={() => setLedgerSupplierId(supplier.id)}>
-                      <p className="font-semibold text-foreground">{supplier.name}</p>
-                      <p className="text-sm text-muted-foreground">{supplier.currency}</p>
-                    </div>
-                    <span className={cn('font-semibold currency-display', getBalanceClass(supplier.current_balance))}>
-                      {formatCurrency(Math.abs(supplier.current_balance), supplier.currency)}
-                    </span>
-                  </div>
-                  {supplier.contact_person && (
-                    <p className="text-sm text-muted-foreground">{supplier.contact_person}</p>
-                  )}
-                  <div className="flex gap-2 mt-3">
-                    <Button variant="outline" size="sm" onClick={() => setLedgerSupplierId(supplier.id)}>
-                      <Eye className="h-4 w-4 mr-1" />
-                      Ledger
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(supplier)}>
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(supplier.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            )}
           </div>
         ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Contact Person</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {suppliers?.map((supplier) => (
-                  <TableRow key={supplier.id}>
-                    <TableCell className="font-medium">{supplier.name}</TableCell>
-                    <TableCell>{supplier.currency}</TableCell>
-                    <TableCell>{supplier.contact_person || '-'}</TableCell>
-                    <TableCell>{supplier.email || '-'}</TableCell>
-                    <TableCell className={cn('text-right font-semibold currency-display', getBalanceClass(supplier.current_balance))}>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredSuppliers?.map((supplier) => (
+              <div key={supplier.id} className="glass-card group">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">{supplier.name}</h3>
+                    <p className="text-sm text-muted-foreground">{supplier.currency}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn('text-xl font-bold', getBalanceClass(supplier.current_balance))}>
                       {formatCurrency(Math.abs(supplier.current_balance), supplier.currency)}
-                      {supplier.current_balance > 0 && ' (owed)'}
-                      {supplier.current_balance < 0 && ' (credit)'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setLedgerSupplierId(supplier.id)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(supplier)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(supplier.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {supplier.current_balance > 0 ? 'owed' : supplier.current_balance < 0 ? 'credit' : 'balanced'}
+                    </p>
+                  </div>
+                </div>
+                
+                {supplier.contact_person && (
+                  <p className="text-sm text-muted-foreground mb-4">{supplier.contact_person}</p>
+                )}
+
+                <div className="flex gap-2 pt-4 border-t border-glass-border">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex-1 rounded-xl hover:bg-glass-highlight"
+                    onClick={() => setLedgerSupplierId(supplier.id)}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ledger
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="rounded-xl hover:bg-glass-highlight"
+                    onClick={() => openEditDialog(supplier)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
+                    onClick={() => setDeleteConfirmId(supplier.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md glass-card border-glass-border">
           <DialogHeader>
-            <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add Supplier'}</DialogTitle>
+            <DialogTitle className="gradient-text">{editingSupplier ? 'Edit Supplier' : 'Add Supplier'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Supplier name" />
+              <Label className="text-muted-foreground">Name *</Label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="Supplier name"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Currency</Label>
+              <Label className="text-muted-foreground">Currency</Label>
               <Select value={currency} onValueChange={(v) => setCurrency(v as CurrencyType)}>
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-card border-glass-border">
                   <SelectItem value="USD">USD</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
                   <SelectItem value="ZAR">ZAR</SelectItem>
@@ -265,21 +269,44 @@ export default function Suppliers() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Contact Person</Label>
-              <Input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Contact name" />
+              <Label className="text-muted-foreground">Contact Person</Label>
+              <Input 
+                value={contactPerson} 
+                onChange={(e) => setContactPerson(e.target.value)} 
+                placeholder="Contact name"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+              <Label className="text-muted-foreground">Email</Label>
+              <Input 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="email@example.com"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 890" />
+              <Label className="text-muted-foreground">Phone</Label>
+              <Input 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="+1 234 567 890"
+                className="rounded-xl bg-glass-surface border-glass-border"
+              />
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingSupplier ? 'Save Changes' : 'Add Supplier')}
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="rounded-xl"
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingSupplier ? 'Save' : 'Add')}
               </Button>
             </DialogFooter>
           </form>
@@ -288,16 +315,19 @@ export default function Suppliers() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-glass-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this supplier? This will also delete all related ledger entries. This action cannot be undone.
+            <AlertDialogDescription className="text-muted-foreground">
+              This will delete all related ledger entries. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              className="rounded-xl bg-destructive hover:bg-destructive/90"
+            >
               {deleteSupplier.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>

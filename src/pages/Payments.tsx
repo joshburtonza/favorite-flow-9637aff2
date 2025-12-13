@@ -4,22 +4,13 @@ import { usePayments, useCreatePayment, useMarkPaymentPaid, useDeletePayment } f
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useShipments } from '@/hooks/useShipments';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
-import { PaymentStatus, CurrencyType } from '@/types/database';
+import { CurrencyType } from '@/types/database';
 import { formatCurrency, formatDate, formatRate } from '@/lib/formatters';
 import { KPICard } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { 
   Dialog, 
   DialogContent, 
@@ -36,9 +27,8 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, CalendarIcon, Check, Trash2, Loader2, DollarSign, CreditCard, TrendingUp } from 'lucide-react';
+import { Plus, CalendarIcon, Check, Trash2, Loader2, DollarSign, CreditCard, TrendingUp, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -55,6 +45,8 @@ export default function Payments() {
   const deletePayment = useDeletePayment();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
+  const [searchQuery, setSearchQuery] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [shipmentId, setShipmentId] = useState('');
   const [bankAccountId, setBankAccountId] = useState('');
@@ -94,7 +86,6 @@ export default function Payments() {
     setDialogOpen(false);
   };
 
-  // Calculate totals
   const totalPending = pendingPayments?.reduce((sum, p) => sum + Number(p.amount_zar), 0) || 0;
   const totalCompleted = completedPayments?.reduce((sum, p) => sum + Number(p.amount_zar), 0) || 0;
   const totalCommission = completedPayments?.reduce((sum, p) => sum + Number(p.commission_earned), 0) || 0;
@@ -104,46 +95,63 @@ export default function Payments() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-48" />
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-48 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+          <div className="bento-grid">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+            ))}
           </div>
-          <Skeleton className="h-64" />
         </div>
       </AppLayout>
     );
   }
 
+  const currentPayments = activeTab === 'upcoming' ? pendingPayments : completedPayments;
+
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Payments</h1>
-            <p className="text-muted-foreground">Schedule and track supplier payments</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Finance</p>
+            <h1 className="text-3xl font-semibold gradient-text">Payments</h1>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Schedule Payment
-          </Button>
-        </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <div className="search-glass flex-1 md:w-64">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search payments..." 
+                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={() => setDialogOpen(true)}
+              className="rounded-xl"
+              style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Schedule
+            </Button>
+          </div>
+        </header>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        {/* Summary KPIs */}
+        <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           <KPICard
             title="Pending Payments"
             value={formatCurrency(totalPending, 'ZAR', { compact: true })}
             icon={DollarSign}
-            description={`${pendingPayments?.length || 0} payments scheduled`}
+            description={`${pendingPayments?.length || 0} scheduled`}
           />
           <KPICard
             title="Paid This Month"
             value={formatCurrency(totalCompleted, 'ZAR', { compact: true })}
             icon={CreditCard}
-            description={`${completedPayments?.length || 0} payments completed`}
+            description={`${completedPayments?.length || 0} completed`}
           />
           <KPICard
             title="Commission Earned"
@@ -153,255 +161,159 @@ export default function Payments() {
           />
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="upcoming" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="upcoming">Upcoming ({pendingPayments?.length || 0})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedPayments?.length || 0})</TabsTrigger>
-          </TabsList>
+        {/* Tab Switcher */}
+        <div className="glass-card p-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('upcoming')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                activeTab === 'upcoming'
+                  ? 'text-foreground border border-primary/30'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              style={{
+                background: activeTab === 'upcoming'
+                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))'
+                  : 'transparent',
+              }}
+            >
+              Upcoming ({pendingPayments?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                activeTab === 'completed'
+                  ? 'text-foreground border border-primary/30'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              style={{
+                background: activeTab === 'completed'
+                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))'
+                  : 'transparent',
+              }}
+            >
+              Completed ({completedPayments?.length || 0})
+            </button>
+          </div>
+        </div>
 
-          <TabsContent value="upcoming">
-            {pendingPayments?.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground text-center">No upcoming payments scheduled.</p>
-                  <Button className="mt-4" onClick={() => setDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Schedule Payment
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : isMobile ? (
-              <div className="space-y-3">
-                {pendingPayments?.map((payment) => (
-                  <Card key={payment.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-semibold text-foreground">{payment.supplier?.name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {payment.shipment?.lot_number || 'No LOT'} • {formatDate(payment.payment_date)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold currency-display">
-                            {formatCurrency(payment.amount_foreign, payment.currency)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatCurrency(payment.amount_zar)} ZAR
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>Rate: {formatRate(payment.fx_rate)}</span>
-                        <span>{payment.bank_account?.name || 'No bank'}</span>
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1 min-h-[44px]"
-                          onClick={() => markPaid.mutate(payment.id)}
-                          disabled={markPaid.isPending}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Mark Paid
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="min-h-[44px]"
-                          onClick={() => deletePayment.mutate(payment.id)}
-                          disabled={deletePayment.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>LOT</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">FX Rate</TableHead>
-                      <TableHead className="text-right">ZAR</TableHead>
-                      <TableHead>Bank</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingPayments?.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>{formatDate(payment.payment_date)}</TableCell>
-                        <TableCell className="font-medium">{payment.supplier?.name || '-'}</TableCell>
-                        <TableCell>{payment.shipment?.lot_number || '-'}</TableCell>
-                        <TableCell className="text-right currency-display">
-                          {formatCurrency(payment.amount_foreign, payment.currency)}
-                        </TableCell>
-                        <TableCell className="text-right currency-display">{formatRate(payment.fx_rate)}</TableCell>
-                        <TableCell className="text-right font-semibold currency-display">
-                          {formatCurrency(payment.amount_zar)}
-                        </TableCell>
-                        <TableCell>{payment.bank_account?.name || '-'}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => markPaid.mutate(payment.id)}
-                              disabled={markPaid.isPending}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => deletePayment.mutate(payment.id)}
-                              disabled={deletePayment.isPending}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+        {/* Payments List */}
+        {currentPayments?.length === 0 ? (
+          <div className="glass-card flex flex-col items-center justify-center py-16">
+            <CreditCard className="h-16 w-16 text-muted-foreground/30 mb-4" />
+            <p className="text-muted-foreground text-center">
+              {activeTab === 'upcoming' ? 'No upcoming payments scheduled.' : 'No completed payments yet.'}
+            </p>
+            {activeTab === 'upcoming' && (
+              <Button 
+                className="mt-4 rounded-xl"
+                onClick={() => setDialogOpen(true)}
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule Payment
+              </Button>
             )}
-          </TabsContent>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {currentPayments?.map((payment) => (
+              <div key={payment.id} className="glass-card">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">{payment.supplier?.name || 'Unknown'}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {payment.shipment?.lot_number || 'No LOT'} • {formatDate(activeTab === 'upcoming' ? payment.payment_date : payment.paid_date)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold">
+                      {formatCurrency(payment.amount_foreign, payment.currency)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatCurrency(payment.amount_zar)} ZAR
+                    </p>
+                  </div>
+                </div>
 
-          <TabsContent value="completed">
-            {completedPayments?.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground text-center">No completed payments yet.</p>
-                </CardContent>
-              </Card>
-            ) : isMobile ? (
-              <div className="space-y-3">
-                {completedPayments?.map((payment) => (
-                  <Card key={payment.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-semibold text-foreground">{payment.supplier?.name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Paid {formatDate(payment.paid_date)}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="bg-status-completed/20 text-status-completed border-status-completed/30">
-                          Paid
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Amount</p>
-                          <p className="font-medium currency-display">
-                            {formatCurrency(payment.amount_foreign, payment.currency)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-muted-foreground">ZAR Paid</p>
-                          <p className="font-semibold currency-display">
-                            {formatCurrency(payment.amount_zar)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">FX Rate</p>
-                          <p className="font-medium currency-display">{formatRate(payment.fx_rate)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-muted-foreground">Commission</p>
-                          <p className="font-medium profit-positive currency-display">
-                            {formatCurrency(payment.commission_earned)}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                  <span>Rate: {formatRate(payment.fx_rate)}</span>
+                  <span>{payment.bank_account?.name || 'No bank'}</span>
+                  {activeTab === 'completed' && (
+                    <span className="text-success">Commission: {formatCurrency(payment.commission_earned)}</span>
+                  )}
+                </div>
+
+                {activeTab === 'upcoming' && (
+                  <div className="flex gap-2 pt-4 border-t border-glass-border">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="flex-1 rounded-xl hover:bg-success/20 hover:text-success"
+                      onClick={() => markPaid.mutate(payment.id)}
+                      disabled={markPaid.isPending}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Mark Paid
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
+                      onClick={() => deletePayment.mutate(payment.id)}
+                      disabled={deletePayment.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {activeTab === 'completed' && (
+                  <div className="pt-4 border-t border-glass-border">
+                    <Badge className="trend-badge trend-up">
+                      <Check className="h-3 w-3 mr-1" />
+                      Paid
+                    </Badge>
+                  </div>
+                )}
               </div>
-            ) : (
-              <Card>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Paid Date</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">FX Rate</TableHead>
-                      <TableHead className="text-right">ZAR Paid</TableHead>
-                      <TableHead className="text-right">Commission</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {completedPayments?.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>{formatDate(payment.paid_date)}</TableCell>
-                        <TableCell className="font-medium">{payment.supplier?.name || '-'}</TableCell>
-                        <TableCell className="text-right currency-display">
-                          {formatCurrency(payment.amount_foreign, payment.currency)}
-                        </TableCell>
-                        <TableCell className="text-right currency-display">{formatRate(payment.fx_rate)}</TableCell>
-                        <TableCell className="text-right font-semibold currency-display">
-                          {formatCurrency(payment.amount_zar)}
-                        </TableCell>
-                        <TableCell className="text-right profit-positive currency-display">
-                          {formatCurrency(payment.commission_earned)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-status-completed/20 text-status-completed border-status-completed/30">
-                            Paid
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* New Payment Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg glass-card border-glass-border">
           <DialogHeader>
-            <DialogTitle>Schedule Payment</DialogTitle>
+            <DialogTitle className="gradient-text">Schedule Payment</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Payment Date *</Label>
+                <Label className="text-muted-foreground">Payment Date *</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn('w-full justify-start', !paymentDate && 'text-muted-foreground')}>
+                    <Button 
+                      variant="outline" 
+                      className={cn('w-full justify-start rounded-xl bg-glass-surface border-glass-border', !paymentDate && 'text-muted-foreground')}
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {paymentDate ? format(paymentDate, 'PPP') : 'Pick a date'}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 bg-card border-glass-border" align="start">
                     <Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Supplier *</Label>
+                <Label className="text-muted-foreground">Supplier *</Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
                     <SelectValue placeholder="Select supplier" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-glass-border">
                     {suppliers?.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
@@ -412,12 +324,12 @@ export default function Payments() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Shipment (Optional)</Label>
+                <Label className="text-muted-foreground">Shipment (Optional)</Label>
                 <Select value={shipmentId} onValueChange={setShipmentId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
                     <SelectValue placeholder="Link to shipment" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-glass-border">
                     {shipments?.filter(s => !supplierId || s.supplier_id === supplierId).map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.lot_number}</SelectItem>
                     ))}
@@ -425,12 +337,12 @@ export default function Payments() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Bank Account</Label>
+                <Label className="text-muted-foreground">Bank Account</Label>
                 <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
                     <SelectValue placeholder="Select bank" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-glass-border">
                     {bankAccounts?.map((b) => (
                       <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                     ))}
@@ -441,16 +353,23 @@ export default function Payments() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>Amount *</Label>
-                <Input type="number" step="0.01" value={amountForeign} onChange={(e) => setAmountForeign(e.target.value)} placeholder="0.00" />
+                <Label className="text-muted-foreground">Amount *</Label>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  value={amountForeign} 
+                  onChange={(e) => setAmountForeign(e.target.value)} 
+                  placeholder="0.00"
+                  className="rounded-xl bg-glass-surface border-glass-border"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Currency</Label>
+                <Label className="text-muted-foreground">Currency</Label>
                 <Select value={currency} onValueChange={(v) => setCurrency(v as CurrencyType)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-glass-border">
                     <SelectItem value="USD">USD</SelectItem>
                     <SelectItem value="EUR">EUR</SelectItem>
                     <SelectItem value="ZAR">ZAR</SelectItem>
@@ -458,14 +377,28 @@ export default function Payments() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>FX Rate *</Label>
-                <Input type="number" step="0.0001" value={fxRate} onChange={(e) => setFxRate(e.target.value)} placeholder="18.5000" />
+                <Label className="text-muted-foreground">FX Rate *</Label>
+                <Input 
+                  type="number" 
+                  step="0.0001" 
+                  value={fxRate} 
+                  onChange={(e) => setFxRate(e.target.value)} 
+                  placeholder="18.5000"
+                  className="rounded-xl bg-glass-surface border-glass-border"
+                />
               </div>
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createPayment.isPending}>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={createPayment.isPending}
+                className="rounded-xl"
+                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
+              >
                 {createPayment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Schedule Payment'}
               </Button>
             </DialogFooter>
