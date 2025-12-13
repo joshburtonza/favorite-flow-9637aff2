@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@/hooks/useClients';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Client } from '@/types/database';
 
 export default function Clients() {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: clients, isLoading } = useClients();
   const createClient = useCreateClient();
@@ -169,7 +171,11 @@ export default function Clients() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredClients?.map((client) => (
-              <div key={client.id} className="glass-card group">
+              <div 
+                key={client.id} 
+                className="glass-card group cursor-pointer"
+                onClick={() => navigate(`/clients/${client.id}`)}
+              >
                 <div className="mb-4">
                   <h3 className="font-semibold text-lg">{client.name}</h3>
                   {client.contact_person && (
@@ -192,12 +198,12 @@ export default function Clients() {
                   )}
                 </div>
 
-                <div className="flex gap-2 pt-4 border-t border-glass-border">
+                <div className="flex gap-2 pt-4 border-t border-border">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 rounded-xl hover:bg-glass-highlight"
-                    onClick={() => openEditDialog(client)}
+                    className="flex-1 rounded-xl hover:bg-muted"
+                    onClick={(e) => { e.stopPropagation(); openEditDialog(client); }}
                   >
                     <Pencil className="h-4 w-4 mr-1" />
                     Edit
@@ -206,7 +212,7 @@ export default function Clients() {
                     variant="ghost" 
                     size="sm" 
                     className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
-                    onClick={() => setDeleteConfirmId(client.id)}
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(client.id); }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '@/hooks/useSuppliers';
 import { formatCurrency } from '@/lib/formatters';
@@ -37,6 +38,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
 
 export default function Suppliers() {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: suppliers, isLoading } = useSuppliers();
   const createSupplier = useCreateSupplier();
@@ -186,7 +188,11 @@ export default function Suppliers() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredSuppliers?.map((supplier) => (
-              <div key={supplier.id} className="glass-card group">
+              <div 
+                key={supplier.id} 
+                className="glass-card group cursor-pointer"
+                onClick={() => navigate(`/suppliers/${supplier.id}`)}
+              >
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="font-semibold text-lg">{supplier.name}</h3>
@@ -206,12 +212,12 @@ export default function Suppliers() {
                   <p className="text-sm text-muted-foreground mb-4">{supplier.contact_person}</p>
                 )}
 
-                <div className="flex gap-2 pt-4 border-t border-glass-border">
+                <div className="flex gap-2 pt-4 border-t border-border">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 rounded-xl hover:bg-glass-highlight"
-                    onClick={() => setLedgerSupplierId(supplier.id)}
+                    className="flex-1 rounded-xl hover:bg-muted"
+                    onClick={(e) => { e.stopPropagation(); setLedgerSupplierId(supplier.id); }}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Ledger
@@ -219,8 +225,8 @@ export default function Suppliers() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="rounded-xl hover:bg-glass-highlight"
-                    onClick={() => openEditDialog(supplier)}
+                    className="rounded-xl hover:bg-muted"
+                    onClick={(e) => { e.stopPropagation(); openEditDialog(supplier); }}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -228,7 +234,7 @@ export default function Suppliers() {
                     variant="ghost" 
                     size="sm" 
                     className="rounded-xl hover:bg-destructive/20 hover:text-destructive"
-                    onClick={() => setDeleteConfirmId(supplier.id)}
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(supplier.id); }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

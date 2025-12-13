@@ -10,7 +10,10 @@ import AIHub from "./pages/AIHub";
 import Dashboard from "./pages/Dashboard";
 import ShipmentDetail from "./pages/ShipmentDetail";
 import Suppliers from "./pages/Suppliers";
+import SupplierDetail from "./pages/SupplierDetail";
 import Clients from "./pages/Clients";
+import ClientDetail from "./pages/ClientDetail";
+import Orders from "./pages/Orders";
 import Payments from "./pages/Payments";
 import Creditors from "./pages/Creditors";
 import BankAccounts from "./pages/BankAccounts";
@@ -93,7 +96,10 @@ const App = () => (
             <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
             <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+            <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+            <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
             <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
             <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
             <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
