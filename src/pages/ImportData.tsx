@@ -25,7 +25,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download, FileText, Sparkles } from 'lucide-react';
+import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download, FileText, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,9 +43,16 @@ interface ColumnMapping {
 
 interface RowAnalysis {
   rowIndex: number;
+  fileIndex?: number;
   status: 'pending' | 'analyzing' | 'complete' | 'error';
   result?: any;
   error?: string;
+}
+
+interface FileData {
+  file: File;
+  headers: string[];
+  data: ParsedRow[];
 }
 
 const SHIPMENT_FIELDS = [
@@ -79,6 +86,8 @@ export default function ImportData() {
   const [step, setStep] = useState<Step>('type');
   const [importType, setImportType] = useState<ImportType>('shipments');
   const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<FileData[]>([]);
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvData, setCsvData] = useState<ParsedRow[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
@@ -146,40 +155,98 @@ export default function ImportData() {
   };
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFile = e.target.files?.[0];
-    if (!uploadedFile) return;
+    const uploadedFiles = e.target.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
 
-    const isCSV = uploadedFile.name.endsWith('.csv');
-    const isExcel = uploadedFile.name.endsWith('.xlsx') || uploadedFile.name.endsWith('.xls');
-
-    if (!isCSV && !isExcel) {
-      toast.error('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
-      return;
-    }
-
-    setFile(uploadedFile);
-    setAnalysisResult(null);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      let headers: string[] = [];
-      let data: ParsedRow[] = [];
-
-      if (isCSV) {
-        const result = parseCSV(event.target?.result as string);
-        headers = result.headers;
-        data = result.data;
-      } else {
-        const result = parseExcel(event.target?.result as ArrayBuffer);
-        headers = result.headers;
-        data = result.data;
+    // For generic type, allow multiple files (up to 10)
+    if (importType === 'generic') {
+      const fileList = Array.from(uploadedFiles).slice(0, 10);
+      
+      if (uploadedFiles.length > 10) {
+        toast.warning('Maximum 10 files allowed. Only first 10 will be processed.');
       }
 
-      setCsvHeaders(headers);
-      setCsvData(data);
+      const processFiles = async () => {
+        const processedFiles: FileData[] = [];
+        
+        for (const uploadedFile of fileList) {
+          const isCSV = uploadedFile.name.endsWith('.csv');
+          const isExcel = uploadedFile.name.endsWith('.xlsx') || uploadedFile.name.endsWith('.xls');
 
-      // Auto-map columns with matching names (only for predefined types)
-      if (importType !== 'generic') {
+          if (!isCSV && !isExcel) {
+            toast.error(`Skipping ${uploadedFile.name}: Not a CSV or Excel file`);
+            continue;
+          }
+
+          const result = await new Promise<{ headers: string[]; data: ParsedRow[] }>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              if (isCSV) {
+                resolve(parseCSV(event.target?.result as string));
+              } else {
+                resolve(parseExcel(event.target?.result as ArrayBuffer));
+              }
+            };
+            if (isCSV) {
+              reader.readAsText(uploadedFile);
+            } else {
+              reader.readAsArrayBuffer(uploadedFile);
+            }
+          });
+
+          processedFiles.push({
+            file: uploadedFile,
+            headers: result.headers,
+            data: result.data
+          });
+        }
+
+        setFiles(processedFiles);
+        setActiveFileIndex(0);
+        if (processedFiles.length > 0) {
+          setFile(processedFiles[0].file);
+          setCsvHeaders(processedFiles[0].headers);
+          setCsvData(processedFiles[0].data);
+        }
+        setAnalysisResult(null);
+        toast.success(`${processedFiles.length} file(s) loaded`);
+      };
+
+      processFiles();
+    } else {
+      // Single file for predefined types
+      const uploadedFile = uploadedFiles[0];
+      const isCSV = uploadedFile.name.endsWith('.csv');
+      const isExcel = uploadedFile.name.endsWith('.xlsx') || uploadedFile.name.endsWith('.xls');
+
+      if (!isCSV && !isExcel) {
+        toast.error('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+        return;
+      }
+
+      setFile(uploadedFile);
+      setFiles([]);
+      setAnalysisResult(null);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        let headers: string[] = [];
+        let data: ParsedRow[] = [];
+
+        if (isCSV) {
+          const result = parseCSV(event.target?.result as string);
+          headers = result.headers;
+          data = result.data;
+        } else {
+          const result = parseExcel(event.target?.result as ArrayBuffer);
+          headers = result.headers;
+          data = result.data;
+        }
+
+        setCsvHeaders(headers);
+        setCsvData(data);
+
+        // Auto-map columns with matching names (only for predefined types)
         const autoMapping: ColumnMapping = {};
         headers.forEach(header => {
           const matchingField = fields.find(f => 
@@ -191,15 +258,41 @@ export default function ImportData() {
           }
         });
         setColumnMapping(autoMapping);
-      }
-    };
+      };
 
-    if (isCSV) {
-      reader.readAsText(uploadedFile);
-    } else {
-      reader.readAsArrayBuffer(uploadedFile);
+      if (isCSV) {
+        reader.readAsText(uploadedFile);
+      } else {
+        reader.readAsArrayBuffer(uploadedFile);
+      }
     }
   }, [fields, importType]);
+
+  const switchToFile = (index: number) => {
+    if (index >= 0 && index < files.length) {
+      setActiveFileIndex(index);
+      setFile(files[index].file);
+      setCsvHeaders(files[index].headers);
+      setCsvData(files[index].data);
+      setSelectedRows(new Set());
+      setRowAnalyses(new Map());
+      setAnalysisResult(null);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    const newFiles = files.filter((_, i) => i !== index);
+    setFiles(newFiles);
+    if (newFiles.length === 0) {
+      setFile(null);
+      setCsvHeaders([]);
+      setCsvData([]);
+    } else if (activeFileIndex >= newFiles.length) {
+      switchToFile(newFiles.length - 1);
+    } else if (activeFileIndex === index) {
+      switchToFile(Math.min(activeFileIndex, newFiles.length - 1));
+    }
+  };
 
   const downloadTemplate = () => {
     const templateData = [fields.map(f => f.label)];
@@ -444,12 +537,16 @@ export default function ImportData() {
   const resetImport = () => {
     setStep('type');
     setFile(null);
+    setFiles([]);
+    setActiveFileIndex(0);
     setCsvHeaders([]);
     setCsvData([]);
     setColumnMapping({});
     setImportProgress(0);
     setImportResults({ success: 0, errors: [] });
     setAnalysisResult(null);
+    setSelectedRows(new Set());
+    setRowAnalyses(new Map());
   };
 
   const stepProgress = {
@@ -533,10 +630,10 @@ export default function ImportData() {
         {step === 'upload' && (
           <Card>
             <CardHeader>
-              <CardTitle>Step 2: Upload File</CardTitle>
+              <CardTitle>Step 2: Upload {isGeneric ? 'Files' : 'File'}</CardTitle>
               <CardDescription>
                 {isGeneric 
-                  ? 'Upload any CSV or Excel file to view and analyze'
+                  ? 'Upload up to 10 CSV or Excel files to view and analyze'
                   : `Upload a CSV or Excel file with your ${importType} data`
                 }
               </CardDescription>
@@ -549,9 +646,16 @@ export default function ImportData() {
                   onChange={handleFileUpload}
                   className="hidden"
                   id="file-upload"
+                  multiple={isGeneric}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
-                  {file ? (
+                  {files.length > 0 ? (
+                    <div className="text-center">
+                      <FileSpreadsheet className="h-10 w-10 text-primary mx-auto mb-2" />
+                      <p className="font-medium">{files.length} file(s) uploaded</p>
+                      <p className="text-sm text-muted-foreground">Click to add more (max 10)</p>
+                    </div>
+                  ) : file ? (
                     <div className="flex items-center justify-center gap-3">
                       <FileSpreadsheet className="h-10 w-10 text-primary" />
                       <div className="text-left">
@@ -563,11 +667,46 @@ export default function ImportData() {
                     <>
                       <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="font-medium mb-1">Click to upload or drag and drop</p>
-                      <p className="text-sm text-muted-foreground">CSV or Excel files (.csv, .xlsx, .xls)</p>
+                      <p className="text-sm text-muted-foreground">
+                        {isGeneric ? 'Up to 10 CSV or Excel files' : 'CSV or Excel files (.csv, .xlsx, .xls)'}
+                      </p>
                     </>
                   )}
                 </label>
               </div>
+
+              {/* File list for multi-file upload */}
+              {isGeneric && files.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Uploaded Files:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {files.map((f, idx) => (
+                      <div 
+                        key={idx}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${
+                          activeFileIndex === idx 
+                            ? 'bg-primary/10 border-primary text-primary' 
+                            : 'bg-muted/50 border-border hover:bg-muted'
+                        }`}
+                        onClick={() => switchToFile(idx)}
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                        <span className="max-w-[150px] truncate">{f.file.name}</span>
+                        <span className="text-xs text-muted-foreground">({f.data.length})</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile(idx);
+                          }}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {!isGeneric && (
                 <Alert>
@@ -585,7 +724,7 @@ export default function ImportData() {
                 </Button>
                 <Button 
                   onClick={() => setStep(isGeneric ? 'preview' : 'map')} 
-                  disabled={!file || csvData.length === 0}
+                  disabled={(!file && files.length === 0) || csvData.length === 0}
                 >
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -655,6 +794,27 @@ export default function ImportData() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* File tabs for multi-file view */}
+              {isGeneric && files.length > 1 && (
+                <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-lg">
+                  {files.map((f, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => switchToFile(idx)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+                        activeFileIndex === idx 
+                          ? 'bg-background shadow-sm border border-border font-medium' 
+                          : 'hover:bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      <span className="max-w-[120px] truncate">{f.file.name}</span>
+                      <span className="text-xs opacity-60">({f.data.length})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {isGeneric && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <Button 
