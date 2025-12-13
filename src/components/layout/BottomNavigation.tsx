@@ -3,107 +3,97 @@ import { cn } from '@/lib/utils';
 import { 
   Sparkles, 
   Package, 
-  Users, 
-  CreditCard, 
-  MoreHorizontal,
-  LayoutDashboard 
+  Plus,
+  Wallet, 
+  User 
 } from 'lucide-react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Building2, BarChart3, Landmark, Upload } from 'lucide-react';
-import { useState } from 'react';
 
-const mainNavItems = [
-  { path: '/', label: 'AI Entry', icon: Sparkles },
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+const navItems = [
+  { path: '/', label: 'AI', icon: Sparkles },
   { path: '/shipments', label: 'Shipments', icon: Package },
-  { path: '/payments', label: 'Payments', icon: CreditCard },
-];
-
-const moreNavItems = [
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
-  { path: '/clients', label: 'Clients', icon: Building2 },
-  { path: '/creditors', label: 'Creditors', icon: BarChart3 },
-  { path: '/bank-accounts', label: 'Bank Accounts', icon: Landmark },
-  { path: '/import', label: 'Bulk Import', icon: Upload },
+  { path: '/payments', label: 'Payments', icon: Wallet },
+  { path: '/suppliers', label: 'Profile', icon: User },
 ];
 
 export function BottomNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [moreOpen, setMoreOpen] = useState(false);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   };
 
-  const isMoreActive = moreNavItems.some(item => isActive(item.path));
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-pb">
-      <div className="flex items-center justify-around h-16">
-        {mainNavItems.map((item) => (
-          <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
-            className={cn(
-              'flex flex-col items-center justify-center gap-1 flex-1 h-full min-h-[44px] transition-colors',
-              isActive(item.path) 
-                ? 'text-primary' 
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            <span className="text-xs font-medium">{item.label}</span>
-          </button>
-        ))}
-        
-        <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-          <PopoverTrigger asChild>
-            <button
-              className={cn(
-                'flex flex-col items-center justify-center gap-1 flex-1 h-full min-h-[44px] transition-colors',
-                isMoreActive 
-                  ? 'text-primary' 
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <MoreHorizontal className="h-5 w-5" />
-              <span className="text-xs font-medium">More</span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent 
-            align="end" 
-            side="top" 
-            className="w-48 p-2 mb-2 bg-background border border-border z-[60]"
-          >
-            <div className="space-y-1">
-              {moreNavItems.map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => {
-                    navigate(item.path);
-                    setMoreOpen(false);
-                  }}
-                  className={cn(
-                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm transition-colors min-h-[44px]',
-                    isActive(item.path)
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-foreground hover:bg-muted'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+    <nav 
+      className="fixed bottom-5 left-5 right-5 z-50 h-[75px] rounded-[25px] flex justify-evenly items-center safe-area-pb"
+      style={{
+        background: 'rgba(20, 20, 35, 0.85)',
+        backdropFilter: 'blur(25px)',
+        WebkitBackdropFilter: 'blur(25px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+      }}
+    >
+      {navItems.slice(0, 2).map((item) => (
+        <button
+          key={item.path}
+          onClick={() => navigate(item.path)}
+          className={cn(
+            'relative p-2.5 text-xl transition-colors',
+            isActive(item.path) 
+              ? 'text-foreground' 
+              : 'text-muted-foreground'
+          )}
+        >
+          <item.icon className="h-5 w-5" />
+          {isActive(item.path) && (
+            <span 
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+              style={{
+                background: 'hsl(187 94% 43%)',
+                boxShadow: '0 0 10px hsl(187 94% 43%)',
+              }}
+            />
+          )}
+        </button>
+      ))}
+      
+      {/* Floating Add Button */}
+      <button 
+        onClick={() => navigate('/')}
+        className="w-14 h-14 rounded-[20px] flex items-center justify-center -translate-y-6 rotate-45"
+        style={{
+          background: 'white',
+          boxShadow: '0 10px 25px rgba(255, 255, 255, 0.2)',
+        }}
+      >
+        <Plus className="h-5 w-5 text-black -rotate-45" />
+      </button>
+
+      {navItems.slice(2).map((item) => (
+        <button
+          key={item.path}
+          onClick={() => navigate(item.path)}
+          className={cn(
+            'relative p-2.5 text-xl transition-colors',
+            isActive(item.path) 
+              ? 'text-foreground' 
+              : 'text-muted-foreground'
+          )}
+        >
+          <item.icon className="h-5 w-5" />
+          {isActive(item.path) && (
+            <span 
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+              style={{
+                background: 'hsl(187 94% 43%)',
+                boxShadow: '0 0 10px hsl(187 94% 43%)',
+              }}
+            />
+          )}
+        </button>
+      ))}
     </nav>
   );
 }

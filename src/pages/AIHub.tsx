@@ -1,20 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   FileText, Upload, Loader2, Send, CheckCircle, Database, AlertTriangle, 
   Image, ScanLine, MessageSquare, Bot, User, Sparkles, X, FileSpreadsheet,
-  Package, DollarSign, Ship
+  Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import Tesseract from 'tesseract.js';
@@ -72,6 +69,7 @@ const AIHub = () => {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [autoImport, setAutoImport] = useState(true);
   const [sendToTelegram, setSendToTelegram] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Upload mode state
   const [uploadedFiles, setUploadedFiles] = useState<FileUpload[]>([]);
@@ -189,7 +187,6 @@ const AIHub = () => {
     setUploadedFiles(prev => [...prev, ...newUploads].slice(0, 10));
     toast({ title: 'Files loaded', description: `${newUploads.length} file(s) ready for analysis` });
     
-    // Reset input
     e.target.value = '';
   };
 
@@ -314,380 +311,421 @@ const AIHub = () => {
   const getConfidenceBadge = (confidence: string) => {
     switch (confidence) {
       case 'high':
-        return <Badge className="bg-success/20 text-success">High Confidence</Badge>;
+        return <span className="trend-badge trend-up">High Confidence</span>;
       case 'medium':
-        return <Badge className="bg-warning/20 text-warning">Medium Confidence</Badge>;
+        return <span className="trend-badge trend-warn">Medium Confidence</span>;
       default:
-        return <Badge className="bg-destructive/20 text-destructive">Low Confidence</Badge>;
+        return <span className="trend-badge trend-danger">Low Confidence</span>;
     }
-  };
-
-  const getDocTypeBadge = (type: string) => {
-    const icons: Record<string, any> = {
-      'supplier-invoice': DollarSign,
-      'freight-invoice': Ship,
-      'bol': FileText,
-      'client-invoice': DollarSign,
-      'csv': FileSpreadsheet,
-    };
-    const Icon = icons[type] || FileText;
-    return (
-      <Badge variant="outline" className="capitalize flex items-center gap-1">
-        <Icon className="h-3 w-3" />
-        {type.replace('-', ' ')}
-      </Badge>
-    );
   };
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Hero Section */}
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
+      <div className="space-y-8">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
-            <h1 className="text-2xl font-bold">AI Data Entry</h1>
-            <p className="text-muted-foreground">
-              Upload documents or describe data — AI extracts and creates records automatically
-            </p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Control Tower</p>
+            <h1 className="text-3xl font-semibold gradient-text">AI Data Entry</h1>
           </div>
-        </div>
+          <div className="search-glass w-full md:w-80">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search HBL, Container or Client..." 
+              className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </header>
 
-        {/* Auto-Import Toggle - Always visible */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Database className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Auto-Create Records</p>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically create shipments, costs, and payments from analyzed data
-                  </p>
-                </div>
+        {/* Stats Grid */}
+        <div className="bento-grid">
+          {/* Auto-Import Toggle Card */}
+          <div className="glass-card" style={{ animationDelay: '0.1s' }}>
+            <div className="card-label">
+              <Database className="h-4 w-4 text-accent" />
+              Auto-Import
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Auto-create records</p>
               </div>
               <Switch checked={autoImport} onCheckedChange={setAutoImport} />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'chat')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Upload Documents
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Chat Entry
-            </TabsTrigger>
-          </TabsList>
+          {/* Active Analysis Card */}
+          <div className="glass-card" style={{ animationDelay: '0.2s' }}>
+            <div className="card-label">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Files Ready
+            </div>
+            <div className="big-number">{uploadedFiles.length}</div>
+            <span className="trend-badge trend-up">Ready for analysis</span>
+          </div>
 
-          {/* Upload Tab */}
-          <TabsContent value="upload" className="space-y-4">
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Upload Area */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Upload className="h-5 w-5" />
-                    Upload Files
-                  </CardTitle>
-                  <CardDescription>
-                    Drop invoices, BOLs, CSVs, Excel files, or images (up to 10)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                    <input
-                      type="file"
-                      accept=".txt,.csv,.json,.xml,.md,.xlsx,.xls,image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      id="file-upload"
-                      multiple
-                      disabled={isOcrProcessing || isAnalyzing}
-                    />
-                    <label htmlFor="file-upload" className="cursor-pointer">
-                      {isOcrProcessing ? (
-                        <div className="space-y-2">
-                          <ScanLine className="h-10 w-10 text-primary mx-auto animate-pulse" />
-                          <p className="font-medium">Extracting text... {ocrProgress}%</p>
-                          <Progress value={ocrProgress} className="h-2 max-w-xs mx-auto" />
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                          <p className="font-medium">Click to upload or drag files</p>
-                          <p className="text-sm text-muted-foreground">
-                            CSV, Excel, images, text files
-                          </p>
-                        </>
-                      )}
-                    </label>
+          {/* Upload Area - Wide Card */}
+          <div className="glass-card card-wide" style={{ animationDelay: '0.3s' }}>
+            <div className="card-label">
+              <Upload className="h-4 w-4 text-accent" />
+              Drop Files Here
+            </div>
+            
+            <div className="border-2 border-dashed border-glass-border rounded-2xl p-8 text-center hover:border-primary/50 transition-all mt-4 relative">
+              <input
+                type="file"
+                accept=".txt,.csv,.json,.xml,.md,.xlsx,.xls,image/*"
+                onChange={handleFileUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="file-upload"
+                multiple
+                disabled={isOcrProcessing || isAnalyzing}
+              />
+              
+              {isOcrProcessing ? (
+                <div className="space-y-3">
+                  <ScanLine className="h-10 w-10 text-primary mx-auto animate-pulse" />
+                  <p className="font-medium">Extracting text... {ocrProgress}%</p>
+                  <Progress value={ocrProgress} className="h-1.5 max-w-xs mx-auto" />
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3 animate-float" />
+                  <p className="font-medium">Click or drop up to 10 files</p>
+                  <p className="text-sm text-muted-foreground">CSV, Excel, images, invoices, BOLs</p>
+                </>
+              )}
+            </div>
+
+            {/* File Pills */}
+            {uploadedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {uploadedFiles.map((f, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+                    style={{
+                      background: 'hsl(0 0% 100% / 0.05)',
+                      border: '1px solid hsl(0 0% 100% / 0.1)',
+                    }}
+                  >
+                    {f.type === 'csv' ? (
+                      <FileSpreadsheet className="h-3 w-3 text-accent" />
+                    ) : f.type === 'image' ? (
+                      <Image className="h-3 w-3 text-primary" />
+                    ) : (
+                      <FileText className="h-3 w-3" />
+                    )}
+                    <span className="max-w-24 truncate">{f.name}</span>
+                    <button 
+                      onClick={() => removeFile(idx)} 
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pending Tasks */}
+          <div className="glass-card" style={{ animationDelay: '0.4s' }}>
+            <div className="card-label">
+              <Clock className="h-4 w-4 text-warning" />
+              Mode
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setActiveTab('upload')}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm transition-all ${
+                  activeTab === 'upload' 
+                    ? 'bg-primary/20 text-foreground border border-primary/30' 
+                    : 'bg-glass-surface text-muted-foreground'
+                }`}
+              >
+                <Upload className="h-4 w-4 mx-auto mb-1" />
+                Upload
+              </button>
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex-1 py-2 px-3 rounded-xl text-sm transition-all ${
+                  activeTab === 'chat' 
+                    ? 'bg-primary/20 text-foreground border border-primary/30' 
+                    : 'bg-glass-surface text-muted-foreground'
+                }`}
+              >
+                <MessageSquare className="h-4 w-4 mx-auto mb-1" />
+                Chat
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        {activeTab === 'upload' ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Analyze Button */}
+            <div className="glass-card">
+              <div className="card-label">
+                <Wand2 className="h-4 w-4 text-primary" />
+                AI Analysis
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                AI will extract data from your files and auto-create records
+              </p>
+              <Button
+                onClick={analyzeUploads}
+                disabled={isAnalyzing || uploadedFiles.length === 0}
+                className="w-full h-12 rounded-xl text-base"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(239 84% 50%))',
+                }}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    Analyze & Import
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Results Card */}
+            <div className="glass-card">
+              <div className="card-label">
+                <Database className="h-4 w-4 text-accent" />
+                Analysis Results
+              </div>
+              
+              {currentAnalysis ? (
+                <div className="space-y-4 mt-4">
+                  {/* Badges */}
+                  <div className="flex flex-wrap gap-2">
+                    {getConfidenceBadge(currentAnalysis.confidence)}
+                    <Badge variant="outline" className="capitalize border-glass-border">
+                      {currentAnalysis.documentType.replace('-', ' ')}
+                    </Badge>
+                    {importResult?.success && (
+                      <span className="trend-badge trend-up">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Imported
+                      </span>
+                    )}
                   </div>
 
-                  {/* File List */}
-                  {uploadedFiles.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Uploaded Files ({uploadedFiles.length}/10)</Label>
-                      <div className="space-y-2 max-h-48 overflow-auto">
-                        {uploadedFiles.map((f, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm"
-                          >
-                            {f.type === 'image' && f.preview ? (
-                              <img src={f.preview} alt="" className="h-8 w-8 object-cover rounded" />
-                            ) : f.type === 'csv' ? (
-                              <FileSpreadsheet className="h-5 w-5 text-primary" />
-                            ) : (
-                              <FileText className="h-5 w-5 text-muted-foreground" />
-                            )}
-                            <span className="flex-1 truncate">{f.name}</span>
-                            <button onClick={() => removeFile(idx)} className="text-muted-foreground hover:text-destructive">
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
+                  {/* Key Data Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {currentAnalysis.lotNumber && (
+                      <div className="p-3 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }}>
+                        <p className="text-xs text-muted-foreground">LOT Number</p>
+                        <p className="font-medium">{currentAnalysis.lotNumber}</p>
                       </div>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={analyzeUploads}
-                    disabled={isAnalyzing || uploadedFiles.length === 0}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Analyzing & Creating Records...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Analyze & {autoImport ? 'Auto-Import' : 'Review'}
-                      </>
                     )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Results Area */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5" />
-                    Analysis Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {currentAnalysis ? (
-                    <div className="space-y-4">
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-2">
-                        {getConfidenceBadge(currentAnalysis.confidence)}
-                        {getDocTypeBadge(currentAnalysis.documentType)}
-                        {importResult?.success && (
-                          <Badge className="bg-success/10 text-success flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            {importResult.message}
-                          </Badge>
-                        )}
+                    {currentAnalysis.supplierName && (
+                      <div className="p-3 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }}>
+                        <p className="text-xs text-muted-foreground">Supplier</p>
+                        <p className="font-medium">{currentAnalysis.supplierName}</p>
                       </div>
-
-                      {/* Extracted Key Data */}
-                      <div className="grid grid-cols-2 gap-3">
-                        {currentAnalysis.lotNumber && (
-                          <div className="p-3 rounded-lg bg-muted/50">
-                            <p className="text-xs text-muted-foreground">LOT Number</p>
-                            <p className="font-medium">{currentAnalysis.lotNumber}</p>
-                          </div>
-                        )}
-                        {currentAnalysis.supplierName && (
-                          <div className="p-3 rounded-lg bg-muted/50">
-                            <p className="text-xs text-muted-foreground">Supplier</p>
-                            <p className="font-medium">{currentAnalysis.supplierName}</p>
-                          </div>
-                        )}
-                        {currentAnalysis.totalAmount && (
-                          <div className="p-3 rounded-lg bg-muted/50">
-                            <p className="text-xs text-muted-foreground">Amount</p>
-                            <p className="font-medium">
-                              {currentAnalysis.currency} {currentAnalysis.totalAmount.toLocaleString()}
-                            </p>
-                          </div>
-                        )}
-                        {currentAnalysis.clientName && (
-                          <div className="p-3 rounded-lg bg-muted/50">
-                            <p className="text-xs text-muted-foreground">Client</p>
-                            <p className="font-medium">{currentAnalysis.clientName}</p>
-                          </div>
-                        )}
+                    )}
+                    {currentAnalysis.totalAmount && (
+                      <div className="p-3 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }}>
+                        <p className="text-xs text-muted-foreground">Amount</p>
+                        <p className="font-medium">
+                          {currentAnalysis.currency} {currentAnalysis.totalAmount.toLocaleString()}
+                        </p>
                       </div>
-
-                      {/* Summary */}
-                      <div className="p-3 rounded-lg bg-muted/30">
-                        <p className="text-sm">{currentAnalysis.summary}</p>
+                    )}
+                    {currentAnalysis.clientName && (
+                      <div className="p-3 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }}>
+                        <p className="text-xs text-muted-foreground">Client</p>
+                        <p className="font-medium">{currentAnalysis.clientName}</p>
                       </div>
+                    )}
+                  </div>
 
-                      {/* Issues */}
-                      {currentAnalysis.issues?.length > 0 && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 text-warning">
-                          <AlertTriangle className="h-4 w-4 mt-0.5" />
-                          <div className="text-sm">
-                            <p className="font-medium">Issues Found:</p>
-                            <ul className="list-disc list-inside">
-                              {currentAnalysis.issues.map((issue, i) => (
-                                <li key={i}>{issue}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      )}
+                  {/* Summary */}
+                  <div className="p-4 rounded-xl" style={{ background: 'hsl(0 0% 100% / 0.02)' }}>
+                    <p className="text-sm">{currentAnalysis.summary}</p>
+                  </div>
 
-                      {/* Created Records Summary */}
-                      {importResult?.createdRecords && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-success/10 text-success">
-                          <Package className="h-4 w-4 mt-0.5" />
-                          <div className="text-sm">
-                            <p className="font-medium">Records Created:</p>
-                            <p>{formatCreatedRecords(importResult.createdRecords)}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex h-64 items-center justify-center text-muted-foreground">
-                      <div className="text-center">
-                        <Image className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                        <p>Upload documents to see AI analysis</p>
-                        <p className="text-sm">Records will be created automatically</p>
+                  {/* Issues */}
+                  {currentAnalysis.issues?.length > 0 && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl trend-warn">
+                      <AlertTriangle className="h-4 w-4 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium">Issues Found:</p>
+                        <ul className="list-disc list-inside text-xs mt-1">
+                          {currentAnalysis.issues.map((issue, i) => (
+                            <li key={i}>{issue}</li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+
+                  {/* Created Records */}
+                  {importResult?.createdRecords && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl trend-up">
+                      <Package className="h-4 w-4 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium">Records Created:</p>
+                        <p className="text-xs mt-1">{formatCreatedRecords(importResult.createdRecords)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex h-48 items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Image className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p>Upload and analyze documents</p>
+                    <p className="text-sm text-muted-foreground/70">Records auto-created</p>
+                  </div>
+                </div>
+              )}
             </div>
-          </TabsContent>
-
-          {/* Chat Tab */}
-          <TabsContent value="chat" className="space-y-4">
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader className="border-b">
-                <CardTitle className="flex items-center gap-2">
-                  <Bot className="h-5 w-5" />
-                  Chat with AI
-                </CardTitle>
-                <CardDescription>
-                  Describe shipments, costs, or paste invoice data — AI will extract and create records
-                </CardDescription>
-              </CardHeader>
-              
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {chatMessages.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                      <p className="font-medium">Start a conversation</p>
-                      <p className="text-sm mt-2">Try: "New shipment LOT 900 from WINTEX to MJ, ETA Jan 15"</p>
-                      <p className="text-sm">Or paste invoice details directly</p>
-                    </div>
-                  )}
-                  
-                  {chatMessages.map((msg) => (
-                    <div 
-                      key={msg.id} 
-                      className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
-                    >
-                      {msg.role === 'assistant' && (
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Bot className="h-4 w-4 text-primary" />
-                        </div>
-                      )}
-                      <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                        <div 
-                          className={`rounded-lg p-3 ${
-                            msg.role === 'user' 
-                              ? 'bg-primary text-primary-foreground' 
-                              : 'bg-muted'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                        </div>
-                        
-                        {msg.analysis && (
-                          <div className="flex flex-wrap gap-1">
-                            {getDocTypeBadge(msg.analysis.documentType)}
-                            {msg.analysis.lotNumber && (
-                              <Badge variant="outline">LOT: {msg.analysis.lotNumber}</Badge>
-                            )}
-                          </div>
-                        )}
-                        
-                        {msg.importResult?.success && (
-                          <Badge className="bg-success/10 text-success">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {formatCreatedRecords(msg.importResult.createdRecords)}
-                          </Badge>
-                        )}
-                      </div>
-                      {msg.role === 'user' && (
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                          <User className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  
-                  {isAnalyzing && (
-                    <div className="flex gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                      </div>
-                      <div className="bg-muted rounded-lg p-3">
-                        <p className="text-sm text-muted-foreground">Analyzing and creating records...</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div ref={chatEndRef} />
-                </div>
-              </ScrollArea>
-              
-              <div className="p-4 border-t">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Describe a shipment, paste invoice data, or ask about costs..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendChatMessage();
-                      }
-                    }}
-                    className="min-h-[60px] resize-none"
-                    disabled={isAnalyzing}
-                  />
-                  <Button 
-                    onClick={sendChatMessage} 
-                    disabled={isAnalyzing || !chatInput.trim()}
-                    size="icon"
-                    className="h-auto"
+          </div>
+        ) : (
+          /* Chat Mode */
+          <div className="glass-card" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+            <div className="card-label border-b border-glass-border pb-4 mb-4">
+              <Bot className="h-4 w-4 text-primary" />
+              Chat with AI
+              <span className="text-muted-foreground ml-2 normal-case tracking-normal">
+                Describe shipments, paste data — AI extracts and creates records
+              </span>
+            </div>
+            
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-4">
+                {chatMessages.length === 0 && (
+                  <div className="text-center py-16 text-muted-foreground">
+                    <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="font-medium text-lg">Start a conversation</p>
+                    <p className="text-sm mt-2 max-w-md mx-auto">
+                      Try: "New shipment LOT 900 from WINTEX to MJ, ETA Jan 15"
+                    </p>
+                  </div>
+                )}
+                
+                {chatMessages.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
                   >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+                    {msg.role === 'assistant' && (
+                      <div 
+                        className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: 'hsl(var(--primary) / 0.2)' }}
+                      >
+                        <Bot className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                    <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                      <div 
+                        className="rounded-2xl p-4"
+                        style={{
+                          background: msg.role === 'user' 
+                            ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(239 84% 50%))'
+                            : 'hsl(0 0% 100% / 0.05)',
+                        }}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                      
+                      {msg.analysis && (
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="outline" className="text-xs border-glass-border">
+                            {msg.analysis.documentType}
+                          </Badge>
+                          {msg.analysis.lotNumber && (
+                            <Badge variant="outline" className="text-xs border-glass-border">
+                              LOT: {msg.analysis.lotNumber}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      
+                      {msg.importResult?.success && (
+                        <span className="trend-badge trend-up text-xs">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          {formatCreatedRecords(msg.importResult.createdRecords)}
+                        </span>
+                      )}
+                    </div>
+                    {msg.role === 'user' && (
+                      <div 
+                        className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: 'hsl(0 0% 100% / 0.1)' }}
+                      >
+                        <User className="h-4 w-4" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {isAnalyzing && (
+                  <div className="flex gap-3">
+                    <div 
+                      className="h-8 w-8 rounded-xl flex items-center justify-center"
+                      style={{ background: 'hsl(var(--primary) / 0.2)' }}
+                    >
+                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                    </div>
+                    <div 
+                      className="rounded-2xl p-4"
+                      style={{ background: 'hsl(0 0% 100% / 0.05)' }}
+                    >
+                      <p className="text-sm text-muted-foreground">Analyzing and creating records...</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={chatEndRef} />
               </div>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            </ScrollArea>
+            
+            <div className="pt-4 border-t border-glass-border mt-4">
+              <div className="flex gap-3">
+                <Textarea
+                  placeholder="Describe a shipment, paste invoice data..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                  className="min-h-[60px] resize-none rounded-xl bg-glass-surface border-glass-border"
+                  disabled={isAnalyzing}
+                />
+                <Button 
+                  onClick={sendChatMessage} 
+                  disabled={isAnalyzing || !chatInput.trim()}
+                  className="h-auto px-4 rounded-xl"
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(239 84% 50%))',
+                  }}
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Floating AI Button */}
+      <div className="ai-fab" onClick={() => setActiveTab('chat')}>
+        <Wand2 className="h-6 w-6" />
       </div>
     </AppLayout>
   );
