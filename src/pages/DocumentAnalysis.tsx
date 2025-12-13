@@ -9,10 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FileText, Upload, Link, Loader2, Send, CheckCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const DocumentAnalysis = () => {
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [documentUrl, setDocumentUrl] = useState('');
   const [documentContent, setDocumentContent] = useState('');
   const [documentName, setDocumentName] = useState('');
@@ -20,30 +25,69 @@ const DocumentAnalysis = () => {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [telegramSent, setTelegramSent] = useState(false);
 
+  const extractTextFromPdf = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+    }
+    
+    return fullText;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setDocumentName(file.name);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     
-    // Read file content
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setDocumentContent(content);
-      toast({
-        title: 'File loaded',
-        description: `${file.name} ready for analysis`,
-      });
-    };
-    reader.onerror = () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to read file',
-        variant: 'destructive',
-      });
-    };
-    reader.readAsText(file);
+    if (isPdf) {
+      setIsParsingPdf(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const text = await extractTextFromPdf(arrayBuffer);
+        setDocumentContent(text);
+        toast({
+          title: 'PDF parsed',
+          description: `${file.name} ready for analysis`,
+        });
+      } catch (error) {
+        console.error('PDF parsing error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to parse PDF file',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsParsingPdf(false);
+      }
+    } else {
+      // Read text file content
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setDocumentContent(content);
+        toast({
+          title: 'File loaded',
+          description: `${file.name} ready for analysis`,
+        });
+      };
+      reader.onerror = () => {
+        toast({
+          title: 'Error',
+          description: 'Failed to read file',
+          variant: 'destructive',
+        });
+      };
+      reader.readAsText(file);
+    }
   };
 
   const fetchDocumentFromUrl = async () => {
@@ -162,12 +206,13 @@ const DocumentAnalysis = () => {
             <CardContent className="space-y-4">
               {/* File Upload */}
               <div className="space-y-2">
-                <Label>Upload File</Label>
+                <Label>Upload File (including PDF)</Label>
                 <Input
                   type="file"
-                  accept=".txt,.csv,.json,.xml,.md"
+                  accept=".txt,.csv,.json,.xml,.md,.pdf"
                   onChange={handleFileUpload}
                   className="cursor-pointer"
+                  disabled={isParsingPdf}
                 />
               </div>
 
@@ -201,10 +246,19 @@ const DocumentAnalysis = () => {
                 />
               </div>
 
-              {documentName && (
+              {(documentName || isParsingPdf) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                  {documentName}
+                  {isParsingPdf ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Parsing PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" />
+                      {documentName}
+                    </>
+                  )}
                 </div>
               )}
 
@@ -226,7 +280,7 @@ const DocumentAnalysis = () => {
               <div className="flex gap-2">
                 <Button
                   onClick={analyzeDocument}
-                  disabled={isAnalyzing || !documentContent}
+                  disabled={isAnalyzing || isParsingPdf || !documentContent}
                   className="flex-1"
                 >
                   {isAnalyzing ? (
