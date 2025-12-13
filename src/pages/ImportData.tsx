@@ -24,11 +24,12 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Download, FileText, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { supabase } from '@/integrations/supabase/client';
 
-type ImportType = 'shipments' | 'suppliers' | 'clients';
+type ImportType = 'shipments' | 'suppliers' | 'clients' | 'generic';
 type Step = 'type' | 'upload' | 'map' | 'preview' | 'complete';
 
 interface ParsedRow {
@@ -76,6 +77,8 @@ export default function ImportData() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] }>({ success: 0, errors: [] });
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const { data: existingSuppliers } = useSuppliers();
   const { data: existingClients } = useClients();
@@ -88,6 +91,7 @@ export default function ImportData() {
       case 'shipments': return SHIPMENT_FIELDS;
       case 'suppliers': return SUPPLIER_FIELDS;
       case 'clients': return CLIENT_FIELDS;
+      case 'generic': return [];
       default: return SHIPMENT_FIELDS;
     }
   };
@@ -143,6 +147,7 @@ export default function ImportData() {
     }
 
     setFile(uploadedFile);
+    setAnalysisResult(null);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -162,18 +167,20 @@ export default function ImportData() {
       setCsvHeaders(headers);
       setCsvData(data);
 
-      // Auto-map columns with matching names
-      const autoMapping: ColumnMapping = {};
-      headers.forEach(header => {
-        const matchingField = fields.find(f => 
-          f.label.toLowerCase() === header.toLowerCase() ||
-          f.key.toLowerCase() === header.toLowerCase().replace(/\s+/g, '_')
-        );
-        if (matchingField) {
-          autoMapping[header] = matchingField.key;
-        }
-      });
-      setColumnMapping(autoMapping);
+      // Auto-map columns with matching names (only for predefined types)
+      if (importType !== 'generic') {
+        const autoMapping: ColumnMapping = {};
+        headers.forEach(header => {
+          const matchingField = fields.find(f => 
+            f.label.toLowerCase() === header.toLowerCase() ||
+            f.key.toLowerCase() === header.toLowerCase().replace(/\s+/g, '_')
+          );
+          if (matchingField) {
+            autoMapping[header] = matchingField.key;
+          }
+        });
+        setColumnMapping(autoMapping);
+      }
     };
 
     if (isCSV) {
@@ -181,7 +188,7 @@ export default function ImportData() {
     } else {
       reader.readAsArrayBuffer(uploadedFile);
     }
-  }, [fields]);
+  }, [fields, importType]);
 
   const downloadTemplate = () => {
     const templateData = [fields.map(f => f.label)];
@@ -192,7 +199,43 @@ export default function ImportData() {
     toast.success('Template downloaded');
   };
 
+  const analyzeWithAI = async () => {
+    if (csvData.length === 0) return;
+
+    setAnalyzing(true);
+    try {
+      // Convert CSV data to text format for AI analysis
+      const csvText = [
+        csvHeaders.join(','),
+        ...csvData.slice(0, 50).map(row => csvHeaders.map(h => row[h] || '').join(','))
+      ].join('\n');
+
+      const { data, error } = await supabase.functions.invoke('analyze-document', {
+        body: { 
+          text: csvText,
+          fileName: file?.name || 'data.csv'
+        }
+      });
+
+      if (error) throw error;
+
+      setAnalysisResult(data);
+      toast.success('AI analysis complete');
+    } catch (err: any) {
+      console.error('AI analysis error:', err);
+      toast.error('Failed to analyze with AI');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleImport = async () => {
+    // Generic import doesn't actually import - it's just for viewing/analyzing
+    if (importType === 'generic') {
+      toast.info('Generic import is view-only. Use AI analysis to extract data.');
+      return;
+    }
+
     setImporting(true);
     setImportProgress(0);
     const results = { success: 0, errors: [] as string[] };
@@ -314,6 +357,7 @@ export default function ImportData() {
     setColumnMapping({});
     setImportProgress(0);
     setImportResults({ success: 0, errors: [] });
+    setAnalysisResult(null);
   };
 
   const stepProgress = {
@@ -323,6 +367,8 @@ export default function ImportData() {
     preview: 90,
     complete: 100,
   };
+
+  const isGeneric = importType === 'generic';
 
   return (
     <AppLayout>
@@ -342,6 +388,16 @@ export default function ImportData() {
             </CardHeader>
             <CardContent className="space-y-4">
               <RadioGroup value={importType} onValueChange={(v) => setImportType(v as ImportType)}>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="generic" id="generic" />
+                  <Label htmlFor="generic" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <p className="font-medium">Any CSV / Excel File</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">View any CSV data and analyze with AI</p>
+                  </Label>
+                </div>
                 <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value="shipments" id="shipments" />
                   <Label htmlFor="shipments" className="flex-1 cursor-pointer">
@@ -366,10 +422,13 @@ export default function ImportData() {
               </RadioGroup>
 
               <div className="flex justify-between">
-                <Button variant="outline" onClick={downloadTemplate}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Template
-                </Button>
+                {!isGeneric && (
+                  <Button variant="outline" onClick={downloadTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Template
+                  </Button>
+                )}
+                {isGeneric && <div />}
                 <Button onClick={() => setStep('upload')}>
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -383,7 +442,12 @@ export default function ImportData() {
           <Card>
             <CardHeader>
               <CardTitle>Step 2: Upload File</CardTitle>
-              <CardDescription>Upload a CSV or Excel file with your {importType} data</CardDescription>
+              <CardDescription>
+                {isGeneric 
+                  ? 'Upload any CSV or Excel file to view and analyze'
+                  : `Upload a CSV or Excel file with your ${importType} data`
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
@@ -413,19 +477,24 @@ export default function ImportData() {
                 </label>
               </div>
 
-              <Alert>
-                <FileSpreadsheet className="h-4 w-4" />
-                <AlertDescription>
-                  Need a template? Go back and click "Download Template" to get started.
-                </AlertDescription>
-              </Alert>
+              {!isGeneric && (
+                <Alert>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <AlertDescription>
+                    Need a template? Go back and click "Download Template" to get started.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setStep('type')}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
-                <Button onClick={() => setStep('map')} disabled={!file || csvData.length === 0}>
+                <Button 
+                  onClick={() => setStep(isGeneric ? 'preview' : 'map')} 
+                  disabled={!file || csvData.length === 0}
+                >
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -434,7 +503,7 @@ export default function ImportData() {
           </Card>
         )}
 
-        {step === 'map' && (
+        {step === 'map' && !isGeneric && (
           <Card>
             <CardHeader>
               <CardTitle>Step 3: Map Columns</CardTitle>
@@ -483,27 +552,93 @@ export default function ImportData() {
         {step === 'preview' && (
           <Card>
             <CardHeader>
-              <CardTitle>Step 4: Preview & Import</CardTitle>
-              <CardDescription>Review the first 10 rows before importing</CardDescription>
+              <CardTitle>
+                {isGeneric ? 'Step 3: View Data' : 'Step 4: Preview & Import'}
+              </CardTitle>
+              <CardDescription>
+                {isGeneric 
+                  ? 'View your data and optionally analyze with AI'
+                  : 'Review the first 10 rows before importing'
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isGeneric && (
+                <div className="flex gap-2 mb-4">
+                  <Button 
+                    onClick={analyzeWithAI} 
+                    disabled={analyzing}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    {analyzing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {analyzing ? 'Analyzing...' : 'Analyze with AI'}
+                  </Button>
+                </div>
+              )}
+
+              {analysisResult && (
+                <Alert className="mb-4">
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p className="font-medium">AI Analysis Result:</p>
+                      {analysisResult.documentType && (
+                        <p><strong>Document Type:</strong> {analysisResult.documentType}</p>
+                      )}
+                      {analysisResult.lotNumber && (
+                        <p><strong>LOT Number:</strong> {analysisResult.lotNumber}</p>
+                      )}
+                      {analysisResult.supplierName && (
+                        <p><strong>Supplier:</strong> {analysisResult.supplierName}</p>
+                      )}
+                      {analysisResult.clientName && (
+                        <p><strong>Client:</strong> {analysisResult.clientName}</p>
+                      )}
+                      {analysisResult.totalAmount && (
+                        <p><strong>Total Amount:</strong> {analysisResult.currency} {analysisResult.totalAmount}</p>
+                      )}
+                      {analysisResult.summary && (
+                        <p className="text-sm text-muted-foreground mt-2">{analysisResult.summary}</p>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="overflow-x-auto border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol, fieldKey]) => (
-                        <TableHead key={csvCol}>
-                          {fields.find(f => f.key === fieldKey)?.label || fieldKey}
-                        </TableHead>
-                      ))}
+                      {isGeneric ? (
+                        csvHeaders.map((header) => (
+                          <TableHead key={header}>{header}</TableHead>
+                        ))
+                      ) : (
+                        Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol, fieldKey]) => (
+                          <TableHead key={csvCol}>
+                            {fields.find(f => f.key === fieldKey)?.label || fieldKey}
+                          </TableHead>
+                        ))
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {csvData.slice(0, 10).map((row, i) => (
                       <TableRow key={i}>
-                        {Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol]) => (
-                          <TableCell key={csvCol}>{row[csvCol] || '-'}</TableCell>
-                        ))}
+                        {isGeneric ? (
+                          csvHeaders.map((header) => (
+                            <TableCell key={header}>{row[header] || '-'}</TableCell>
+                          ))
+                        ) : (
+                          Object.entries(columnMapping).filter(([, v]) => v).map(([csvCol]) => (
+                            <TableCell key={csvCol}>{row[csvCol] || '-'}</TableCell>
+                          ))
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -516,31 +651,39 @@ export default function ImportData() {
                 </p>
               )}
 
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  This will import {csvData.length} records. New suppliers and clients will be created automatically if they don't exist.
-                </AlertDescription>
-              </Alert>
+              {!isGeneric && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    This will import {csvData.length} records. New suppliers and clients will be created automatically if they don't exist.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep('map')}>
+                <Button variant="outline" onClick={() => setStep(isGeneric ? 'upload' : 'map')}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
-                <Button onClick={handleImport} disabled={importing}>
-                  {importing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Importing... {importProgress}%
-                    </>
-                  ) : (
-                    <>
-                      Import {csvData.length} Records
-                      <Check className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
+                {isGeneric ? (
+                  <Button variant="outline" onClick={resetImport}>
+                    Import Another File
+                  </Button>
+                ) : (
+                  <Button onClick={handleImport} disabled={importing}>
+                    {importing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Importing... {importProgress}%
+                      </>
+                    ) : (
+                      <>
+                        Import {csvData.length} Records
+                        <Check className="h-4 w-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
