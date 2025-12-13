@@ -117,6 +117,157 @@ Always respond with valid JSON (no markdown code blocks):
 
 Use null for any field that cannot be determined from the document.`;
 
+// Query assistant prompt for answering questions about the database
+function getQueryAssistantPrompt(): string {
+  return `You are the AI assistant for Favorite Logistics, a South African freight forwarding company. You have access to the company's live database and can answer questions about shipments, suppliers, clients, payments, and financial performance.
+
+## YOUR CAPABILITIES
+- Answer questions about shipments (LOT numbers, status, dates, costs, profits)
+- Provide financial summaries (total profit, revenue, margins)
+- Report on supplier balances and payment schedules
+- Give client-specific information (orders, revenue, outstanding amounts)
+- Calculate metrics like total profit for periods, average margins, etc.
+
+## RESPONSE FORMAT
+Always respond in a clear, conversational manner. Use formatting to make data easy to read:
+- Use bullet points for lists
+- Use R/ZAR for South African Rand amounts (e.g., R 250,000.00)
+- Use $ for USD and € for EUR
+- Include relevant totals and percentages
+- Be specific with numbers - don't round excessively
+
+## EXAMPLE RESPONSES
+- "This month's total profit is R 301,371.85 across 4 shipments"
+- "WINTEX has an outstanding balance of $35,000.00"
+- "LOT 881 has a profit margin of 11.74%"
+
+If asked about data you don't have, say so clearly. Don't make up numbers.`;
+}
+
+// Detect if user input is a question vs a document
+function detectQuestion(content: string): boolean {
+  const trimmed = content.trim().toLowerCase();
+  
+  // Question indicators
+  const questionPatterns = [
+    /^(how|what|when|where|who|why|which|can|could|would|is|are|do|does|did|have|has|show|tell|give|list|get|find|search|check|update|status|profit|revenue|balance|payment|shipment|lot|client|supplier)/i,
+    /\?$/,
+    /^(total|sum|count|average|avg|monthly|weekly|daily|this month|this week|today|yesterday)/i,
+  ];
+  
+  // Document indicators (long content, structured data, CSV-like)
+  const isLikelyDocument = content.length > 500 || 
+    content.includes('\t') || 
+    content.includes(',') && content.includes('\n') ||
+    content.match(/invoice|bill of lading|bol|packing list|freight|shipment details/i);
+  
+  if (isLikelyDocument && !content.includes('?')) {
+    return false;
+  }
+  
+  return questionPatterns.some(pattern => pattern.test(trimmed));
+}
+
+// Fetch current database context for question answering
+async function fetchDatabaseContext(supabase: any): Promise<string> {
+  let context = '';
+  
+  try {
+    // Fetch shipments with costs
+    const { data: shipments } = await supabase
+      .from('shipments')
+      .select(`
+        id, lot_number, commodity, status, eta, created_at,
+        supplier:suppliers(name, currency),
+        client:clients(name),
+        costs:shipment_costs(
+          supplier_cost, freight_cost, clearing_cost, transport_cost,
+          total_foreign, total_zar, client_invoice_zar,
+          gross_profit_zar, net_profit_zar, profit_margin,
+          fx_applied_rate, source_currency
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (shipments && shipments.length > 0) {
+      context += '## SHIPMENTS\n';
+      let totalProfit = 0;
+      let totalRevenue = 0;
+      
+      for (const s of shipments) {
+        const profit = s.costs?.net_profit_zar || 0;
+        const revenue = s.costs?.client_invoice_zar || 0;
+        totalProfit += profit;
+        totalRevenue += revenue;
+        
+        context += `- LOT ${s.lot_number}: ${s.commodity || 'N/A'} | Status: ${s.status} | Supplier: ${s.supplier?.name || 'N/A'} | Client: ${s.client?.name || 'N/A'} | Revenue: R ${revenue.toLocaleString()} | Net Profit: R ${profit.toLocaleString()} | Margin: ${(s.costs?.profit_margin || 0).toFixed(1)}%\n`;
+      }
+      
+      context += `\n**TOTALS:** ${shipments.length} shipments | Total Revenue: R ${totalRevenue.toLocaleString()} | Total Profit: R ${totalProfit.toLocaleString()}\n\n`;
+    }
+
+    // Fetch suppliers with balances
+    const { data: suppliers } = await supabase
+      .from('suppliers')
+      .select('id, name, currency, current_balance')
+      .order('name');
+
+    if (suppliers && suppliers.length > 0) {
+      context += '## SUPPLIERS\n';
+      for (const sup of suppliers) {
+        if (sup.current_balance > 0) {
+          context += `- ${sup.name}: ${sup.currency} ${sup.current_balance.toLocaleString()} owed\n`;
+        }
+      }
+      context += '\n';
+    }
+
+    // Fetch clients
+    const { data: clients } = await supabase
+      .from('clients')
+      .select('id, name, contact_person')
+      .order('name');
+
+    if (clients && clients.length > 0) {
+      context += '## CLIENTS\n';
+      for (const c of clients) {
+        context += `- ${c.name}${c.contact_person ? ` (${c.contact_person})` : ''}\n`;
+      }
+      context += '\n';
+    }
+
+    // Fetch pending payments
+    const { data: payments } = await supabase
+      .from('payment_schedule')
+      .select(`
+        id, amount_foreign, amount_zar, currency, status, payment_date,
+        supplier:suppliers(name)
+      `)
+      .eq('status', 'pending')
+      .order('payment_date');
+
+    if (payments && payments.length > 0) {
+      context += '## PENDING PAYMENTS\n';
+      let totalPending = 0;
+      for (const p of payments) {
+        totalPending += p.amount_zar || 0;
+        context += `- ${p.supplier?.name}: ${p.currency} ${p.amount_foreign.toLocaleString()} (R ${(p.amount_zar || 0).toLocaleString()}) due ${p.payment_date}\n`;
+      }
+      context += `\n**Total Pending:** R ${totalPending.toLocaleString()}\n\n`;
+    }
+
+    // Add current date for context
+    context += `## CURRENT DATE: ${new Date().toISOString().split('T')[0]}\n`;
+
+  } catch (error) {
+    console.error('Error fetching database context:', error);
+    context = 'Error fetching database data.';
+  }
+
+  return context;
+}
+
 
 interface ExtractedData {
   lotNumber?: string | null;
@@ -184,6 +335,34 @@ serve(async (req) => {
     console.log(`Auto-import enabled: ${autoImport}`);
     console.log(`Chat mode: ${isChatMode}`);
 
+    // Check if this is a question about data (not a document)
+    const isQuestion = detectQuestion(documentContent);
+    console.log(`Is question: ${isQuestion}`);
+
+    // If it's a question, fetch database context first
+    let databaseContext = '';
+    if (isQuestion && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        databaseContext = await fetchDatabaseContext(supabase);
+        console.log('Fetched database context for question answering');
+      } catch (dbError) {
+        console.error('Error fetching database context:', dbError);
+      }
+    }
+
+    // Build appropriate prompt based on whether this is a question or document
+    let userPrompt: string;
+    let systemPrompt: string;
+
+    if (isQuestion && databaseContext) {
+      systemPrompt = getQueryAssistantPrompt();
+      userPrompt = `## CURRENT DATABASE DATA\n${databaseContext}\n\n## USER QUESTION\n${documentContent}`;
+    } else {
+      systemPrompt = SYSTEM_PROMPT;
+      userPrompt = `Analyze this document and extract structured data:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${documentContent}`;
+    }
+
     // Call Lovable AI Gateway for analysis
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -194,8 +373,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Analyze this document and extract structured data:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${documentContent}` }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
       }),
     });
@@ -229,7 +408,23 @@ serve(async (req) => {
 
     console.log('Raw analysis length:', rawAnalysis.length);
 
-    // Parse the JSON response
+    // If this was a question, return the response directly
+    if (isQuestion && databaseContext) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          analysis: rawAnalysis,
+          isQueryResponse: true,
+          documentName: null,
+          analyzedAt: new Date().toISOString(),
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Parse the JSON response for document analysis
     let analysisResult: AnalysisResult;
     try {
       // Extract JSON from the response (handle markdown code blocks if present)
