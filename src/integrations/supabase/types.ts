@@ -542,6 +542,54 @@ export type Database = {
         }
         Relationships: []
       }
+      uploaded_documents: {
+        Row: {
+          client_name: string | null
+          document_type: string | null
+          extracted_data: Json | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          lot_number: string | null
+          summary: string | null
+          supplier_name: string | null
+          updated_at: string | null
+          uploaded_at: string | null
+        }
+        Insert: {
+          client_name?: string | null
+          document_type?: string | null
+          extracted_data?: Json | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          lot_number?: string | null
+          summary?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+          uploaded_at?: string | null
+        }
+        Update: {
+          client_name?: string | null
+          document_type?: string | null
+          extracted_data?: Json | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          lot_number?: string | null
+          summary?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+          uploaded_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null

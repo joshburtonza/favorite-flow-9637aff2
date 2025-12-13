@@ -272,6 +272,26 @@ async function fetchDatabaseContext(supabase: any): Promise<string> {
       context += `\n**Total Pending:** R ${totalPending.toLocaleString()}\n\n`;
     }
 
+    // Fetch uploaded documents for reference
+    const { data: documents } = await supabase
+      .from('uploaded_documents')
+      .select('id, file_name, document_type, lot_number, supplier_name, client_name, summary, uploaded_at')
+      .order('uploaded_at', { ascending: false })
+      .limit(50);
+
+    if (documents && documents.length > 0) {
+      context += '## UPLOADED DOCUMENTS\n';
+      for (const doc of documents) {
+        context += `- ${doc.file_name}: Type=${doc.document_type || 'unknown'}`;
+        if (doc.lot_number) context += ` | LOT=${doc.lot_number}`;
+        if (doc.supplier_name) context += ` | Supplier=${doc.supplier_name}`;
+        if (doc.client_name) context += ` | Client=${doc.client_name}`;
+        context += ` | Uploaded=${doc.uploaded_at?.split('T')[0]}\n`;
+        if (doc.summary) context += `  Summary: ${doc.summary.substring(0, 100)}...\n`;
+      }
+      context += '\n';
+    }
+
     // Add current date for context
     context += `## CURRENT DATE: ${new Date().toISOString().split('T')[0]}\n`;
 
@@ -486,6 +506,27 @@ serve(async (req) => {
       } catch (importError) {
         console.error('Import error:', importError);
         importResult = { success: false, message: 'Failed to import data' };
+      }
+    }
+
+    // Save document metadata for future AI retrieval
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY && documentName) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await supabase.from('uploaded_documents').insert({
+          file_name: documentName,
+          file_path: `analyzed/${Date.now()}-${documentName.replace(/[^a-zA-Z0-9.-]/g, '_')}`,
+          file_type: analysisResult.documentType,
+          document_type: analysisResult.documentType,
+          lot_number: analysisResult.extractedData?.lotNumber || null,
+          supplier_name: analysisResult.extractedData?.supplierName || null,
+          client_name: analysisResult.extractedData?.clientName || null,
+          summary: analysisResult.summary?.substring(0, 500) || null,
+          extracted_data: analysisResult.extractedData || {},
+        });
+        console.log('Document metadata saved');
+      } catch (docError) {
+        console.error('Error saving document metadata:', docError);
       }
     }
 
