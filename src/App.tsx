@@ -23,8 +23,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center"
+        style={{
+          background: 'hsl(260 100% 3%)',
+          backgroundImage: 'radial-gradient(circle at 15% 50%, hsl(239 84% 67% / 0.15) 0%, transparent 35%), radial-gradient(circle at 85% 30%, hsl(187 94% 43% / 0.12) 0%, transparent 35%)',
+        }}
+      >
+        <div 
+          className="animate-spin rounded-full h-10 w-10 border-2 border-transparent"
+          style={{
+            borderTopColor: 'hsl(239 84% 67%)',
+            borderRightColor: 'hsl(187 94% 43%)',
+          }}
+        />
       </div>
     );
   }
@@ -41,8 +52,19 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center"
+        style={{
+          background: 'hsl(260 100% 3%)',
+          backgroundImage: 'radial-gradient(circle at 15% 50%, hsl(239 84% 67% / 0.15) 0%, transparent 35%), radial-gradient(circle at 85% 30%, hsl(187 94% 43% / 0.12) 0%, transparent 35%)',
+        }}
+      >
+        <div 
+          className="animate-spin rounded-full h-10 w-10 border-2 border-transparent"
+          style={{
+            borderTopColor: 'hsl(239 84% 67%)',
+            borderRightColor: 'hsl(187 94% 43%)',
+          }}
+        />
       </div>
     );
   }
@@ -63,6 +85,7 @@ const App = () => (
         <Routes>
           <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
           <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+          <Route path="/analyze" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
