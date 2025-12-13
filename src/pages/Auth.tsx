@@ -4,8 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -21,6 +19,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
 
   const validateInputs = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -79,144 +78,205 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md animate-fade-in">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-            <Package className="h-7 w-7 text-primary-foreground" />
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        background: 'hsl(260 100% 3%)',
+        backgroundImage: 'radial-gradient(circle at 15% 50%, hsl(239 84% 67% / 0.15) 0%, transparent 35%), radial-gradient(circle at 85% 30%, hsl(187 94% 43% / 0.12) 0%, transparent 35%)',
+      }}
+    >
+      <div className="w-full max-w-md animate-slide-in">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-4 mb-10">
+          <div 
+            className="h-14 w-14 rounded-2xl flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(187 94% 43%))',
+              boxShadow: '0 0 30px hsl(239 84% 67% / 0.5)',
+            }}
+          >
+            <Package className="h-8 w-8 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Favorite Logistics</h1>
-            <p className="text-sm text-muted-foreground">Shipment Management System</p>
+            <h1 className="text-2xl font-bold gradient-text">Favorite Logistics</h1>
+            <p className="text-sm text-muted-foreground">Premium Console</p>
           </div>
         </div>
         
-        <Card className="border-border shadow-lg">
-          <Tabs defaultValue="signin" className="w-full">
-            <CardHeader className="pb-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            
-            <CardContent>
-              <TabsContent value="signin" className="mt-0">
-                <CardTitle className="text-xl mb-1">Welcome back</CardTitle>
-                <CardDescription className="mb-6">
-                  Enter your credentials to access your account
-                </CardDescription>
-                
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="name@company.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                    {errors.email && (
-                      <p className="text-sm text-destructive">{errors.email}</p>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">{errors.password}</p>
-                    )}
-                  </div>
-                  
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      'Sign In'
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
+        {/* Auth Card */}
+        <div 
+          className="glass-card"
+          style={{ padding: '2rem' }}
+        >
+          {/* Tab Switcher */}
+          <div className="flex gap-2 mb-8">
+            <button
+              onClick={() => setActiveTab('signin')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                activeTab === 'signin' 
+                  ? 'text-foreground border border-primary/30' 
+                  : 'text-muted-foreground'
+              }`}
+              style={{
+                background: activeTab === 'signin' 
+                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
+                  : 'transparent',
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setActiveTab('signup')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                activeTab === 'signup' 
+                  ? 'text-foreground border border-primary/30' 
+                  : 'text-muted-foreground'
+              }`}
+              style={{
+                background: activeTab === 'signup' 
+                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
+                  : 'transparent',
+              }}
+            >
+              Sign Up
+            </button>
+          </div>
+          
+          {activeTab === 'signin' ? (
+            <>
+              <h2 className="text-xl font-semibold mb-1">Welcome back</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Enter your credentials to access your account
+              </p>
               
-              <TabsContent value="signup" className="mt-0">
-                <CardTitle className="text-xl mb-1">Create an account</CardTitle>
-                <CardDescription className="mb-6">
-                  Enter your details to get started
-                </CardDescription>
+              <form onSubmit={handleSignIn} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email" className="text-sm text-muted-foreground">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
                 
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="name@company.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                    {errors.email && (
-                      <p className="text-sm text-destructive">{errors.email}</p>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">{errors.password}</p>
-                    )}
-                  </div>
-                  
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      'Create Account'
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
-        </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="signin-password" className="text-sm text-muted-foreground">Password</Label>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 rounded-xl text-base font-medium" 
+                  disabled={isLoading}
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))',
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold mb-1">Create an account</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Enter your details to get started
+              </p>
+              
+              <form onSubmit={handleSignUp} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name" className="text-sm text-muted-foreground">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email" className="text-sm text-muted-foreground">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password" className="text-sm text-muted-foreground">Password</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 rounded-xl text-base font-medium" 
+                  disabled={isLoading}
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))',
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
         
-        <p className="text-center text-sm text-muted-foreground mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-8">
           Secure freight forwarding management
         </p>
       </div>
