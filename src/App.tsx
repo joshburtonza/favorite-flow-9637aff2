@@ -14,6 +14,7 @@ import Payments from "./pages/Payments";
 import Creditors from "./pages/Creditors";
 import BankAccounts from "./pages/BankAccounts";
 import ImportData from "./pages/ImportData";
+import Financials from "./pages/Financials";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -95,6 +96,7 @@ const App = () => (
           <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
           <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
           <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
+          <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
