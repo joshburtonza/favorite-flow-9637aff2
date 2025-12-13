@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   FileText, Upload, Loader2, Send, CheckCircle, Database, AlertTriangle, 
   Image, ScanLine, MessageSquare, Bot, User, Sparkles, X, FileSpreadsheet,
-  Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2
+  Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2, Download
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import Tesseract from 'tesseract.js';
@@ -51,6 +51,7 @@ interface ChatMessage {
   timestamp: Date;
   analysis?: StructuredData;
   importResult?: ImportResult;
+  csvData?: string; // CSV data for download
 }
 
 interface FileUpload {
@@ -323,6 +324,7 @@ const AIHub = () => {
         timestamp: new Date(),
         analysis: data.structuredData,
         importResult: data.importResult,
+        csvData: data.csvData, // Include CSV data if present
       };
 
       setChatMessages(prev => [...prev, assistantMessage]);
@@ -696,6 +698,27 @@ const AIHub = () => {
                           <CheckCircle className="h-3 w-3 mr-1" />
                           {formatCreatedRecords(msg.importResult.createdRecords)}
                         </span>
+                      )}
+                      
+                      {msg.csvData && (
+                        <button
+                          onClick={() => {
+                            const blob = new Blob([msg.csvData!], { type: 'text/csv' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `export-${new Date().toISOString().split('T')[0]}.csv`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            toast({ title: 'Downloaded', description: 'CSV file saved' });
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-accent/20 hover:bg-accent/30 text-accent transition-colors"
+                        >
+                          <Download className="h-3 w-3" />
+                          Download CSV
+                        </button>
                       )}
                     </div>
                     {msg.role === 'user' && (

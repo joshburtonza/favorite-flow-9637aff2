@@ -127,6 +127,8 @@ function getQueryAssistantPrompt(): string {
 - Report on supplier balances and payment schedules
 - Give client-specific information (orders, revenue, outstanding amounts)
 - Calculate metrics like total profit for periods, average margins, etc.
+- Generate CSV exports of any data upon request
+- Look up documents and records related to specific queries
 
 ## RESPONSE FORMAT
 Always respond in a clear, conversational manner. Use formatting to make data easy to read:
@@ -136,10 +138,23 @@ Always respond in a clear, conversational manner. Use formatting to make data ea
 - Include relevant totals and percentages
 - Be specific with numbers - don't round excessively
 
+## CSV EXPORT REQUESTS
+When the user asks for a CSV, spreadsheet, export, or download of data:
+1. Include ALL the relevant data in your response
+2. At the END of your response, add a special CSV block formatted EXACTLY like this:
+
+\`\`\`csv
+column1,column2,column3
+value1,value2,value3
+\`\`\`
+
+The CSV should contain ALL matching records with relevant columns.
+
 ## EXAMPLE RESPONSES
 - "This month's total profit is R 301,371.85 across 4 shipments"
 - "WINTEX has an outstanding balance of $35,000.00"
 - "LOT 881 has a profit margin of 11.74%"
+- For CSV requests: "Here are all shipments for SANJITH..." followed by the csv block
 
 If asked about data you don't have, say so clearly. Don't make up numbers.`;
 }
@@ -410,11 +425,19 @@ serve(async (req) => {
 
     // If this was a question, return the response directly
     if (isQuestion && databaseContext) {
+      // Check if response contains CSV data
+      let csvData: string | null = null;
+      const csvMatch = rawAnalysis.match(/```csv\n([\s\S]*?)```/);
+      if (csvMatch) {
+        csvData = csvMatch[1].trim();
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
-          analysis: rawAnalysis,
+          analysis: rawAnalysis.replace(/```csv\n[\s\S]*?```/g, '').trim(), // Remove CSV block from display
           isQueryResponse: true,
+          csvData, // Include CSV data separately for download
           documentName: null,
           analyzedAt: new Date().toISOString(),
         }),
