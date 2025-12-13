@@ -17,7 +17,8 @@ import {
   Sparkles,
   LayoutDashboard,
   Settings,
-  Globe
+  Globe,
+  FileText
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -28,6 +29,7 @@ interface AppLayoutProps {
 const navItems = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/documents', label: 'Documents', icon: FileText },
   { path: '/orders', label: 'Orders', icon: Globe },
   { path: '/financials', label: 'Financials', icon: BarChart3 },
   { path: '/suppliers', label: 'Suppliers', icon: Users },
