@@ -12,11 +12,36 @@ import {
   ArrowDownRight,
   Package,
   CreditCard,
-  BarChart3
+  BarChart3,
+  LineChart
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
+import { format, parseISO } from 'date-fns';
+
+const CHART_COLORS = [
+  'hsl(239, 84%, 67%)',   // Primary
+  'hsl(187, 94%, 43%)',   // Accent
+  'hsl(160, 84%, 39%)',   // Success
+  'hsl(45, 93%, 47%)',    // Warning
+  'hsl(271, 91%, 65%)',   // Purple
+];
 
 export default function Financials() {
   useDashboardRealtime();
@@ -24,14 +49,13 @@ export default function Financials() {
   const { data: financialData, isLoading } = useQuery({
     queryKey: ['financial-summary'],
     queryFn: async () => {
-      // Get all shipments with costs
       const { data: shipments, error } = await supabase
         .from('v_shipments_full')
-        .select('*');
+        .select('*')
+        .order('created_at', { ascending: true });
       
       if (error) throw error;
 
-      // Calculate totals
       const completedShipments = shipments?.filter(s => s.status === 'completed') || [];
       const activeShipments = shipments?.filter(s => s.status !== 'completed') || [];
       
@@ -47,7 +71,6 @@ export default function Financials() {
         ? (shipments.reduce((sum, s) => sum + (s.profit_margin || 0), 0) / shipments.length)
         : 0;
 
-      // Get pending payments
       const { data: pendingPayments } = await supabase
         .from('payment_schedule')
         .select('amount_zar')
@@ -55,12 +78,31 @@ export default function Financials() {
       
       const totalPendingPayments = pendingPayments?.reduce((sum, p) => sum + (p.amount_zar || 0), 0) || 0;
 
-      // Get supplier balances
       const { data: suppliers } = await supabase
         .from('suppliers')
         .select('current_balance');
       
       const totalOwedToSuppliers = suppliers?.reduce((sum, s) => sum + Math.max(0, s.current_balance), 0) || 0;
+
+      // Prepare chart data
+      const profitTrendData = shipments?.map(s => ({
+        name: `LOT ${s.lot_number}`,
+        revenue: s.client_invoice_zar || 0,
+        costs: s.total_zar || 0,
+        profit: s.net_profit_zar || 0,
+        date: s.created_at,
+      })) || [];
+
+      const profitBreakdownData = [
+        { name: 'Gross Profit', value: Math.max(0, totalGrossProfit), color: CHART_COLORS[2] },
+        { name: 'FX Commission', value: Math.max(0, totalFxCommission), color: CHART_COLORS[1] },
+        { name: 'Spread Profit', value: Math.max(0, totalSpreadProfit), color: CHART_COLORS[4] },
+      ].filter(d => d.value > 0);
+
+      const marginByShipment = shipments?.map(s => ({
+        name: `LOT ${s.lot_number}`,
+        margin: s.profit_margin || 0,
+      })) || [];
 
       return {
         shipments: shipments || [],
@@ -76,6 +118,9 @@ export default function Financials() {
         avgProfitMargin,
         totalPendingPayments,
         totalOwedToSuppliers,
+        profitTrendData,
+        profitBreakdownData,
+        marginByShipment,
       };
     },
   });
@@ -90,7 +135,7 @@ export default function Financials() {
           </header>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+              <Skeleton key={i} className="h-32 rounded-3xl" style={{ background: 'hsl(var(--muted))' }} />
             ))}
           </div>
         </div>
@@ -140,7 +185,149 @@ export default function Financials() {
           />
         </div>
 
-        {/* Profit Breakdown */}
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue vs Costs Trend */}
+          <div className="glass-card p-6">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <LineChart className="h-5 w-5 text-primary" />
+              Revenue vs Costs Trend
+            </h3>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.profitTrendData}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(239, 84%, 67%)" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(239, 84%, 67%)" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorCosts" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(187, 94%, 43%)" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(187, 94%, 43%)" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tickFormatter={(value) => `R${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                    formatter={(value: number) => formatCurrency(value, 'ZAR')}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="hsl(239, 84%, 67%)" 
+                    fillOpacity={1} 
+                    fill="url(#colorRevenue)" 
+                    name="Revenue"
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="costs" 
+                    stroke="hsl(187, 94%, 43%)" 
+                    fillOpacity={1} 
+                    fill="url(#colorCosts)" 
+                    name="Costs"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Profit Breakdown Pie Chart */}
+          <div className="glass-card p-6">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Profit Sources
+            </h3>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.profitBreakdownData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {data.profitBreakdownData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                    formatter={(value: number) => formatCurrency(value, 'ZAR')}
+                  />
+                  <Legend 
+                    verticalAlign="bottom"
+                    formatter={(value) => <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Profit Margin by Shipment */}
+        <div className="glass-card p-6">
+          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+            <Percent className="h-5 w-5 text-primary" />
+            Profit Margin by Shipment
+          </h3>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.marginByShipment}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                />
+                <YAxis 
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    background: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '12px',
+                    color: 'hsl(var(--foreground))'
+                  }}
+                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Margin']}
+                />
+                <Bar 
+                  dataKey="margin" 
+                  fill="hsl(239, 84%, 67%)" 
+                  radius={[8, 8, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Profit Breakdown Cards */}
         <div className="glass-card p-6">
           <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
