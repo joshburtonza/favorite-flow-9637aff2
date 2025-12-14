@@ -58,43 +58,69 @@ Return ONLY valid JSON:
   }
 }`;
 
-// System awareness prompt for AI queries
+// System awareness prompt for AI queries - FULL SYSTEM AWARENESS
 function getSystemAwarenessPrompt(context: any): string {
-  return `You are an AI assistant with COMPLETE awareness of a freight forwarding logistics system.
+  const recentChanges = context.recent_changes || [];
+  const changesNarrative = recentChanges.length > 0 
+    ? recentChanges.map((c: any) => `• ${c.description} (${c.time_ago})`).join('\n')
+    : 'No recent changes';
 
-CURRENT SYSTEM STATE:
-${JSON.stringify(context, null, 2)}
+  return `You are an AI assistant with COMPLETE REAL-TIME AWARENESS of Favorite Logistics freight forwarding system.
 
-YOUR CAPABILITIES:
-1. Answer questions about any shipment, document, supplier, client, or payment
-2. Calculate financial metrics (profit, margin, costs, revenue)
-3. Track document status and what's missing for each shipment
-4. Review activity history and recent changes
-5. Identify issues and suggest next actions
-6. Generate reports and summaries
+## 🔴 RECENT SYSTEM CHANGES (MOST IMPORTANT - WHAT JUST HAPPENED):
+${changesNarrative}
 
-RESPONSE GUIDELINES:
+## CURRENT DATE: ${context.current_date}
+
+## LIVE SYSTEM STATE:
+
+### Active Shipments (${context.shipments?.length || 0} total):
+${context.shipments?.slice(0, 15).map((s: any) => 
+  `• LOT ${s.lot_number}: ${s.status} | ${s.supplier_name} → ${s.client_name} | ETA: ${s.eta || 'TBD'} | Profit: R${(s.net_profit_zar || 0).toLocaleString()}`
+).join('\n') || 'No shipments'}
+
+### Suppliers with Balances:
+${context.suppliers?.filter((s: any) => s.balance_owed !== 0).map((s: any) => 
+  `• ${s.name}: ${s.currency} ${s.balance_owed?.toLocaleString()} ${s.balance_owed > 0 ? '(WE OWE)' : '(THEY OWE US)'}`
+).join('\n') || 'All balances settled'}
+
+### Pending Payments:
+${context.pending_payments?.slice(0, 5).map((p: any) => 
+  `• ${p.supplier_name}: ${p.currency} ${p.amount_foreign?.toLocaleString()} due ${p.payment_date}`
+).join('\n') || 'No pending payments'}
+
+### Recent Documents (last 10):
+${context.documents?.slice(0, 10).map((d: any) => 
+  `• ${d.file_name} - ${d.ai_classification || 'unclassified'} ${d.lot_number ? `(LOT ${d.lot_number})` : ''}`
+).join('\n') || 'No documents'}
+
+### Financial Summary:
+- Total Shipments: ${context.totals?.total_shipments || 0}
+- Total Revenue: R${(context.totals?.total_revenue || 0).toLocaleString()}
+- Total Profit: R${(context.totals?.total_profit || 0).toLocaleString()}
+- Average Margin: ${(context.totals?.avg_margin || 0).toFixed(1)}%
+
+## YOUR CAPABILITIES:
+1. You are ALWAYS aware of recent changes - shipments updated, documents uploaded, costs added, payments made
+2. When asked "what's new" or "what changed" - reference the RECENT CHANGES section
+3. Answer questions about any shipment, document, supplier, client, or payment
+4. Calculate financial metrics (profit, margin, costs, revenue)
+5. Track document status and identify what's missing for each shipment
+6. Proactively mention if something relevant just changed
+
+## RESPONSE GUIDELINES:
 - Be direct and specific with numbers
 - Use R for ZAR, $ for USD, € for EUR
-- Include relevant context and relationships
-- If data is missing, say so clearly
-- Suggest actions when appropriate
+- ALWAYS reference recent changes if they're relevant to the question
+- If someone asks about a shipment that was just updated, mention the update
 - Format large numbers with commas
+- Suggest next actions when appropriate
 
-When asked about specific shipments:
-- Check all linked documents
-- Calculate current profit/margin
-- List missing documents
-- Show activity history
-
-When asked about financials:
-- Show breakdown of costs
-- Calculate margins
-- Compare to averages
-- Identify outliers`;
+## FOCUS ENTITY (if specified):
+${context.current_entity ? JSON.stringify(context.current_entity, null, 2) : 'General query - no specific entity'}`;
 }
 
-// Fetch comprehensive system context
+// Fetch comprehensive system context with FULL CHANGE AWARENESS
 async function fetchSystemContext(supabase: any, entityType?: string, entityId?: string): Promise<any> {
   const context: any = {
     current_date: new Date().toISOString().split('T')[0],
@@ -103,6 +129,7 @@ async function fetchSystemContext(supabase: any, entityType?: string, entityId?:
     clients: [],
     pending_payments: [],
     recent_activity: [],
+    recent_changes: [], // NEW: Human-readable recent changes
     documents: [],
     current_entity: null
   };
@@ -184,22 +211,100 @@ async function fetchSystemContext(supabase: any, entityType?: string, entityId?:
       context.pending_payments = payments;
     }
 
-    // Fetch recent activity from event logs
-    const { data: events } = await supabase
-      .from('ai_event_logs')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(20);
+    // Fetch recent activity from BOTH event logs AND activity logs for complete awareness
+    const [eventsResult, activityResult] = await Promise.all([
+      supabase
+        .from('ai_event_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(30),
+      supabase
+        .from('activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(30)
+    ]);
 
-    if (events) {
-      context.recent_activity = events.map((e: any) => ({
-        event_type: e.event_type,
-        entity_type: e.entity_type,
-        timestamp: e.timestamp,
-        metadata: e.metadata,
-        changes: e.changes
-      }));
-    }
+    const events = eventsResult.data || [];
+    const activities = activityResult.data || [];
+
+    // Combine and create human-readable recent changes
+    const allChanges: any[] = [];
+
+    // Process AI events
+    events.forEach((e: any) => {
+      const timeAgo = getTimeAgo(new Date(e.timestamp));
+      let description = '';
+      
+      switch (e.event_type) {
+        case 'document_uploaded':
+          description = `📄 Document uploaded: ${e.metadata?.file_name || 'Unknown'}${e.metadata?.lot_number ? ` for LOT ${e.metadata.lot_number}` : ''}`;
+          break;
+        case 'ai_extraction_completed':
+          description = `🤖 AI classified document as ${e.ai_classification} (${Math.round((e.ai_confidence || 0) * 100)}% confidence)`;
+          break;
+        case 'shipment_created':
+          description = `📦 New shipment created: LOT ${e.metadata?.lot_number || 'Unknown'}`;
+          break;
+        case 'shipment_updated':
+          description = `✏️ Shipment LOT ${e.metadata?.lot_number} updated`;
+          if (e.changes) {
+            const changedFields = Object.keys(e.changes).join(', ');
+            description += ` (${changedFields})`;
+          }
+          break;
+        case 'shipment_status_changed':
+          description = `🔄 LOT ${e.metadata?.lot_number} status: ${e.changes?.status?.old} → ${e.changes?.status?.new}`;
+          break;
+        case 'relationship_created':
+          description = `🔗 Document linked to shipment${e.metadata?.auto_linked ? ' (auto)' : ''}`;
+          break;
+        default:
+          description = `${e.event_type}: ${e.entity_type}`;
+      }
+      
+      allChanges.push({
+        timestamp: new Date(e.timestamp),
+        time_ago: timeAgo,
+        description,
+        type: 'ai_event'
+      });
+    });
+
+    // Process activity logs
+    activities.forEach((a: any) => {
+      const timeAgo = getTimeAgo(new Date(a.created_at));
+      let emoji = '📝';
+      
+      switch (a.action_type) {
+        case 'create': emoji = '➕'; break;
+        case 'update': emoji = '✏️'; break;
+        case 'delete': emoji = '🗑️'; break;
+        case 'view': emoji = '👁️'; break;
+        case 'export': emoji = '📤'; break;
+        case 'import': emoji = '📥'; break;
+      }
+      
+      allChanges.push({
+        timestamp: new Date(a.created_at),
+        time_ago: timeAgo,
+        description: `${emoji} ${a.description}${a.user_email ? ` (by ${a.user_email})` : ''}`,
+        type: 'activity'
+      });
+    });
+
+    // Sort by timestamp and take most recent
+    context.recent_changes = allChanges
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 20);
+
+    context.recent_activity = events.map((e: any) => ({
+      event_type: e.event_type,
+      entity_type: e.entity_type,
+      timestamp: e.timestamp,
+      metadata: e.metadata,
+      changes: e.changes
+    }));
 
     // Fetch documents
     const { data: documents } = await supabase
@@ -273,6 +378,21 @@ function identifyMissingDocuments(shipment: any, documents: any[]): string[] {
   }
 
   return missing;
+}
+
+// Helper function to get human-readable time ago
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }
 
 // Log event to database
