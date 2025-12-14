@@ -175,7 +175,7 @@ serve(async (req) => {
     }
 
     // Execute the action plan
-    const result = await executeAction(supabase, actionPlan, dbContext);
+    const result = await executeAction(supabase, actionPlan, dbContext, chatId, TELEGRAM_BOT_TOKEN);
     
     // Log the action
     await logAction(supabase, userMessage, actionPlan, result);
@@ -229,7 +229,7 @@ async function fetchDatabaseContext(supabase: any) {
 }
 
 // Execute the action plan from AI
-async function executeAction(supabase: any, plan: any, dbContext: any) {
+async function executeAction(supabase: any, plan: any, dbContext: any, chatId?: number, telegramToken?: string) {
   const { action, entity, identifier, data, query } = plan;
 
   try {
@@ -244,7 +244,7 @@ async function executeAction(supabase: any, plan: any, dbContext: any) {
         return await handleCreate(supabase, entity, data, dbContext);
       
       case 'retrieve':
-        return await handleRetrieve(supabase, entity, identifier);
+        return await handleRetrieve(supabase, entity, identifier, chatId, telegramToken);
       
       case 'help':
       default:
@@ -710,8 +710,8 @@ async function handleCreate(supabase: any, entity: string, data: any, dbContext:
   }
 }
 
-// Handle document retrieval
-async function handleRetrieve(supabase: any, entity: string, identifier: any) {
+// Handle document retrieval and sending
+async function handleRetrieve(supabase: any, entity: string, identifier: any, chatId?: number, telegramToken?: string) {
   if (entity !== 'document') {
     return { success: false, message: `❌ Can only retrieve documents.` };
   }
@@ -733,18 +733,91 @@ async function handleRetrieve(supabase: any, entity: string, identifier: any) {
     return { success: true, message: `❌ No documents found${lotNumber ? ` for LOT ${lotNumber}` : ''}.` };
   }
 
-  let message = `📄 <b>Documents${lotNumber ? ` for LOT ${lotNumber}` : ''}</b>\n\n`;
-  
-  for (const doc of documents) {
-    message += `📎 <b>${doc.file_name}</b>\n`;
-    message += `   Type: ${doc.document_type || 'Unknown'}\n`;
-    if (doc.lot_number) message += `   LOT: ${doc.lot_number}\n`;
-    if (doc.supplier_name) message += `   Supplier: ${doc.supplier_name}\n`;
-    if (doc.summary) message += `   Summary: ${doc.summary.substring(0, 100)}...\n`;
-    message += `   Uploaded: ${new Date(doc.uploaded_at).toLocaleDateString()}\n\n`;
+  // If we have chatId and token, send the actual files
+  const sentFiles: string[] = [];
+  const failedFiles: string[] = [];
+
+  if (chatId && telegramToken) {
+    for (const doc of documents) {
+      if (doc.file_path) {
+        try {
+          // Generate a signed URL for the file (valid for 1 hour)
+          const { data: signedUrlData, error: signedUrlError } = await supabase
+            .storage
+            .from('documents')
+            .createSignedUrl(doc.file_path, 3600);
+
+          if (signedUrlError || !signedUrlData?.signedUrl) {
+            console.error('Failed to get signed URL:', signedUrlError);
+            failedFiles.push(doc.file_name);
+            continue;
+          }
+
+          // Download the file
+          const fileResponse = await fetch(signedUrlData.signedUrl);
+          if (!fileResponse.ok) {
+            console.error('Failed to download file:', fileResponse.status);
+            failedFiles.push(doc.file_name);
+            continue;
+          }
+
+          const fileBlob = await fileResponse.blob();
+          
+          // Send file via Telegram
+          const formData = new FormData();
+          formData.append('chat_id', chatId.toString());
+          formData.append('document', fileBlob, doc.file_name);
+          formData.append('caption', `📎 ${doc.file_name}\n${doc.document_type ? `Type: ${doc.document_type}` : ''}${doc.lot_number ? `\nLOT: ${doc.lot_number}` : ''}`);
+
+          const telegramResponse = await fetch(
+            `https://api.telegram.org/bot${telegramToken}/sendDocument`,
+            { method: 'POST', body: formData }
+          );
+
+          if (telegramResponse.ok) {
+            sentFiles.push(doc.file_name);
+          } else {
+            const errorText = await telegramResponse.text();
+            console.error('Telegram sendDocument failed:', errorText);
+            failedFiles.push(doc.file_name);
+          }
+        } catch (fileError) {
+          console.error('Error sending file:', fileError);
+          failedFiles.push(doc.file_name);
+        }
+      } else {
+        failedFiles.push(doc.file_name);
+      }
+    }
   }
 
-  return { success: true, message, data: documents };
+  // Build response message
+  let message = '';
+  
+  if (sentFiles.length > 0) {
+    message = `✅ Sent ${sentFiles.length} document${sentFiles.length > 1 ? 's' : ''}${lotNumber ? ` for LOT ${lotNumber}` : ''}:\n`;
+    message += sentFiles.map(f => `📎 ${f}`).join('\n');
+  }
+  
+  if (failedFiles.length > 0) {
+    if (message) message += '\n\n';
+    message += `⚠️ Could not send ${failedFiles.length} file${failedFiles.length > 1 ? 's' : ''}:\n`;
+    message += failedFiles.map(f => `❌ ${f}`).join('\n');
+  }
+
+  if (!message) {
+    message = `📄 <b>Documents${lotNumber ? ` for LOT ${lotNumber}` : ''}</b>\n\n`;
+    for (const doc of documents) {
+      message += `📎 <b>${doc.file_name}</b>\n`;
+      message += `   Type: ${doc.document_type || 'Unknown'}\n`;
+      if (doc.lot_number) message += `   LOT: ${doc.lot_number}\n`;
+      if (doc.supplier_name) message += `   Supplier: ${doc.supplier_name}\n`;
+      if (doc.summary) message += `   Summary: ${doc.summary.substring(0, 100)}...\n`;
+      message += `   Uploaded: ${new Date(doc.uploaded_at).toLocaleDateString()}\n\n`;
+    }
+  }
+
+  return { success: true, message, data: documents, sentFiles, failedFiles };
 }
 
 // Log action to automation_logs
