@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useCustomTables, useTableColumns, useTableRows, ColumnType } from '@/hooks/useCustomTables';
+import { Textarea } from '@/components/ui/textarea';
+import { useCustomTables, useTableColumns, useTableRows, ColumnType, ColumnOptions, exportTableToCSV, parseCSV } from '@/hooks/useCustomTables';
 import { SpreadsheetGrid } from '@/components/workspace/SpreadsheetGrid';
 import {
   Dialog,
@@ -12,20 +13,30 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export default function Workspace() {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [newTableDialog, setNewTableDialog] = useState(false);
   const [newTableName, setNewTableName] = useState('');
-  const [renameDialog, setRenameDialog] = useState<{ open: boolean; tableId?: string; name?: string }>({ open: false });
+  const [newTableDescription, setNewTableDescription] = useState('');
+  const [newTableGroup, setNewTableGroup] = useState('');
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; tableId?: string; name?: string; description?: string; group?: string }>({ open: false });
+  const [importDialog, setImportDialog] = useState(false);
+  const [importData, setImportData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
   const { tables, isLoading: tablesLoading, createTable, deleteTable, updateTable } = useCustomTables();
   const { columns, addColumn, updateColumn, deleteColumn } = useTableColumns(selectedTableId);
@@ -33,12 +44,25 @@ export default function Workspace() {
 
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
+  // Group tables by group_name
+  const groupedTables = tables.reduce((acc, table) => {
+    const group = (table as any).group_name || 'Ungrouped';
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(table);
+    return acc;
+  }, {} as Record<string, typeof tables>);
+
   const handleCreateTable = () => {
     if (newTableName.trim()) {
-      createTable.mutate({ name: newTableName.trim() }, {
+      createTable.mutate({ 
+        name: newTableName.trim(), 
+        description: newTableDescription.trim() || undefined,
+      }, {
         onSuccess: (data) => {
           setSelectedTableId(data.id);
           setNewTableName('');
+          setNewTableDescription('');
+          setNewTableGroup('');
           setNewTableDialog(false);
         },
       });
@@ -47,9 +71,84 @@ export default function Workspace() {
 
   const handleRenameTable = () => {
     if (renameDialog.tableId && renameDialog.name?.trim()) {
-      updateTable.mutate({ id: renameDialog.tableId, name: renameDialog.name.trim() });
+      updateTable.mutate({ 
+        id: renameDialog.tableId, 
+        name: renameDialog.name.trim(),
+        description: renameDialog.description?.trim(),
+      });
       setRenameDialog({ open: false });
     }
+  };
+
+  const handleExport = () => {
+    if (selectedTable && columns.length > 0) {
+      exportTableToCSV(columns, rows, selectedTable.name);
+      toast({ title: 'Table exported', description: `${selectedTable.name}.csv downloaded` });
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      setImportData(parsed);
+      setImportDialog(true);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (!selectedTableId || !importData) return;
+
+    // Create columns if they don't exist
+    for (const header of importData.headers) {
+      const existingCol = columns.find(c => c.name.toLowerCase() === header.toLowerCase());
+      if (!existingCol) {
+        await addColumn.mutateAsync({ table_id: selectedTableId, name: header, column_type: 'text' });
+      }
+    }
+
+    // Wait a bit for columns to be created
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Add rows
+    for (const rowData of importData.rows) {
+      const data: Record<string, any> = {};
+      importData.headers.forEach((header, i) => {
+        const col = columns.find(c => c.name.toLowerCase() === header.toLowerCase());
+        if (col) {
+          data[col.id] = rowData[i];
+        }
+      });
+      await addRow.mutateAsync(data);
+    }
+
+    toast({ 
+      title: 'Import complete', 
+      description: `${importData.rows.length} rows imported` 
+    });
+    setImportDialog(false);
+    setImportData(null);
+  };
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['Ungrouped']));
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
   };
 
   return (
@@ -70,52 +169,78 @@ export default function Workspace() {
           </div>
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1">
-              {tables.map((table) => (
-                <div
-                  key={table.id}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer group',
-                    selectedTableId === table.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+              {Object.entries(groupedTables).map(([group, groupTables]) => (
+                <div key={group}>
+                  {group !== 'Ungrouped' && (
+                    <button
+                      className="flex items-center gap-1 px-2 py-1.5 w-full text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => toggleGroup(group)}
+                    >
+                      <ChevronRight className={cn('h-3 w-3 transition-transform', expandedGroups.has(group) && 'rotate-90')} />
+                      <FolderOpen className="h-3 w-3" />
+                      <span>{group}</span>
+                      <span className="ml-auto text-xs">({groupTables.length})</span>
+                    </button>
                   )}
-                  onClick={() => setSelectedTableId(table.id)}
-                >
-                  <Table2 className="h-4 w-4" />
-                  <span className="flex-1 truncate text-sm">{table.name}</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                      >
-                        <MoreVertical className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameDialog({ open: true, tableId: table.id, name: table.name });
-                        }}
-                      >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                      {!table.is_system && (
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (selectedTableId === table.id) setSelectedTableId(null);
-                            deleteTable.mutate(table.id);
-                          }}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
+                  {(group === 'Ungrouped' || expandedGroups.has(group)) && groupTables.map((table) => (
+                    <div
+                      key={table.id}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer group',
+                        group !== 'Ungrouped' && 'ml-4',
+                        selectedTableId === table.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
                       )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      onClick={() => setSelectedTableId(table.id)}
+                    >
+                      <Table2 className="h-4 w-4" />
+                      <div className="flex-1 min-w-0">
+                        <span className="truncate text-sm block">{table.name}</span>
+                        {table.description && (
+                          <span className="text-xs text-muted-foreground truncate block">{table.description}</span>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenameDialog({ 
+                                open: true, 
+                                tableId: table.id, 
+                                name: table.name,
+                                description: table.description || '',
+                              });
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          {!table.is_system && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (selectedTableId === table.id) setSelectedTableId(null);
+                                deleteTable.mutate(table.id);
+                              }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))}
                 </div>
               ))}
 
@@ -141,14 +266,33 @@ export default function Workspace() {
           {selectedTable ? (
             <>
               {/* Table Header */}
-              <div className="p-4 border-b">
-                <div className="flex items-center gap-2">
-                  <Table2 className="h-5 w-5" />
-                  <h1 className="text-xl font-semibold">{selectedTable.name}</h1>
+              <div className="p-4 border-b flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Table2 className="h-5 w-5" />
+                    <h1 className="text-xl font-semibold">{selectedTable.name}</h1>
+                  </div>
+                  {selectedTable.description && (
+                    <p className="text-sm text-muted-foreground mt-1">{selectedTable.description}</p>
+                  )}
                 </div>
-                {selectedTable.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{selectedTable.description}</p>
-                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button variant="outline" size="sm" onClick={handleImportClick}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import CSV
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExport} disabled={columns.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
               </div>
 
               {/* Spreadsheet Grid */}
@@ -159,7 +303,7 @@ export default function Workspace() {
                   onAddRow={() => addRow.mutate({})}
                   onUpdateRow={(rowId, data) => updateRow.mutate({ id: rowId, data })}
                   onDeleteRow={(rowId) => deleteRow.mutate(rowId)}
-                  onAddColumn={(name, type) => addColumn.mutate({ table_id: selectedTableId!, name, column_type: type })}
+                  onAddColumn={(name, type, options) => addColumn.mutate({ table_id: selectedTableId!, name, column_type: type, options })}
                   onUpdateColumn={(columnId, updates) => updateColumn.mutate({ id: columnId, ...updates })}
                   onDeleteColumn={(columnId) => deleteColumn.mutate(columnId)}
                 />
@@ -190,42 +334,128 @@ export default function Workspace() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Table</DialogTitle>
+            <DialogDescription>
+              Create a spreadsheet-like table to organize your data
+            </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="Table name"
-            value={newTableName}
-            onChange={(e) => setNewTableName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateTable()}
-          />
+          <div className="space-y-4">
+            <div>
+              <Label>Table Name</Label>
+              <Input
+                placeholder="e.g., Project Tracker"
+                value={newTableName}
+                onChange={(e) => setNewTableName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateTable()}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Description (optional)</Label>
+              <Textarea
+                placeholder="What is this table for?"
+                value={newTableDescription}
+                onChange={(e) => setNewTableDescription(e.target.value)}
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTableDialog(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreateTable} disabled={createTable.isPending}>
-              Create
+              Create Table
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Rename Table Dialog */}
+      {/* Edit Table Dialog */}
       <Dialog open={renameDialog.open} onOpenChange={(open) => setRenameDialog({ open })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename Table</DialogTitle>
+            <DialogTitle>Edit Table</DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="Table name"
-            value={renameDialog.name || ''}
-            onChange={(e) => setRenameDialog({ ...renameDialog, name: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleRenameTable()}
-          />
+          <div className="space-y-4">
+            <div>
+              <Label>Table Name</Label>
+              <Input
+                placeholder="Table name"
+                value={renameDialog.name || ''}
+                onChange={(e) => setRenameDialog({ ...renameDialog, name: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleRenameTable()}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                placeholder="What is this table for?"
+                value={renameDialog.description || ''}
+                onChange={(e) => setRenameDialog({ ...renameDialog, description: e.target.value })}
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameDialog({ open: false })}>
               Cancel
             </Button>
             <Button onClick={handleRenameTable}>
-              Rename
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Preview Dialog */}
+      <Dialog open={importDialog} onOpenChange={setImportDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import CSV</DialogTitle>
+            <DialogDescription>
+              Preview your data before importing
+            </DialogDescription>
+          </DialogHeader>
+          {importData && (
+            <div className="max-h-[400px] overflow-auto border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    {importData.headers.map((header, i) => (
+                      <th key={i} className="px-3 py-2 text-left font-medium border-b">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importData.rows.slice(0, 10).map((row, i) => (
+                    <tr key={i} className="border-b">
+                      {row.map((cell, j) => (
+                        <td key={j} className="px-3 py-2 truncate max-w-[200px]">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {importData.rows.length > 10 && (
+                <div className="p-2 text-center text-muted-foreground text-sm">
+                  ... and {importData.rows.length - 10} more rows
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleImportConfirm}>
+              Import {importData?.rows.length} Rows
             </Button>
           </DialogFooter>
         </DialogContent>
