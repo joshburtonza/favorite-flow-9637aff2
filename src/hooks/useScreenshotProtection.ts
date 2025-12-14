@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 export const useScreenshotProtection = () => {
   useEffect(() => {
@@ -8,14 +9,42 @@ export const useScreenshotProtection = () => {
       return false;
     };
 
-    // Block print and save shortcuts
+    // Block print and save shortcuts, detect screenshot attempts
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Block Ctrl+P (print), Ctrl+S (save), Ctrl+Shift+S, PrintScreen
-      if (
-        (e.ctrlKey && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S')) ||
-        e.key === 'PrintScreen'
-      ) {
+      // Block Ctrl+P (print), Ctrl+S (save)
+      if (e.ctrlKey && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S')) {
         e.preventDefault();
+        toast.error('🚫 Printing is disabled for security reasons');
+        return false;
+      }
+
+      // Detect Windows PrintScreen key
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        toast.error('⚠️ Screenshots are not permitted', {
+          description: 'This action has been logged for security purposes.',
+          duration: 5000,
+        });
+        return false;
+      }
+
+      // Detect Mac screenshot shortcuts: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
+      if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) {
+        e.preventDefault();
+        toast.error('⚠️ Screenshots are not permitted', {
+          description: 'This action has been logged for security purposes.',
+          duration: 5000,
+        });
+        return false;
+      }
+
+      // Detect Windows Snipping Tool shortcut: Win+Shift+S
+      if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        toast.error('⚠️ Screenshots are not permitted', {
+          description: 'This action has been logged for security purposes.',
+          duration: 5000,
+        });
         return false;
       }
     };
