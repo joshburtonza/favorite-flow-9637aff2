@@ -8,6 +8,7 @@ import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
 import { ShipmentTimeline } from '@/components/tracking/ShipmentTimeline';
 import { LiveStatusCards } from '@/components/tracking/LiveStatusCards';
 import { ActivityFeed } from '@/components/tracking/ActivityFeed';
+import { AIEventsWidget } from '@/components/ai/AIEventsWidget';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
@@ -86,7 +87,8 @@ export default function Dashboard() {
           <div className="lg:col-span-2">
             <ShipmentTimeline />
           </div>
-          <div>
+          <div className="space-y-6">
+            <AIEventsWidget />
             <ActivityFeed />
           </div>
         </div>
