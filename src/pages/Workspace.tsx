@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder, FileText, ArrowLeft } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,12 @@ export default function Workspace() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [saveFileName, setSaveFileName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [importFromFolderDialog, setImportFromFolderDialog] = useState(false);
+  const [browseFolderId, setBrowseFolderId] = useState<string | null>(null);
+  const [folderDocuments, setFolderDocuments] = useState<any[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [selectedDocForImport, setSelectedDocForImport] = useState<any | null>(null);
+  const [importFromFolderData, setImportFromFolderData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
   const { folders, folderTree } = useDocumentFolders();
 
@@ -197,6 +203,94 @@ export default function Workspace() {
     setImportData(null);
   };
 
+  // Load documents for a folder when browsing
+  const loadFolderDocuments = async (folderId: string | null) => {
+    setIsLoadingDocs(true);
+    setBrowseFolderId(folderId);
+    try {
+      let query = supabase
+        .from('uploaded_documents')
+        .select('*')
+        .order('uploaded_at', { ascending: false });
+      
+      if (folderId) {
+        query = query.eq('folder_id', folderId);
+      } else {
+        query = query.is('folder_id', null);
+      }
+      
+      // Filter for CSV files
+      query = query.or('file_type.eq.text/csv,file_name.ilike.%.csv');
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      setFolderDocuments(data || []);
+    } catch (error) {
+      console.error('Error loading folder documents:', error);
+      setFolderDocuments([]);
+    } finally {
+      setIsLoadingDocs(false);
+    }
+  };
+
+  const handleImportFromFolderOpen = () => {
+    setImportFromFolderDialog(true);
+    loadFolderDocuments(null);
+  };
+
+  const handleSelectDocForImport = async (doc: any) => {
+    setSelectedDocForImport(doc);
+    try {
+      // Download file from storage
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(doc.file_path);
+      
+      if (error) throw error;
+      
+      const text = await data.text();
+      const parsed = parseCSV(text);
+      setImportFromFolderData(parsed);
+    } catch (error: any) {
+      toast({ title: 'Error loading file', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const handleImportFromFolderConfirm = async () => {
+    if (!selectedTableId || !importFromFolderData) return;
+
+    // Create columns if they don't exist
+    for (const header of importFromFolderData.headers) {
+      const existingCol = columns.find(c => c.name.toLowerCase() === header.toLowerCase());
+      if (!existingCol) {
+        await addColumn.mutateAsync({ table_id: selectedTableId, name: header, column_type: 'text' });
+      }
+    }
+
+    // Wait a bit for columns to be created
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Add rows
+    for (const rowData of importFromFolderData.rows) {
+      const data: Record<string, any> = {};
+      importFromFolderData.headers.forEach((header, i) => {
+        const col = columns.find(c => c.name.toLowerCase() === header.toLowerCase());
+        if (col) {
+          data[col.id] = rowData[i];
+        }
+      });
+      await addRow.mutateAsync(data);
+    }
+
+    toast({ 
+      title: 'Import complete', 
+      description: `${importFromFolderData.rows.length} rows imported from ${selectedDocForImport?.file_name}` 
+    });
+    setImportFromFolderDialog(false);
+    setImportFromFolderData(null);
+    setSelectedDocForImport(null);
+  };
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['Ungrouped']));
 
   const toggleGroup = (group: string) => {
@@ -344,6 +438,10 @@ export default function Workspace() {
                   <Button variant="outline" size="sm" onClick={handleImportClick}>
                     <Upload className="h-4 w-4 mr-2" />
                     Import CSV
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleImportFromFolderOpen}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Import from Folder
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleExport} disabled={columns.length === 0}>
                     <Download className="h-4 w-4 mr-2" />
@@ -577,6 +675,154 @@ export default function Workspace() {
             <Button onClick={handleSaveToFolder} disabled={isSaving || !saveFileName.trim()}>
               {isSaving ? 'Saving...' : 'Save to Folder'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import from Folder Dialog */}
+      <Dialog open={importFromFolderDialog} onOpenChange={(open) => {
+        setImportFromFolderDialog(open);
+        if (!open) {
+          setSelectedDocForImport(null);
+          setImportFromFolderData(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {importFromFolderData ? 'Preview Import' : 'Import from Document Folder'}
+            </DialogTitle>
+            <DialogDescription>
+              {importFromFolderData 
+                ? `Preview data from ${selectedDocForImport?.file_name}`
+                : 'Select a CSV file from your document folders to import'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!importFromFolderData ? (
+            <div className="space-y-4">
+              {/* Folder Navigation */}
+              <div className="flex items-center gap-2 border-b pb-2">
+                {browseFolderId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const currentFolder = folders.find(f => f.id === browseFolderId);
+                      loadFolderDocuments(currentFolder?.parent_id || null);
+                    }}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    Back
+                  </Button>
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {browseFolderId 
+                    ? folders.find(f => f.id === browseFolderId)?.name || 'Folder'
+                    : 'Root'}
+                </span>
+              </div>
+              
+              <ScrollArea className="h-64">
+                {isLoadingDocs ? (
+                  <div className="flex items-center justify-center h-32 text-muted-foreground">
+                    Loading...
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {/* Show subfolders */}
+                    {folders
+                      .filter(f => f.parent_id === browseFolderId)
+                      .map(folder => (
+                        <div
+                          key={folder.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-muted"
+                          onClick={() => loadFolderDocuments(folder.id)}
+                        >
+                          <Folder className="h-4 w-4 text-primary" />
+                          <span className="text-sm">{folder.name}</span>
+                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
+                        </div>
+                      ))}
+                    
+                    {/* Show CSV files */}
+                    {folderDocuments.map(doc => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer hover:bg-muted"
+                        onClick={() => handleSelectDocForImport(doc)}
+                      >
+                        <FileText className="h-4 w-4 text-green-500" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm block truncate">{doc.file_name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(doc.uploaded_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {folders.filter(f => f.parent_id === browseFolderId).length === 0 && 
+                     folderDocuments.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <FileSpreadsheet className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No CSV files in this folder</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-auto border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    {importFromFolderData.headers.map((header, i) => (
+                      <th key={i} className="px-3 py-2 text-left font-medium border-b">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importFromFolderData.rows.slice(0, 10).map((row, i) => (
+                    <tr key={i} className="border-b">
+                      {row.map((cell, j) => (
+                        <td key={j} className="px-3 py-2 truncate max-w-[200px]">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {importFromFolderData.rows.length > 10 && (
+                <div className="p-2 text-center text-muted-foreground text-sm">
+                  ... and {importFromFolderData.rows.length - 10} more rows
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            {importFromFolderData ? (
+              <>
+                <Button variant="outline" onClick={() => {
+                  setImportFromFolderData(null);
+                  setSelectedDocForImport(null);
+                }}>
+                  Back
+                </Button>
+                <Button onClick={handleImportFromFolderConfirm}>
+                  Import {importFromFolderData.rows.length} Rows
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={() => setImportFromFolderDialog(false)}>
+                Cancel
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
