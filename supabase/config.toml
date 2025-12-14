@@ -35,3 +35,12 @@ verify_jwt = false
 
 [functions.ai-intelligence]
 verify_jwt = false
+
+[functions.ai-daily-briefing]
+verify_jwt = false
+
+[functions.ai-proactive-alerts]
+verify_jwt = false
+
+[functions.ai-smart-suggestions]
+verify_jwt = false
