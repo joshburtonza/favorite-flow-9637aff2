@@ -35,6 +35,11 @@ interface AIQueryResult {
     total_profit: number;
     avg_margin: number;
   };
+  update_result?: {
+    success: boolean;
+    lot_number: string;
+    updates: Record<string, any>;
+  };
 }
 
 interface AIEvent {

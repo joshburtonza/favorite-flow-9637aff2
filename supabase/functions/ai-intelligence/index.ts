@@ -627,12 +627,113 @@ serve(async (req) => {
       );
     }
 
-    // Action: AI Query with full system awareness
+    // Action: Update shipment via natural language
+    if (action === 'update_shipment') {
+      const { lotNumber, updates } = await req.json();
+      console.log(`Updating shipment LOT ${lotNumber}:`, updates);
+
+      // Find the shipment
+      const { data: shipments, error: findError } = await supabase
+        .from('shipments')
+        .select('id, lot_number, status')
+        .ilike('lot_number', `%${lotNumber}%`)
+        .limit(1);
+
+      if (findError || !shipments?.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Shipment LOT ${lotNumber} not found` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const shipment = shipments[0];
+      const oldStatus = shipment.status;
+
+      // Update the shipment
+      const { error: updateError } = await supabase
+        .from('shipments')
+        .update({ ...updates, updated_at: new Date().toISOString(), last_updated_by: 'ai_chat' })
+        .eq('id', shipment.id);
+
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ success: false, error: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // If updating costs, handle shipment_costs table
+      if (updates.freight_cost || updates.supplier_cost || updates.clearing_cost || updates.transport_cost || updates.client_invoice_zar) {
+        const costUpdates: any = {};
+        if (updates.freight_cost) costUpdates.freight_cost = updates.freight_cost;
+        if (updates.supplier_cost) costUpdates.supplier_cost = updates.supplier_cost;
+        if (updates.clearing_cost) costUpdates.clearing_cost = updates.clearing_cost;
+        if (updates.transport_cost) costUpdates.transport_cost = updates.transport_cost;
+        if (updates.client_invoice_zar) costUpdates.client_invoice_zar = updates.client_invoice_zar;
+
+        const { data: existingCosts } = await supabase
+          .from('shipment_costs')
+          .select('id')
+          .eq('shipment_id', shipment.id)
+          .limit(1);
+
+        if (existingCosts?.length) {
+          await supabase.from('shipment_costs').update(costUpdates).eq('shipment_id', shipment.id);
+        } else {
+          await supabase.from('shipment_costs').insert({ shipment_id: shipment.id, ...costUpdates });
+        }
+      }
+
+      // Log the event
+      await logEvent(supabase, {
+        event_type: updates.status && updates.status !== oldStatus ? 'shipment_status_changed' : 'shipment_updated',
+        entity_type: 'shipment',
+        entity_id: shipment.id,
+        before_state: { status: oldStatus },
+        after_state: updates,
+        changes: updates,
+        metadata: { lot_number: shipment.lot_number, source: 'ai_chat' }
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, shipment_id: shipment.id, lot_number: shipment.lot_number, updates }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Action: AI Query with full system awareness (READ + WRITE)
     if (action === 'query') {
       console.log(`Processing AI query: ${query}`);
 
       // Fetch comprehensive system context
       const context = await fetchSystemContext(supabase, entityType, entityId);
+
+      // Enhanced system prompt that allows write operations
+      const enhancedPrompt = getSystemAwarenessPrompt(context) + `
+
+## WRITE OPERATIONS:
+You can also UPDATE shipments when users request changes. When a user says something like:
+- "LOT 881 is in transit" → Update status to in-transit
+- "Freight paid for LOT 118" → Mark freight as paid in notes or update costs
+- "Update LOT 883 ETA to March 15" → Update ETA
+- "Mark LOT 882 documents submitted" → Update document_submitted to true
+
+For UPDATE requests, respond with JSON in this format:
+\`\`\`json
+{
+  "action": "update",
+  "lot_number": "881",
+  "updates": { "status": "in-transit" },
+  "message": "✅ Updated LOT 881 status to in-transit"
+}
+\`\`\`
+
+For READ requests, respond naturally with the information.
+
+IMPORTANT: 
+- status values: pending, in-transit, documents-submitted, completed
+- Always confirm the update in your response
+- Be helpful and proactive`;
 
       const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
@@ -643,7 +744,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [
-            { role: 'system', content: getSystemAwarenessPrompt(context) },
+            { role: 'system', content: enhancedPrompt },
             { role: 'user', content: query }
           ],
         }),
@@ -660,18 +761,80 @@ serve(async (req) => {
       }
 
       const data = await aiResponse.json();
-      const response = data.choices?.[0]?.message?.content || 'No response';
+      let response = data.choices?.[0]?.message?.content || 'No response';
+
+      // Check if AI wants to perform an update
+      let updateResult = null;
+      try {
+        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          const actionData = JSON.parse(jsonMatch[1]);
+          if (actionData.action === 'update' && actionData.lot_number && actionData.updates) {
+            // Perform the update
+            const { data: shipments } = await supabase
+              .from('shipments')
+              .select('id, status')
+              .ilike('lot_number', `%${actionData.lot_number}%`)
+              .limit(1);
+
+            if (shipments?.length) {
+              const shipment = shipments[0];
+              const oldStatus = shipment.status;
+
+              await supabase
+                .from('shipments')
+                .update({ ...actionData.updates, updated_at: new Date().toISOString(), last_updated_by: 'ai_chat' })
+                .eq('id', shipment.id);
+
+              // Handle cost updates
+              if (actionData.updates.freight_cost || actionData.updates.supplier_cost || 
+                  actionData.updates.clearing_cost || actionData.updates.transport_cost) {
+                const costUpdates: any = {};
+                ['freight_cost', 'supplier_cost', 'clearing_cost', 'transport_cost'].forEach(field => {
+                  if (actionData.updates[field]) costUpdates[field] = actionData.updates[field];
+                });
+
+                const { data: existingCosts } = await supabase
+                  .from('shipment_costs')
+                  .select('id')
+                  .eq('shipment_id', shipment.id)
+                  .limit(1);
+
+                if (existingCosts?.length) {
+                  await supabase.from('shipment_costs').update(costUpdates).eq('shipment_id', shipment.id);
+                } else {
+                  await supabase.from('shipment_costs').insert({ shipment_id: shipment.id, ...costUpdates });
+                }
+              }
+
+              // Log the event
+              await logEvent(supabase, {
+                event_type: actionData.updates.status && actionData.updates.status !== oldStatus ? 'shipment_status_changed' : 'shipment_updated',
+                entity_type: 'shipment',
+                entity_id: shipment.id,
+                changes: actionData.updates,
+                metadata: { lot_number: actionData.lot_number, source: 'ai_chat' }
+              });
+
+              updateResult = { success: true, lot_number: actionData.lot_number, updates: actionData.updates };
+              response = actionData.message || `✅ Updated LOT ${actionData.lot_number}`;
+            }
+          }
+        }
+      } catch (e) {
+        // Not a JSON response, continue with normal response
+      }
 
       // Log the query
       await logEvent(supabase, {
         event_type: 'ai_query',
         entity_type: entityType || 'system',
         entity_id: entityId,
-        metadata: { query, response_length: response.length }
+        metadata: { query, response_length: response.length, had_update: !!updateResult }
       });
 
       return new Response(
-        JSON.stringify({ success: true, response, context_summary: context.totals }),
+        JSON.stringify({ success: true, response, context_summary: context.totals, update_result: updateResult }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

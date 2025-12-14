@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAIQuery } from '@/hooks/useAIIntelligence';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -19,15 +21,27 @@ interface Message {
     total_profit: number;
     avg_margin: number;
   };
+  update_result?: {
+    success: boolean;
+    lot_number: string;
+    updates: Record<string, any>;
+  };
 }
 
 const EXAMPLE_QUERIES = [
   "What's the total profit this month?",
   "Show me all pending shipments",
-  "Which suppliers have outstanding balances?",
-  "What's the status of LOT 881?",
-  "Which documents are missing for recent shipments?",
+  "LOT 881 is in transit",
+  "Freight paid for LOT 118",
+  "Mark LOT 882 documents submitted",
   "Show me the most profitable shipments",
+];
+
+const UPDATE_EXAMPLES = [
+  "LOT 192 is in transit",
+  "Freight paid for LOT 118",
+  "Update LOT 883 ETA to March 20",
+  "Mark LOT 881 completed",
 ];
 
 export function AIQueryChat({ 
@@ -43,6 +57,8 @@ export function AIQueryChat({
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   const aiQuery = useAIQuery();
 
@@ -78,10 +94,21 @@ export function AIQueryChat({
         role: 'assistant',
         content: result.response,
         timestamp: new Date(),
-        context_summary: result.context_summary
+        context_summary: result.context_summary,
+        update_result: result.update_result
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // If an update was performed, invalidate queries to refresh data
+      if (result.update_result?.success) {
+        queryClient.invalidateQueries({ queryKey: ['shipments'] });
+        queryClient.invalidateQueries({ queryKey: ['ai-events'] });
+        toast({
+          title: '✅ Update Applied',
+          description: `LOT ${result.update_result.lot_number} has been updated. Changes are now reflected across the dashboard.`,
+        });
+      }
     } catch (error) {
       const errorMessage: Message = {
         id: crypto.randomUUID(),
@@ -136,27 +163,45 @@ export function AIQueryChat({
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="space-y-4">
-              <div className="text-center py-8">
+              <div className="text-center py-6">
                 <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
                 <h3 className="font-medium mb-1">How can I help you?</h3>
                 <p className="text-sm text-muted-foreground">
-                  I have full awareness of your logistics system
+                  I can answer questions AND update shipments
                 </p>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground px-1">Try asking:</p>
-                <div className="flex flex-wrap gap-2">
-                  {EXAMPLE_QUERIES.slice(0, 4).map((query, i) => (
-                    <Button
-                      key={i}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-auto py-1.5"
-                      onClick={() => handleSubmit(query)}
-                    >
-                      {query}
-                    </Button>
-                  ))}
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground px-1 mb-2">📊 Ask questions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {EXAMPLE_QUERIES.slice(0, 3).map((query, i) => (
+                      <Button
+                        key={i}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-auto py-1.5"
+                        onClick={() => handleSubmit(query)}
+                      >
+                        {query}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground px-1 mb-2">✏️ Send updates:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {UPDATE_EXAMPLES.slice(0, 3).map((query, i) => (
+                      <Button
+                        key={i}
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs h-auto py-1.5"
+                        onClick={() => handleSubmit(query)}
+                      >
+                        {query}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -184,7 +229,15 @@ export function AIQueryChat({
                     )}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    {message.context_summary && (
+                    {message.update_result?.success && (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-xs font-medium">
+                          Update applied to LOT {message.update_result.lot_number}
+                        </span>
+                      </div>
+                    )}
+                    {message.context_summary && !message.update_result && (
                       <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
                         <Badge variant="secondary" className="text-xs">
                           {message.context_summary.total_shipments} shipments
