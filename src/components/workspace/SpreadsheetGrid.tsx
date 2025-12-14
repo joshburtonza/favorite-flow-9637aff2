@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type } from 'lucide-react';
+import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type, Bold, Italic, Underline, Link2, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,11 +17,19 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
-import { CustomColumn, CustomRow, ColumnType, ColumnOptions, CurrencyFormat, TextAlign, FontSize, evaluateFormula } from '@/hooks/useCustomTables';
+import { Separator } from '@/components/ui/separator';
+import { CustomColumn, CustomRow, ColumnType, ColumnOptions, CurrencyFormat, TextAlign, FontSize, evaluateFormula, CustomTable } from '@/hooks/useCustomTables';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface SpreadsheetGridProps {
   columns: CustomColumn[];
   rows: CustomRow[];
+  allTables?: CustomTable[];
+  allTableData?: { tableId: string; columns: CustomColumn[]; rows: CustomRow[] }[];
   onAddRow: () => void;
   onUpdateRow: (rowId: string, data: Record<string, any>) => void;
   onDeleteRow: (rowId: string) => void;
@@ -48,6 +56,8 @@ const FONT_SIZE_CLASSES: Record<FontSize, string> = {
 export function SpreadsheetGrid({
   columns,
   rows,
+  allTables = [],
+  allTableData = [],
   onAddRow,
   onUpdateRow,
   onDeleteRow,
@@ -60,12 +70,16 @@ export function SpreadsheetGrid({
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<ColumnType>('text');
   const [showNewColumn, setShowNewColumn] = useState(false);
+  const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
+  const [formulaBarValue, setFormulaBarValue] = useState('');
 
   const handleCellClick = (rowId: string, columnId: string, value: any) => {
     const column = columns.find(c => c.id === columnId);
+    setSelectedColumn(columnId);
     if (column?.column_type === 'formula') return; // Don't allow editing formula cells
     setEditingCell({ rowId, columnId });
     setEditValue(value?.toString() || '');
+    setFormulaBarValue(value?.toString() || '');
   };
 
   const handleCellBlur = (rowId: string, columnId: string) => {
@@ -225,13 +239,14 @@ export function SpreadsheetGrid({
               <div>
                 <Label className="text-xs">Formula</Label>
                 <Input
-                  placeholder="e.g., SUM(A:A), AVG(B:B)"
+                  placeholder="e.g., SUM(A:A), =TableName.Column"
                   value={localOptions.formula || ''}
                   onChange={(e) => setLocalOptions({ ...localOptions, formula: e.target.value })}
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Supports: SUM, AVG, COUNT, MIN, MAX
+                  Local: SUM, AVG, COUNT, MIN, MAX<br />
+                  Cross-table: =TableName.ColumnName
                 </p>
               </div>
             )}
@@ -329,7 +344,7 @@ export function SpreadsheetGrid({
 
     // Formula column - calculate value
     if (isFormulaColumn(column) && options.formula) {
-      const calculatedValue = evaluateFormula(options.formula, rows, columns);
+      const calculatedValue = evaluateFormula(options.formula, rows, columns, allTables, allTableData);
       return (
         <div className={cn('px-3 py-2 h-full bg-muted/30 font-medium', fontClass, alignClass)}>
           {formatValue(calculatedValue, { ...column, column_type: 'number' })}
@@ -403,8 +418,182 @@ export function SpreadsheetGrid({
     return formatValue(sum, column);
   };
 
+  const selectedCol = columns.find(c => c.id === selectedColumn);
+
   return (
-    <div className="overflow-auto">
+    <div className="flex flex-col">
+      {/* Formatting Toolbar */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/30 flex-wrap">
+        {/* Font Size */}
+        <Select
+          value={selectedCol?.options?.fontSize || 'sm'}
+          onValueChange={(v) => {
+            if (selectedColumn) {
+              const col = columns.find(c => c.id === selectedColumn);
+              if (col) {
+                onUpdateColumn(selectedColumn, { options: { ...col.options, fontSize: v as FontSize } });
+              }
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 w-24">
+            <SelectValue placeholder="Size" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="xs">XS</SelectItem>
+            <SelectItem value="sm">Small</SelectItem>
+            <SelectItem value="base">Medium</SelectItem>
+            <SelectItem value="lg">Large</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        {/* Text Alignment */}
+        <div className="flex">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={selectedCol?.options?.textAlign === 'left' || !selectedCol?.options?.textAlign ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  if (selectedColumn) {
+                    const col = columns.find(c => c.id === selectedColumn);
+                    if (col) onUpdateColumn(selectedColumn, { options: { ...col.options, textAlign: 'left' } });
+                  }
+                }}
+              >
+                <AlignLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Align Left</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={selectedCol?.options?.textAlign === 'center' ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  if (selectedColumn) {
+                    const col = columns.find(c => c.id === selectedColumn);
+                    if (col) onUpdateColumn(selectedColumn, { options: { ...col.options, textAlign: 'center' } });
+                  }
+                }}
+              >
+                <AlignCenter className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Align Center</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={selectedCol?.options?.textAlign === 'right' ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  if (selectedColumn) {
+                    const col = columns.find(c => c.id === selectedColumn);
+                    if (col) onUpdateColumn(selectedColumn, { options: { ...col.options, textAlign: 'right' } });
+                  }
+                }}
+              >
+                <AlignRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Align Right</TooltipContent>
+          </Tooltip>
+        </div>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        {/* Currency */}
+        <Select
+          value={selectedCol?.options?.currency || 'none'}
+          onValueChange={(v) => {
+            if (selectedColumn) {
+              const col = columns.find(c => c.id === selectedColumn);
+              if (col) {
+                onUpdateColumn(selectedColumn, { 
+                  column_type: v !== 'none' ? 'currency' : col.column_type,
+                  options: { ...col.options, currency: v as CurrencyFormat } 
+                });
+              }
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 w-20">
+            <SelectValue placeholder="$" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="ZAR">R</SelectItem>
+            <SelectItem value="USD">$</SelectItem>
+            <SelectItem value="EUR">€</SelectItem>
+            <SelectItem value="GBP">£</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        {/* Column Type Quick Select */}
+        <Select
+          value={selectedCol?.column_type || 'text'}
+          onValueChange={(v) => {
+            if (selectedColumn) {
+              onUpdateColumn(selectedColumn, { column_type: v as ColumnType });
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 w-28">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="text">Text</SelectItem>
+            <SelectItem value="number">Number</SelectItem>
+            <SelectItem value="currency">Currency</SelectItem>
+            <SelectItem value="date">Date</SelectItem>
+            <SelectItem value="checkbox">Checkbox</SelectItem>
+            <SelectItem value="formula">Formula</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        {/* Cross-table reference hint */}
+        <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
+          <Link2 className="h-3 w-3" />
+          <span>Formula: =TableName.Column</span>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Formula Bar */}
+        {editingCell && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono bg-muted px-2 py-1 rounded">fx</span>
+            <Input
+              value={formulaBarValue}
+              onChange={(e) => {
+                setFormulaBarValue(e.target.value);
+                setEditValue(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editingCell) {
+                  handleCellBlur(editingCell.rowId, editingCell.columnId);
+                }
+              }}
+              className="h-8 w-64 font-mono text-sm"
+              placeholder="Enter value or formula..."
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-muted/50">
@@ -531,6 +720,7 @@ export function SpreadsheetGrid({
         <Plus className="h-4 w-4 mr-1" />
         Add Row
       </Button>
+      </div>
     </div>
   );
 }
