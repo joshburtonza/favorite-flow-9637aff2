@@ -23,7 +23,8 @@ import {
   UserCog,
   Shield,
   FolderOpen,
-  Table2
+  Table2,
+  CalendarDays
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -41,6 +42,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
+  { path: '/schedule', label: 'Schedule', icon: CalendarDays, permission: 'view_shipments' },
   { path: '/files', label: 'Files', icon: FolderOpen, permission: 'view_documents' },
   { path: '/workspace', label: 'Workspace', icon: Table2 },
   { path: '/orders', label: 'Orders', icon: Globe, permission: 'view_shipments' },
