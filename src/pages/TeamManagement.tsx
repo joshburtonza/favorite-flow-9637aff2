@@ -1,58 +1,64 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions, ALL_PERMISSIONS, AppPermission, AppRole } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Shield, Users, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Navigate } from 'react-router-dom';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface TeamMember {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'staff' | 'user' | 'moderator';
+  role: AppRole | null;
   created_at: string;
 }
 
+interface RolePermission {
+  role: AppRole;
+  permission: AppPermission;
+}
+
+const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
+  { value: 'admin', label: 'Admin', description: 'Full access to all features' },
+  { value: 'staff', label: 'Staff', description: 'Can manage day-to-day operations' },
+  { value: 'user', label: 'User', description: 'View-only access' },
+  { value: 'moderator', label: 'Moderator', description: 'Can moderate content' },
+];
+
 export default function TeamManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin, hasPermission, loading: permLoading } = usePermissions();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<AppRole>('staff');
   const [addingMember, setAddingMember] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      checkAdminStatus();
+    if (user && !permLoading) {
       fetchTeamMembers();
+      fetchRolePermissions();
     }
-  }, [user]);
-
-  const checkAdminStatus = async () => {
-    if (!user) return;
-    
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .single();
-
-    setIsAdmin(!!data && !error);
-  };
+  }, [user, permLoading]);
 
   const fetchTeamMembers = async () => {
     setLoading(true);
     try {
-      // Get all profiles with their roles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, email, full_name, created_at');
@@ -71,7 +77,7 @@ export default function TeamManagement() {
           id: profile.id,
           email: profile.email || 'No email',
           full_name: profile.full_name,
-          role: (userRole?.role as TeamMember['role']) || 'user',
+          role: (userRole?.role as AppRole) || null,
           created_at: profile.created_at,
         };
       });
@@ -85,6 +91,19 @@ export default function TeamManagement() {
     }
   };
 
+  const fetchRolePermissions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('role, permission');
+
+      if (error) throw error;
+      setRolePermissions((data || []) as RolePermission[]);
+    } catch (error) {
+      console.error('Error fetching role permissions:', error);
+    }
+  };
+
   const addStaffMember = async () => {
     if (!newEmail || !newPassword) {
       toast.error('Email and password are required');
@@ -93,35 +112,29 @@ export default function TeamManagement() {
 
     setAddingMember(true);
     try {
-      // Create new user via signup
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: newEmail,
         password: newPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: newName,
-          },
+          data: { full_name: newName },
         },
       });
 
       if (signUpError) throw signUpError;
 
       if (signUpData.user) {
-        // Add staff role
         const { error: roleError } = await supabase
           .from('user_roles')
-          .insert({
-            user_id: signUpData.user.id,
-            role: 'staff',
-          });
+          .insert({ user_id: signUpData.user.id, role: newRole });
 
         if (roleError) throw roleError;
 
-        toast.success(`Staff member ${newEmail} added successfully`);
+        toast.success(`${newRole.charAt(0).toUpperCase() + newRole.slice(1)} member ${newEmail} added successfully`);
         setNewEmail('');
         setNewName('');
         setNewPassword('');
+        setNewRole('staff');
         fetchTeamMembers();
       }
     } catch (error: any) {
@@ -132,9 +145,28 @@ export default function TeamManagement() {
     }
   };
 
+  const updateMemberRole = async (memberId: string, memberEmail: string, newRoleValue: AppRole) => {
+    try {
+      // Delete existing role
+      await supabase.from('user_roles').delete().eq('user_id', memberId);
+
+      // Insert new role
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: memberId, role: newRoleValue });
+
+      if (error) throw error;
+
+      toast.success(`${memberEmail} role updated to ${newRoleValue}`);
+      fetchTeamMembers();
+    } catch (error: any) {
+      console.error('Error updating role:', error);
+      toast.error(error.message || 'Failed to update role');
+    }
+  };
+
   const removeStaffMember = async (memberId: string, memberEmail: string) => {
     try {
-      // Remove role
       const { error: roleError } = await supabase
         .from('user_roles')
         .delete()
@@ -150,26 +182,44 @@ export default function TeamManagement() {
     }
   };
 
-  const promoteToAdmin = async (memberId: string, memberEmail: string) => {
+  const togglePermission = async (role: AppRole, permission: AppPermission) => {
+    const hasPermissionCurrently = rolePermissions.some(
+      rp => rp.role === role && rp.permission === permission
+    );
+
+    setSavingPermissions(true);
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .upsert({
-          user_id: memberId,
-          role: 'admin',
-        });
+      if (hasPermissionCurrently) {
+        const { error } = await supabase
+          .from('role_permissions')
+          .delete()
+          .eq('role', role)
+          .eq('permission', permission);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('role_permissions')
+          .insert({ role, permission });
 
-      toast.success(`${memberEmail} promoted to admin`);
-      fetchTeamMembers();
+        if (error) throw error;
+      }
+
+      await fetchRolePermissions();
+      toast.success('Permission updated');
     } catch (error: any) {
-      console.error('Error promoting member:', error);
-      toast.error(error.message || 'Failed to promote member');
+      console.error('Error toggling permission:', error);
+      toast.error(error.message || 'Failed to update permission');
+    } finally {
+      setSavingPermissions(false);
     }
   };
 
-  if (authLoading) {
+  const roleHasPermission = (role: AppRole, permission: AppPermission): boolean => {
+    return rolePermissions.some(rp => rp.role === role && rp.permission === permission);
+  };
+
+  if (authLoading || permLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -181,163 +231,283 @@ export default function TeamManagement() {
     return <Navigate to="/auth" replace />;
   }
 
-  if (!isAdmin && !loading) {
+  if (!isAdmin && !hasPermission('manage_team')) {
     return (
-      <div className="container mx-auto py-8 px-4">
+      <AppLayout>
         <Card className="bg-destructive/10 border-destructive">
           <CardHeader>
             <CardTitle className="text-destructive">Access Denied</CardTitle>
             <CardDescription>You need admin privileges to access team management.</CardDescription>
           </CardHeader>
         </Card>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 space-y-6">
-      <div className="flex items-center gap-3">
-        <Users className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Team Management</h1>
-          <p className="text-muted-foreground">Add and manage staff members</p>
-        </div>
-      </div>
-
-      {/* Add New Staff Member */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Add Staff Member
-          </CardTitle>
-          <CardDescription>Create a new staff account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <Input
-              placeholder="Full Name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              type="email"
-              placeholder="Email Address"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={addStaffMember} disabled={addingMember}>
-              {addingMember ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <UserPlus className="h-4 w-4 mr-2" />
-              )}
-              Add Staff
-            </Button>
+    <AppLayout>
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Users className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Team Management</h1>
+            <p className="text-muted-foreground">Manage team members, roles and permissions</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Team Members List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Members</CardTitle>
-          <CardDescription>
-            {teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''} in your team
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {teamMembers.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">
-                      {member.full_name || 'No name'}
-                    </TableCell>
-                    <TableCell>{member.email}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={member.role === 'admin' ? 'default' : 'secondary'}
-                        className={member.role === 'admin' ? 'bg-primary' : ''}
-                      >
-                        {member.role === 'admin' && <Shield className="h-3 w-3 mr-1" />}
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(member.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {member.id !== user?.id && (
-                        <div className="flex justify-end gap-2">
-                          {member.role !== 'admin' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => promoteToAdmin(member.id, member.email)}
-                            >
-                              <Shield className="h-4 w-4 mr-1" />
-                              Make Admin
-                            </Button>
-                          )}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Team Member</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to remove {member.email} from the team? 
-                                  This will revoke their access.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => removeStaffMember(member.id, member.email)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+        <Tabs defaultValue="members" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="members" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Roles
+            </TabsTrigger>
+            <TabsTrigger value="permissions" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              Permissions
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Members Tab */}
+          <TabsContent value="members" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />
+                  Add Team Member
+                </CardTitle>
+                <CardDescription>Create a new team member account</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <Input
+                    placeholder="Full Name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="email"
+                    placeholder="Email Address"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_ROLES.map(role => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={addStaffMember} disabled={addingMember}>
+                    {addingMember ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <UserPlus className="h-4 w-4 mr-2" />
+                    )}
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Members</CardTitle>
+                <CardDescription>
+                  {teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''} in your team
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Joined</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamMembers.map((member) => (
+                        <TableRow key={member.id}>
+                          <TableCell className="font-medium">
+                            {member.full_name || 'No name'}
+                          </TableCell>
+                          <TableCell>{member.email}</TableCell>
+                          <TableCell>
+                            {member.id !== user?.id ? (
+                              <Select
+                                value={member.role || 'user'}
+                                onValueChange={(v) => updateMemberRole(member.id, member.email, v as AppRole)}
+                              >
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {AVAILABLE_ROLES.map(role => (
+                                    <SelectItem key={role.value} value={role.value}>
+                                      {role.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="default" className="bg-primary">
+                                <Shield className="h-3 w-3 mr-1" />
+                                {member.role || 'No role'}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(member.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {member.id !== user?.id && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="destructive" size="sm">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove Team Member</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to remove {member.email} from the team?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => removeStaffMember(member.id, member.email)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Roles Tab */}
+          <TabsContent value="roles" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              {AVAILABLE_ROLES.map(role => {
+                const memberCount = teamMembers.filter(m => m.role === role.value).length;
+                const permCount = rolePermissions.filter(rp => rp.role === role.value).length;
+
+                return (
+                  <Card key={role.value}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Shield className={`h-5 w-5 ${role.value === 'admin' ? 'text-primary' : 'text-muted-foreground'}`} />
+                        {role.label}
+                      </CardTitle>
+                      <CardDescription>{role.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-4 text-sm">
+                        <div>
+                          <span className="font-semibold">{memberCount}</span>
+                          <span className="text-muted-foreground ml-1">member{memberCount !== 1 ? 's' : ''}</span>
                         </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                        <div>
+                          <span className="font-semibold">{permCount}</span>
+                          <span className="text-muted-foreground ml-1">permission{permCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          {/* Permissions Tab */}
+          <TabsContent value="permissions" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5" />
+                  Role Permissions Matrix
+                </CardTitle>
+                <CardDescription>
+                  Configure which permissions each role has. Changes are saved automatically.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[250px]">Permission</TableHead>
+                        {AVAILABLE_ROLES.map(role => (
+                          <TableHead key={role.value} className="text-center w-[100px]">
+                            {role.label}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {ALL_PERMISSIONS.map(perm => (
+                        <TableRow key={perm.value}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{perm.label}</div>
+                              <div className="text-xs text-muted-foreground">{perm.description}</div>
+                            </div>
+                          </TableCell>
+                          {AVAILABLE_ROLES.map(role => (
+                            <TableCell key={role.value} className="text-center">
+                              <Checkbox
+                                checked={roleHasPermission(role.value, perm.value)}
+                                onCheckedChange={() => togglePermission(role.value, perm.value)}
+                                disabled={savingPermissions || (role.value === 'admin' && perm.value === 'manage_team')}
+                              />
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AppLayout>
   );
 }

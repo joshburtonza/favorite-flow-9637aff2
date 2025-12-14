@@ -334,6 +334,27 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission: Database["public"]["Enums"]["app_permission"]
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission: Database["public"]["Enums"]["app_permission"]
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission?: Database["public"]["Enums"]["app_permission"]
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       shipment_costs: {
         Row: {
           bank_charges: number
@@ -762,6 +783,13 @@ export type Database = {
       }
     }
     Functions: {
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["app_permission"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -771,6 +799,22 @@ export type Database = {
       }
     }
     Enums: {
+      app_permission:
+        | "view_dashboard"
+        | "manage_shipments"
+        | "view_shipments"
+        | "manage_suppliers"
+        | "view_suppliers"
+        | "manage_clients"
+        | "view_clients"
+        | "manage_payments"
+        | "view_payments"
+        | "view_financials"
+        | "manage_documents"
+        | "view_documents"
+        | "manage_team"
+        | "manage_bank_accounts"
+        | "bulk_import"
       app_role: "admin" | "moderator" | "user" | "staff"
       currency_type: "USD" | "EUR" | "ZAR"
       ledger_type: "debit" | "credit"
@@ -907,6 +951,23 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_permission: [
+        "view_dashboard",
+        "manage_shipments",
+        "view_shipments",
+        "manage_suppliers",
+        "view_suppliers",
+        "manage_clients",
+        "view_clients",
+        "manage_payments",
+        "view_payments",
+        "view_financials",
+        "manage_documents",
+        "view_documents",
+        "manage_team",
+        "manage_bank_accounts",
+        "bulk_import",
+      ],
       app_role: ["admin", "moderator", "user", "staff"],
       currency_type: ["USD", "EUR", "ZAR"],
       ledger_type: ["debit", "credit"],
