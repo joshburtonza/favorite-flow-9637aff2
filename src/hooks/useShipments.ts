@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Shipment, ShipmentStatus, ShipmentCosts } from '@/types/database';
 import { toast } from 'sonner';
+import { useActivityLogger } from './useActivityLogger';
 
 interface ShipmentFilters {
   status?: ShipmentStatus | 'all';
@@ -87,6 +88,7 @@ export function useShipment(id: string) {
 
 export function useCreateShipment() {
   const queryClient = useQueryClient();
+  const { logCreate } = useActivityLogger();
   
   return useMutation({
     mutationFn: async (data: {
@@ -115,8 +117,9 @@ export function useCreateShipment() {
       
       return shipment;
     },
-    onSuccess: () => {
+    onSuccess: (shipment, variables) => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      logCreate('shipment', shipment.id, shipment.lot_number, variables);
       toast.success('Shipment created successfully');
     },
     onError: (error: Error) => {
@@ -127,9 +130,10 @@ export function useCreateShipment() {
 
 export function useUpdateShipment() {
   const queryClient = useQueryClient();
+  const { logUpdate } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async ({ id, ...data }: Partial<Shipment> & { id: string }) => {
+    mutationFn: async ({ id, oldData, ...data }: Partial<Shipment> & { id: string; oldData?: Partial<Shipment> }) => {
       const { data: shipment, error } = await supabase
         .from('shipments')
         .update(data)
@@ -138,11 +142,12 @@ export function useUpdateShipment() {
         .single();
       
       if (error) throw error;
-      return shipment;
+      return { shipment, oldData, newData: data };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: ({ shipment, oldData, newData }, variables) => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       queryClient.invalidateQueries({ queryKey: ['shipment', variables.id] });
+      logUpdate('shipment', shipment.id, shipment.lot_number, oldData, newData);
       toast.success('Shipment updated successfully');
     },
     onError: (error: Error) => {
@@ -153,9 +158,10 @@ export function useUpdateShipment() {
 
 export function useUpdateShipmentCosts() {
   const queryClient = useQueryClient();
+  const { logUpdate } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async ({ shipmentId, ...data }: Partial<ShipmentCosts> & { shipmentId: string }) => {
+    mutationFn: async ({ shipmentId, lotNumber, oldCosts, ...data }: Partial<ShipmentCosts> & { shipmentId: string; lotNumber?: string; oldCosts?: Partial<ShipmentCosts> }) => {
       // Check if costs entry exists
       const { data: existingCosts } = await supabase
         .from('shipment_costs')
@@ -172,7 +178,7 @@ export function useUpdateShipmentCosts() {
           .single();
         
         if (error) throw error;
-        return costs;
+        return { costs, lotNumber, oldCosts, newData: data };
       } else {
         const { data: costs, error } = await supabase
           .from('shipment_costs')
@@ -181,12 +187,13 @@ export function useUpdateShipmentCosts() {
           .single();
         
         if (error) throw error;
-        return costs;
+        return { costs, lotNumber, oldCosts, newData: data };
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: ({ costs, lotNumber, oldCosts, newData }, variables) => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       queryClient.invalidateQueries({ queryKey: ['shipment'] });
+      logUpdate('shipment', variables.shipmentId, lotNumber || 'Shipment', oldCosts, newData);
       toast.success('Costs updated successfully');
     },
     onError: (error: Error) => {
@@ -197,18 +204,21 @@ export function useUpdateShipmentCosts() {
 
 export function useDeleteShipment() {
   const queryClient = useQueryClient();
+  const { logDelete } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, lotNumber }: { id: string; lotNumber?: string }) => {
       const { error } = await supabase
         .from('shipments')
         .delete()
         .eq('id', id);
       
       if (error) throw error;
+      return { id, lotNumber };
     },
-    onSuccess: () => {
+    onSuccess: ({ id, lotNumber }) => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      logDelete('shipment', id, lotNumber || 'Shipment');
       toast.success('Shipment deleted successfully');
     },
     onError: (error: Error) => {

@@ -99,7 +99,8 @@ export default function Clients() {
 
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
-    await deleteClient.mutateAsync(deleteConfirmId);
+    const clientToDelete = clients?.find(c => c.id === deleteConfirmId);
+    await deleteClient.mutateAsync({ id: deleteConfirmId, name: clientToDelete?.name });
     setDeleteConfirmId(null);
   };
 

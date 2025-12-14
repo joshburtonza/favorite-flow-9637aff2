@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Supplier, SupplierLedgerEntry, LedgerType } from '@/types/database';
 import { toast } from 'sonner';
+import { useActivityLogger } from './useActivityLogger';
 
 export function useSuppliers() {
   return useQuery({
@@ -37,6 +38,7 @@ export function useSupplier(id: string) {
 
 export function useCreateSupplier() {
   const queryClient = useQueryClient();
+  const { logCreate } = useActivityLogger();
   
   return useMutation({
     mutationFn: async (data: Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'current_balance'>) => {
@@ -49,8 +51,9 @@ export function useCreateSupplier() {
       if (error) throw error;
       return supplier;
     },
-    onSuccess: () => {
+    onSuccess: (supplier, variables) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      logCreate('supplier', supplier.id, supplier.name, variables);
       toast.success('Supplier created successfully');
     },
     onError: (error: Error) => {
@@ -61,9 +64,10 @@ export function useCreateSupplier() {
 
 export function useUpdateSupplier() {
   const queryClient = useQueryClient();
+  const { logUpdate } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async ({ id, ...data }: Partial<Supplier> & { id: string }) => {
+    mutationFn: async ({ id, oldData, ...data }: Partial<Supplier> & { id: string; oldData?: Partial<Supplier> }) => {
       const { data: supplier, error } = await supabase
         .from('suppliers')
         .update(data)
@@ -72,11 +76,12 @@ export function useUpdateSupplier() {
         .single();
       
       if (error) throw error;
-      return supplier;
+      return { supplier, oldData, newData: data };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: ({ supplier, oldData, newData }, variables) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       queryClient.invalidateQueries({ queryKey: ['supplier', variables.id] });
+      logUpdate('supplier', supplier.id, supplier.name, oldData, newData);
       toast.success('Supplier updated successfully');
     },
     onError: (error: Error) => {
@@ -87,18 +92,21 @@ export function useUpdateSupplier() {
 
 export function useDeleteSupplier() {
   const queryClient = useQueryClient();
+  const { logDelete } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, name }: { id: string; name?: string }) => {
       const { error } = await supabase
         .from('suppliers')
         .delete()
         .eq('id', id);
       
       if (error) throw error;
+      return { id, name };
     },
-    onSuccess: () => {
+    onSuccess: ({ id, name }) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      logDelete('supplier', id, name || 'Supplier');
       toast.success('Supplier deleted successfully');
     },
     onError: (error: Error) => {
@@ -129,10 +137,12 @@ export function useSupplierLedger(supplierId: string) {
 
 export function useCreateLedgerEntry() {
   const queryClient = useQueryClient();
+  const { logCreate } = useActivityLogger();
   
   return useMutation({
     mutationFn: async (data: {
       supplier_id: string;
+      supplier_name?: string;
       shipment_id?: string;
       transaction_date: string;
       invoice_number?: string;
@@ -141,18 +151,23 @@ export function useCreateLedgerEntry() {
       amount: number;
       notes?: string;
     }) => {
+      const { supplier_name, ...insertData } = data;
       const { data: entry, error } = await supabase
         .from('supplier_ledger')
-        .insert(data)
+        .insert(insertData)
         .select()
         .single();
       
       if (error) throw error;
-      return entry;
+      return { entry, supplier_name };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: ({ entry, supplier_name }, variables) => {
       queryClient.invalidateQueries({ queryKey: ['supplier-ledger', variables.supplier_id] });
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      logCreate('payment', entry.id, `${variables.ledger_type} - ${supplier_name || 'Supplier'}`, {
+        amount: variables.amount,
+        type: variables.ledger_type,
+      });
       toast.success('Ledger entry added successfully');
     },
     onError: (error: Error) => {

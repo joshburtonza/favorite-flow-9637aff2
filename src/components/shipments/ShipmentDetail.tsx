@@ -186,7 +186,7 @@ export function ShipmentDetail() {
 
   const handleDelete = async () => {
     if (!id) return;
-    await deleteShipment.mutateAsync(id);
+    await deleteShipment.mutateAsync({ id, lotNumber: shipment?.lot_number });
     navigate('/');
   };
 

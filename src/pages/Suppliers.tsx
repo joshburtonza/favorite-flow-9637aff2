@@ -110,7 +110,8 @@ export default function Suppliers() {
 
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
-    await deleteSupplier.mutateAsync(deleteConfirmId);
+    const supplierToDelete = suppliers?.find(s => s.id === deleteConfirmId);
+    await deleteSupplier.mutateAsync({ id: deleteConfirmId, name: supplierToDelete?.name });
     setDeleteConfirmId(null);
   };
 
