@@ -25,7 +25,7 @@ export type AppPermission =
   | 'view_clearing_invoices'
   | 'download_documents';
 
-export type AppRole = 'admin' | 'staff' | 'user' | 'moderator';
+export type AppRole = 'admin' | 'staff' | 'user' | 'moderator' | 'accountant' | 'shipping' | 'file_costing' | 'operations';
 
 export const ALL_PERMISSIONS: { value: AppPermission; label: string; description: string; category?: string }[] = [
   { value: 'view_dashboard', label: 'View Dashboard', description: 'Access main dashboard' },
