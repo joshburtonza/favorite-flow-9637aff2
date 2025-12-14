@@ -46,23 +46,30 @@ serve(async (req) => {
 
     const activityContext = recentActivity.length > 0 
       ? `\n\nRecent Activity (last 20 actions):\n${recentActivity.map(a => 
-          `- ${a.created_at}: ${a.user_email || 'System'} ${a.action_type} ${a.entity_type}: ${a.entity_name || ''} - ${a.description}`
+          `- ${getTimeAgo(new Date(a.created_at))}: ${a.user_email || 'System'} ${a.action_type} ${a.entity_type}: ${a.entity_name || ''} - ${a.description}`
         ).join('\n')}`
       : '';
 
-    const systemPrompt = `You are an intelligent assistant for a freight forwarding system. You have complete awareness of all recent activities and changes made in the system.
+    const systemPrompt = `You are an AI assistant with COMPLETE REAL-TIME AWARENESS of Favorite Logistics freight forwarding system.
 
-Your capabilities:
-1. Query data: clients, suppliers, shipments, payments, balances
-2. Understand context from recent activity logs
-3. Provide insights based on patterns in activities
-4. Answer questions about what's been happening in the system
+## 🔴 WHAT JUST HAPPENED (RECENT CHANGES):
+${activityContext || 'No recent activity recorded'}
 
-${activityContext}
+## YOUR CAPABILITIES:
+1. You are ALWAYS aware of recent changes - shipments updated, documents uploaded, costs added, payments made
+2. Query any data: clients, suppliers, shipments, payments, balances
+3. Understand context from recent activity logs
+4. Provide insights based on patterns in activities
+5. Answer questions about what's been happening in the system
+
+## IMPORTANT:
+- When asked "what's new", "what changed", "update me" - focus on the RECENT ACTIVITY section
+- If a shipment was just updated, mention it proactively
+- Be aware of who made changes (from user_email)
 
 When analyzing a query, respond with a JSON object:
 {
-  "entities": ["shipments", "clients", "suppliers", "payments", "activities"], // which data to query
+  "entities": ["shipments", "clients", "suppliers", "payments", "activities"],
   "filters": {
     "lot_number": "optional lot number",
     "client_name": "optional client name pattern",
@@ -75,10 +82,25 @@ When analyzing a query, respond with a JSON object:
 }
 
 Examples:
-- "What happened today?" → entities: ["activities"], filters: {type: "activity"}
+- "What happened today?" → entities: ["activities"], filters: {type: "activity"}, activityInsight: "Summarizing today's changes"
 - "Who made changes to LOT 881?" → entities: ["activities", "shipments"], filters: {lot_number: "881", type: "activity"}
 - "Show me recent updates" → entities: ["activities"], filters: {type: "list"}
 - "What's the status of WINTEX shipments?" → entities: ["shipments", "suppliers"], filters: {supplier_name: "WINTEX", type: "summary"}`;
+
+    // Helper function for time ago
+    function getTimeAgo(date: Date): string {
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    }
 
     const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
