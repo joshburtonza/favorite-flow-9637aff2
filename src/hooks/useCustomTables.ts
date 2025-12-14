@@ -57,8 +57,62 @@ export interface CustomRow {
   updated_at: string;
 }
 
-// Formula evaluation helper
-export function evaluateFormula(formula: string, rows: CustomRow[], columns: CustomColumn[]): number {
+// Formula evaluation helper with cross-table reference support
+export function evaluateFormula(
+  formula: string, 
+  rows: CustomRow[], 
+  columns: CustomColumn[],
+  allTables: CustomTable[] = [],
+  allTableData: { tableId: string; columns: CustomColumn[]; rows: CustomRow[] }[] = []
+): number {
+  // Check for cross-table reference: =TableName.ColumnName
+  const crossTableMatch = formula.match(/^=(.+)\.(.+)$/);
+  if (crossTableMatch) {
+    const [, tableName, columnName] = crossTableMatch;
+    const targetTable = allTables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
+    if (!targetTable) return 0;
+    
+    const tableData = allTableData.find(td => td.tableId === targetTable.id);
+    if (!tableData) return 0;
+    
+    const targetColumn = tableData.columns.find(c => c.name.toLowerCase() === columnName.toLowerCase());
+    if (!targetColumn) return 0;
+    
+    // Sum all values from that column
+    const values = tableData.rows
+      .map(row => parseFloat(row.data[targetColumn.id]) || 0)
+      .filter(v => !isNaN(v));
+    return values.reduce((a, b) => a + b, 0);
+  }
+
+  // Check for cross-table function: SUM(TableName.ColumnName)
+  const crossTableFuncMatch = formula.match(/^(SUM|AVG|COUNT|MIN|MAX)\((.+)\.(.+)\)$/i);
+  if (crossTableFuncMatch) {
+    const [, func, tableName, columnName] = crossTableFuncMatch;
+    const targetTable = allTables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
+    if (!targetTable) return 0;
+    
+    const tableData = allTableData.find(td => td.tableId === targetTable.id);
+    if (!tableData) return 0;
+    
+    const targetColumn = tableData.columns.find(c => c.name.toLowerCase() === columnName.toLowerCase());
+    if (!targetColumn) return 0;
+    
+    const values = tableData.rows
+      .map(row => parseFloat(row.data[targetColumn.id]) || 0)
+      .filter(v => !isNaN(v));
+    
+    switch (func.toUpperCase()) {
+      case 'SUM': return values.reduce((a, b) => a + b, 0);
+      case 'AVG': return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      case 'COUNT': return values.length;
+      case 'MIN': return values.length > 0 ? Math.min(...values) : 0;
+      case 'MAX': return values.length > 0 ? Math.max(...values) : 0;
+      default: return 0;
+    }
+  }
+
+  // Local table formula: SUM(A:A)
   const match = formula.match(/^(SUM|AVG|COUNT|MIN|MAX)\(([A-Z]):([A-Z])\)$/i);
   if (!match) return 0;
   

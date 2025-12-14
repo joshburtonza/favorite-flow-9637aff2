@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -68,6 +68,33 @@ export default function Workspace() {
   const { tables, isLoading: tablesLoading, createTable, deleteTable, updateTable } = useCustomTables();
   const { columns, addColumn, updateColumn, deleteColumn } = useTableColumns(selectedTableId);
   const { rows, addRow, updateRow, deleteRow } = useTableRows(selectedTableId);
+
+  // Load all table data for cross-table references
+  const [allTableData, setAllTableData] = useState<{ tableId: string; columns: any[]; rows: any[] }[]>([]);
+  
+  useEffect(() => {
+    const loadAllTableData = async () => {
+      const data: { tableId: string; columns: any[]; rows: any[] }[] = [];
+      for (const table of tables) {
+        const { data: cols } = await supabase
+          .from('custom_columns')
+          .select('*')
+          .eq('table_id', table.id)
+          .order('order_position');
+        const { data: tableRows } = await supabase
+          .from('custom_rows')
+          .select('*')
+          .eq('table_id', table.id);
+        if (cols && tableRows) {
+          data.push({ tableId: table.id, columns: cols, rows: tableRows });
+        }
+      }
+      setAllTableData(data);
+    };
+    if (tables.length > 0) {
+      loadAllTableData();
+    }
+  }, [tables]);
 
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
@@ -517,6 +544,8 @@ export default function Workspace() {
                 <SpreadsheetGrid
                   columns={columns}
                   rows={rows}
+                  allTables={tables}
+                  allTableData={allTableData}
                   onAddRow={() => addRow.mutate({})}
                   onUpdateRow={(rowId, data) => updateRow.mutate({ id: rowId, data })}
                   onDeleteRow={(rowId) => deleteRow.mutate(rowId)}
