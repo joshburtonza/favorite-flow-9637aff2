@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,8 +51,19 @@ export default function Workspace() {
   const [importFromFolderData, setImportFromFolderData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
+  const [expandedSaveFolders, setExpandedSaveFolders] = useState<Set<string>>(new Set());
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
+
+  const toggleSaveFolder = (folderId: string) => {
+    setExpandedSaveFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  };
 
   const { tables, isLoading: tablesLoading, createTable, deleteTable, updateTable } = useCustomTables();
   const { columns, addColumn, updateColumn, deleteColumn } = useTableColumns(selectedTableId);
@@ -302,6 +313,51 @@ export default function Workspace() {
       else next.add(group);
       return next;
     });
+  };
+
+  // Render folder tree item for save dialog
+  const renderSaveFolderItem = (folder: any, level: number): React.ReactNode => {
+    const hasChildren = folder.children && folder.children.length > 0;
+    const isExpanded = expandedSaveFolders.has(folder.id);
+    const isSelected = selectedFolderId === folder.id;
+
+    return (
+      <div key={folder.id}>
+        <div
+          className={cn(
+            'flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer',
+            isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+          )}
+          style={{ paddingLeft: `${level * 12 + 8}px` }}
+          onClick={() => setSelectedFolderId(folder.id)}
+        >
+          {hasChildren ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSaveFolder(folder.id);
+              }}
+              className="p-0.5 hover:bg-muted rounded"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+            </button>
+          ) : (
+            <span className="w-4" />
+          )}
+          <Folder className="h-4 w-4" />
+          <span className="text-sm truncate">{folder.name}</span>
+        </div>
+        {hasChildren && isExpanded && (
+          <div>
+            {folder.children.map((child: any) => renderSaveFolderItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -623,7 +679,14 @@ export default function Workspace() {
       </Dialog>
 
       {/* Save to Folder Dialog */}
-      <Dialog open={saveToFolderDialog} onOpenChange={setSaveToFolderDialog}>
+      <Dialog open={saveToFolderDialog} onOpenChange={(open) => {
+        setSaveToFolderDialog(open);
+        if (!open) {
+          setIsCreatingFolder(false);
+          setNewFolderName('');
+          setCreateFolderParentId(null);
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save Table to Folder</DialogTitle>
@@ -648,32 +711,40 @@ export default function Workspace() {
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => setIsCreatingFolder(true)}
+                  onClick={() => {
+                    setCreateFolderParentId(selectedFolderId);
+                    setIsCreatingFolder(true);
+                  }}
                 >
                   <FolderPlus className="h-3 w-3 mr-1" />
-                  New Folder
+                  {selectedFolderId ? 'New Subfolder' : 'New Folder'}
                 </Button>
               </div>
               {isCreatingFolder && (
                 <div className="flex gap-2 mb-2">
                   <Input
-                    placeholder="Folder name"
+                    placeholder={createFolderParentId ? "Subfolder name" : "Folder name"}
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     className="h-8 text-sm"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newFolderName.trim()) {
-                        createFolder.mutate({ name: newFolderName.trim() }, {
+                        createFolder.mutate({ name: newFolderName.trim(), parent_id: createFolderParentId || undefined }, {
                           onSuccess: (data) => {
                             setSelectedFolderId(data.id);
+                            if (createFolderParentId) {
+                              setExpandedSaveFolders(prev => new Set(prev).add(createFolderParentId));
+                            }
                             setNewFolderName('');
                             setIsCreatingFolder(false);
+                            setCreateFolderParentId(null);
                           }
                         });
                       } else if (e.key === 'Escape') {
                         setNewFolderName('');
                         setIsCreatingFolder(false);
+                        setCreateFolderParentId(null);
                       }
                     }}
                   />
@@ -682,11 +753,15 @@ export default function Workspace() {
                     className="h-8"
                     onClick={() => {
                       if (newFolderName.trim()) {
-                        createFolder.mutate({ name: newFolderName.trim() }, {
+                        createFolder.mutate({ name: newFolderName.trim(), parent_id: createFolderParentId || undefined }, {
                           onSuccess: (data) => {
                             setSelectedFolderId(data.id);
+                            if (createFolderParentId) {
+                              setExpandedSaveFolders(prev => new Set(prev).add(createFolderParentId));
+                            }
                             setNewFolderName('');
                             setIsCreatingFolder(false);
+                            setCreateFolderParentId(null);
                           }
                         });
                       }
@@ -702,11 +777,17 @@ export default function Workspace() {
                     onClick={() => {
                       setNewFolderName('');
                       setIsCreatingFolder(false);
+                      setCreateFolderParentId(null);
                     }}
                   >
                     Cancel
                   </Button>
                 </div>
+              )}
+              {createFolderParentId && isCreatingFolder && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Creating inside: {folders.find(f => f.id === createFolderParentId)?.name || 'Root'}
+                </p>
               )}
               <ScrollArea className="h-48 border rounded-md p-2">
                 <div
@@ -719,19 +800,7 @@ export default function Workspace() {
                   <Folder className="h-4 w-4" />
                   <span className="text-sm">Root (No Folder)</span>
                 </div>
-                {folders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    className={cn(
-                      'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',
-                      selectedFolderId === folder.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                    )}
-                    onClick={() => setSelectedFolderId(folder.id)}
-                  >
-                    <Folder className="h-4 w-4" />
-                    <span className="text-sm">{folder.name}</span>
-                  </div>
-                ))}
+                {folderTree.map((folder) => renderSaveFolderItem(folder, 0))}
               </ScrollArea>
             </div>
           </div>
