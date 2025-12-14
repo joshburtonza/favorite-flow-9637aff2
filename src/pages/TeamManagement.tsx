@@ -31,40 +31,71 @@ interface RolePermission {
 
 const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: 'admin', label: 'Admin', description: 'Full access to all features' },
-  { value: 'staff', label: 'Staff', description: 'Can manage day-to-day operations' },
-  { value: 'user', label: 'User', description: 'View-only access' },
+  { value: 'accountant', label: 'Accountant', description: 'Financial documents, client invoices, packing lists' },
+  { value: 'shipping', label: 'Shipping Coordinator', description: 'Shipping documents, tracking, packing lists' },
+  { value: 'file_costing', label: 'File Costing', description: 'Clearing and transport cost documents' },
+  { value: 'operations', label: 'Operations (Read-Only)', description: 'Read-only tracking information' },
+  { value: 'staff', label: 'Staff', description: 'Basic staff access' },
+  { value: 'user', label: 'User', description: 'Standard user access' },
   { value: 'moderator', label: 'Moderator', description: 'Can moderate content' },
 ];
 
-// Staff document access definitions
+// Staff document access definitions mapped to new roles
 const STAFF_ACCESS_CONFIG = [
   {
     name: 'Abdul',
-    role: 'Accountant',
+    role: 'accountant',
+    roleLabel: 'Accountant',
     documentAccess: ['Supplier Invoices', 'Packing Lists'],
+    folderAccess: ['/statements/', '/invoices/', '/shipments/', '/packing_lists/'],
+    uploadFolders: ['/invoices/client/', '/statements/pending/'],
     description: 'Access to supplier invoices for creating client invoices, access to packing lists',
-    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents'],
+    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents', 'view_shipments', 'view_payments', 'manage_payments'],
+    restrictions: ['Cannot see: Exchange rates, supplier costs', 'Cannot delete documents'],
   },
   {
     name: 'Marissa',
-    role: 'Shipping Coordinator',
-    documentAccess: ['Shipping Documents', 'Bills of Lading'],
-    description: 'Access to shipping documents',
-    permissions: ['view_shipping_documents', 'view_documents'],
+    role: 'shipping',
+    roleLabel: 'Shipping Coordinator',
+    documentAccess: ['Shipping Documents', 'Bills of Lading', 'Packing Lists'],
+    folderAccess: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/', '/packing_lists/'],
+    uploadFolders: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/'],
+    description: 'Access to shipping documents and tracking',
+    permissions: ['view_shipping_documents', 'view_packing_lists', 'view_documents', 'manage_documents', 'view_shipments', 'manage_shipments'],
+    restrictions: ['Cannot see: Financial data (costs, invoices, exchange rates)', 'Cannot delete documents'],
   },
   {
     name: 'Shamima',
-    role: 'File Costings',
+    role: 'file_costing',
+    roleLabel: 'File Costing',
     documentAccess: ['Transport Invoices', 'Clearing Agent Invoices'],
+    folderAccess: ['/staff_folders/shamima/', '/clearing_agent/', '/transport/'],
+    uploadFolders: ['/staff_folders/shamima/', '/clearing_agent/'],
     description: 'Access for file costings (transport invoices, clearing agent invoices)',
-    permissions: ['view_transport_invoices', 'view_clearing_invoices', 'view_documents'],
+    permissions: ['view_transport_invoices', 'view_clearing_invoices', 'view_documents', 'view_shipments'],
+    restrictions: ['Cannot see: Supplier costs, exchange rates, client invoice amounts', 'Cannot delete documents'],
+  },
+  {
+    name: 'Paint Shop',
+    role: 'operations',
+    roleLabel: 'Operations (Read-Only)',
+    documentAccess: [],
+    folderAccess: [],
+    uploadFolders: [],
+    description: 'Read-only access to shipment tracking information',
+    permissions: ['view_dashboard', 'view_shipments'],
+    restrictions: ['Cannot see: Product details, costs, invoices, supplier info, client info', 'Cannot upload or delete anything', 'Read-only access'],
   },
   {
     name: 'MI (Mo)',
-    role: 'Admin',
+    role: 'admin',
+    roleLabel: 'Admin',
     documentAccess: ['All Documents'],
+    folderAccess: ['All Folders'],
+    uploadFolders: ['All Folders'],
     description: 'Full admin access to everything',
     permissions: ['all'],
+    restrictions: [],
   },
 ];
 
@@ -472,29 +503,45 @@ export default function TeamManagement() {
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
                   {STAFF_ACCESS_CONFIG.map((staff, index) => (
-                    <Card key={index} className={staff.name === 'MI (Mo)' ? 'border-primary/50 bg-primary/5' : ''}>
+                    <Card key={index} className={staff.role === 'admin' ? 'border-primary/50 bg-primary/5' : ''}>
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg">{staff.name}</CardTitle>
-                          <Badge variant={staff.name === 'MI (Mo)' ? 'default' : 'secondary'}>
-                            {staff.role}
+                          <Badge variant={staff.role === 'admin' ? 'default' : 'secondary'}>
+                            {staff.roleLabel}
                           </Badge>
                         </div>
                         <CardDescription>{staff.description}</CardDescription>
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          <div>
-                            <p className="text-sm font-medium mb-2">Document Access:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {staff.documentAccess.map((access, i) => (
-                                <Badge key={i} variant="outline" className="bg-accent/10">
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  {access}
-                                </Badge>
-                              ))}
+                          {staff.documentAccess.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium mb-2">Document Access:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {staff.documentAccess.map((access, i) => (
+                                  <Badge key={i} variant="outline" className="bg-accent/10">
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    {access}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
+                          
+                          {staff.restrictions && staff.restrictions.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm font-medium mb-2 text-destructive">Restrictions:</p>
+                              <ul className="text-xs text-muted-foreground space-y-1">
+                                {staff.restrictions.map((restriction, i) => (
+                                  <li key={i} className="flex items-start gap-1">
+                                    <span className="text-destructive">•</span> {restriction}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
                           <div className="pt-2 border-t">
                             <p className="text-xs text-muted-foreground">
                               {staff.permissions.includes('all') 
@@ -512,8 +559,8 @@ export default function TeamManagement() {
                   <h4 className="font-medium mb-2">How to assign staff access:</h4>
                   <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
                     <li>Add team member in the "Members" tab with their email</li>
-                    <li>Assign them the "Staff" role</li>
-                    <li>In "Permissions" tab, enable the specific document permissions for their role</li>
+                    <li>Select the appropriate role (Accountant, Shipping, File Costing, Operations, etc.)</li>
+                    <li>The role automatically grants the correct permissions for their function</li>
                     <li>Downloads will require admin approval unless they have "Download Documents" permission</li>
                   </ol>
                 </div>
