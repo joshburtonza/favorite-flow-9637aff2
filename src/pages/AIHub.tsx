@@ -13,11 +13,13 @@ import {
   FileText, Upload, Loader2, Send, CheckCircle, Database, AlertTriangle, 
   Image, ScanLine, MessageSquare, Bot, User, Sparkles, X, FileSpreadsheet,
   Package, DollarSign, Ship, Search, ArrowRight, Clock, TrendingUp, Wand2, Download,
-  Plus, Trash2
+  Plus, Trash2, Activity, Zap
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
+import { AIActivityFeed } from '@/components/ai/AIActivityFeed';
+import { AIQueryChat } from '@/components/ai/AIQueryChat';
 
 interface StructuredData {
   documentType: string;
@@ -73,7 +75,7 @@ interface FileUpload {
 const AIHub = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'upload' | 'chat'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'chat' | 'activity' | 'query'>('upload');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -644,19 +646,19 @@ const AIHub = () => {
             )}
           </div>
 
-          {/* Pending Tasks */}
-          <div className="glass-card" style={{ animationDelay: '0.4s' }}>
+          {/* Mode Selector */}
+          <div className="glass-card card-wide" style={{ animationDelay: '0.4s' }}>
             <div className="card-label">
               <Clock className="h-4 w-4 text-warning" />
               Mode
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="grid grid-cols-4 gap-2 mt-4">
               <button
                 onClick={() => setActiveTab('upload')}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm transition-all ${
+                className={`py-2 px-3 rounded-xl text-sm transition-all ${
                   activeTab === 'upload' 
                     ? 'bg-primary/20 text-foreground border border-primary/30' 
-                    : 'bg-glass-surface text-muted-foreground'
+                    : 'bg-glass-surface text-muted-foreground hover:bg-glass-surface/80'
                 }`}
               >
                 <Upload className="h-4 w-4 mx-auto mb-1" />
@@ -664,14 +666,36 @@ const AIHub = () => {
               </button>
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`flex-1 py-2 px-3 rounded-xl text-sm transition-all ${
+                className={`py-2 px-3 rounded-xl text-sm transition-all ${
                   activeTab === 'chat' 
                     ? 'bg-primary/20 text-foreground border border-primary/30' 
-                    : 'bg-glass-surface text-muted-foreground'
+                    : 'bg-glass-surface text-muted-foreground hover:bg-glass-surface/80'
                 }`}
               >
                 <MessageSquare className="h-4 w-4 mx-auto mb-1" />
                 Chat
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                className={`py-2 px-3 rounded-xl text-sm transition-all ${
+                  activeTab === 'activity' 
+                    ? 'bg-primary/20 text-foreground border border-primary/30' 
+                    : 'bg-glass-surface text-muted-foreground hover:bg-glass-surface/80'
+                }`}
+              >
+                <Activity className="h-4 w-4 mx-auto mb-1" />
+                Activity
+              </button>
+              <button
+                onClick={() => setActiveTab('query')}
+                className={`py-2 px-3 rounded-xl text-sm transition-all ${
+                  activeTab === 'query' 
+                    ? 'bg-primary/20 text-foreground border border-primary/30' 
+                    : 'bg-glass-surface text-muted-foreground hover:bg-glass-surface/80'
+                }`}
+              >
+                <Zap className="h-4 w-4 mx-auto mb-1" />
+                Query
               </button>
             </div>
           </div>
@@ -1012,10 +1036,35 @@ const AIHub = () => {
           </div>
           </div>
         )}
+
+        {/* Activity Feed Tab */}
+        {activeTab === 'activity' && (
+          <div className="grid gap-6 lg:grid-cols-1">
+            <div className="glass-card" style={{ minHeight: '600px' }}>
+              <div className="card-label border-b border-glass-border pb-4 mb-4">
+                <Activity className="h-4 w-4 text-accent" />
+                Real-Time AI Activity
+                <span className="text-muted-foreground ml-2 normal-case tracking-normal">
+                  Live feed of all AI-driven events and system changes
+                </span>
+              </div>
+              <AIActivityFeed maxHeight={500} showFilters={true} className="border-0 shadow-none bg-transparent" />
+            </div>
+          </div>
+        )}
+
+        {/* AI Query Tab */}
+        {activeTab === 'query' && (
+          <div className="grid gap-6 lg:grid-cols-1">
+            <div className="glass-card p-0 overflow-hidden" style={{ minHeight: '600px' }}>
+              <AIQueryChat className="border-0 shadow-none h-[600px]" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Floating AI Button */}
-      <div className="ai-fab" onClick={() => setActiveTab('chat')}>
+      <div className="ai-fab" onClick={() => setActiveTab('query')}>
         <Wand2 className="h-6 w-6" />
       </div>
     </AppLayout>
