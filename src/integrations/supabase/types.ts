@@ -277,6 +277,165 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_columns: {
+        Row: {
+          column_type: Database["public"]["Enums"]["column_type"]
+          created_at: string
+          default_value: string | null
+          id: string
+          is_required: boolean | null
+          name: string
+          options: Json | null
+          order_position: number | null
+          table_id: string
+          width: number | null
+        }
+        Insert: {
+          column_type?: Database["public"]["Enums"]["column_type"]
+          created_at?: string
+          default_value?: string | null
+          id?: string
+          is_required?: boolean | null
+          name: string
+          options?: Json | null
+          order_position?: number | null
+          table_id: string
+          width?: number | null
+        }
+        Update: {
+          column_type?: Database["public"]["Enums"]["column_type"]
+          created_at?: string
+          default_value?: string | null
+          id?: string
+          is_required?: boolean | null
+          name?: string
+          options?: Json | null
+          order_position?: number | null
+          table_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_columns_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "custom_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_rows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          id: string
+          table_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          id?: string
+          table_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          id?: string
+          table_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_rows_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "custom_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_tables: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      document_folders: {
+        Row: {
+          assigned_staff_id: string | null
+          created_at: string
+          created_by: string | null
+          folder_type: Database["public"]["Enums"]["folder_type"]
+          id: string
+          name: string
+          order_position: number | null
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_staff_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          folder_type?: Database["public"]["Enums"]["folder_type"]
+          id?: string
+          name: string
+          order_position?: number | null
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_staff_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          folder_type?: Database["public"]["Enums"]["folder_type"]
+          id?: string
+          name?: string
+          order_position?: number | null
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fx_rates: {
         Row: {
           applied_rate: number | null
@@ -811,8 +970,10 @@ export type Database = {
           file_path: string
           file_size: number | null
           file_type: string | null
+          folder_id: string | null
           id: string
           lot_number: string | null
+          status: Database["public"]["Enums"]["document_status"] | null
           summary: string | null
           supplier_name: string | null
           updated_at: string | null
@@ -826,8 +987,10 @@ export type Database = {
           file_path: string
           file_size?: number | null
           file_type?: string | null
+          folder_id?: string | null
           id?: string
           lot_number?: string | null
+          status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
           updated_at?: string | null
@@ -841,14 +1004,24 @@ export type Database = {
           file_path?: string
           file_size?: number | null
           file_type?: string | null
+          folder_id?: string | null
           id?: string
           lot_number?: string | null
+          status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "uploaded_documents_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -996,7 +1169,20 @@ export type Database = {
         | "view_clearing_invoices"
         | "download_documents"
       app_role: "admin" | "moderator" | "user" | "staff"
+      column_type:
+        | "text"
+        | "number"
+        | "date"
+        | "select"
+        | "multi_select"
+        | "checkbox"
+        | "currency"
+        | "link"
+        | "email"
+        | "phone"
       currency_type: "USD" | "EUR" | "ZAR"
+      document_status: "new" | "in_progress" | "finalized"
+      folder_type: "system" | "staff" | "clearing_agent" | "custom"
       ledger_type: "debit" | "credit"
       payment_status: "pending" | "completed"
       shipment_status:
@@ -1155,7 +1341,21 @@ export const Constants = {
         "download_documents",
       ],
       app_role: ["admin", "moderator", "user", "staff"],
+      column_type: [
+        "text",
+        "number",
+        "date",
+        "select",
+        "multi_select",
+        "checkbox",
+        "currency",
+        "link",
+        "email",
+        "phone",
+      ],
       currency_type: ["USD", "EUR", "ZAR"],
+      document_status: ["new", "in_progress", "finalized"],
+      folder_type: ["system", "staff", "clearing_agent", "custom"],
       ledger_type: ["debit", "credit"],
       payment_status: ["pending", "completed"],
       shipment_status: [

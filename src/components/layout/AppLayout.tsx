@@ -21,7 +21,9 @@ import {
   Globe,
   FileText,
   UserCog,
-  Shield
+  Shield,
+  FolderOpen,
+  Table2
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -39,7 +41,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
-  { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
+  { path: '/files', label: 'Files', icon: FolderOpen, permission: 'view_documents' },
+  { path: '/workspace', label: 'Workspace', icon: Table2 },
   { path: '/orders', label: 'Orders', icon: Globe, permission: 'view_shipments' },
   { path: '/financials', label: 'Financials', icon: BarChart3, permission: 'view_financials' },
   { path: '/suppliers', label: 'Suppliers', icon: Users, permission: 'view_suppliers' },
@@ -50,6 +53,7 @@ const navItems: NavItem[] = [
   { path: '/import', label: 'Bulk Import', icon: Upload, permission: 'bulk_import' },
   { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
   { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
+  { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
