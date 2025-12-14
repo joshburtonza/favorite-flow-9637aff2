@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2 } from 'lucide-react';
+import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2, FileText, Briefcase } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Navigate } from 'react-router-dom';
@@ -34,6 +34,38 @@ const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] 
   { value: 'staff', label: 'Staff', description: 'Can manage day-to-day operations' },
   { value: 'user', label: 'User', description: 'View-only access' },
   { value: 'moderator', label: 'Moderator', description: 'Can moderate content' },
+];
+
+// Staff document access definitions
+const STAFF_ACCESS_CONFIG = [
+  {
+    name: 'Abdul',
+    role: 'Accountant',
+    documentAccess: ['Supplier Invoices', 'Packing Lists'],
+    description: 'Access to supplier invoices for creating client invoices, access to packing lists',
+    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents'],
+  },
+  {
+    name: 'Marissa',
+    role: 'Shipping Coordinator',
+    documentAccess: ['Shipping Documents', 'Bills of Lading'],
+    description: 'Access to shipping documents',
+    permissions: ['view_shipping_documents', 'view_documents'],
+  },
+  {
+    name: 'Shamima',
+    role: 'File Costings',
+    documentAccess: ['Transport Invoices', 'Clearing Agent Invoices'],
+    description: 'Access for file costings (transport invoices, clearing agent invoices)',
+    permissions: ['view_transport_invoices', 'view_clearing_invoices', 'view_documents'],
+  },
+  {
+    name: 'MI (Mo)',
+    role: 'Admin',
+    documentAccess: ['All Documents'],
+    description: 'Full admin access to everything',
+    permissions: ['all'],
+  },
 ];
 
 export default function TeamManagement() {
@@ -256,10 +288,14 @@ export default function TeamManagement() {
         </div>
 
         <Tabs defaultValue="members" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="members" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Members
+            </TabsTrigger>
+            <TabsTrigger value="staff-access" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              Staff Access
             </TabsTrigger>
             <TabsTrigger value="roles" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
@@ -417,6 +453,70 @@ export default function TeamManagement() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Staff Access Tab */}
+          <TabsContent value="staff-access" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5" />
+                  Staff Document Access Configuration
+                </CardTitle>
+                <CardDescription>
+                  Predefined access levels for each staff member. Add team members with matching emails to apply these permissions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {STAFF_ACCESS_CONFIG.map((staff, index) => (
+                    <Card key={index} className={staff.name === 'MI (Mo)' ? 'border-primary/50 bg-primary/5' : ''}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg">{staff.name}</CardTitle>
+                          <Badge variant={staff.name === 'MI (Mo)' ? 'default' : 'secondary'}>
+                            {staff.role}
+                          </Badge>
+                        </div>
+                        <CardDescription>{staff.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm font-medium mb-2">Document Access:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {staff.documentAccess.map((access, i) => (
+                                <Badge key={i} variant="outline" className="bg-accent/10">
+                                  <FileText className="h-3 w-3 mr-1" />
+                                  {access}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground">
+                              {staff.permissions.includes('all') 
+                                ? 'Full access to all features and documents'
+                                : `${staff.permissions.length} specific permissions`}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                  <h4 className="font-medium mb-2">How to assign staff access:</h4>
+                  <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Add team member in the "Members" tab with their email</li>
+                    <li>Assign them the "Staff" role</li>
+                    <li>In "Permissions" tab, enable the specific document permissions for their role</li>
+                    <li>Downloads will require admin approval unless they have "Download Documents" permission</li>
+                  </ol>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

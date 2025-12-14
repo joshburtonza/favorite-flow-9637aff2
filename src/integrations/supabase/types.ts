@@ -662,6 +662,36 @@ export type Database = {
           },
         ]
       }
+      staff_document_access: {
+        Row: {
+          can_download: boolean | null
+          can_view: boolean | null
+          created_at: string | null
+          document_type: string
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          can_download?: boolean | null
+          can_view?: boolean | null
+          created_at?: string | null
+          document_type: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          can_download?: boolean | null
+          can_view?: boolean | null
+          created_at?: string | null
+          document_type?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       supplier_ledger: {
         Row: {
           amount: number
@@ -959,6 +989,12 @@ export type Database = {
         | "manage_team"
         | "manage_bank_accounts"
         | "bulk_import"
+        | "view_supplier_invoices"
+        | "view_packing_lists"
+        | "view_shipping_documents"
+        | "view_transport_invoices"
+        | "view_clearing_invoices"
+        | "download_documents"
       app_role: "admin" | "moderator" | "user" | "staff"
       currency_type: "USD" | "EUR" | "ZAR"
       ledger_type: "debit" | "credit"
@@ -1111,6 +1147,12 @@ export const Constants = {
         "manage_team",
         "manage_bank_accounts",
         "bulk_import",
+        "view_supplier_invoices",
+        "view_packing_lists",
+        "view_shipping_documents",
+        "view_transport_invoices",
+        "view_clearing_invoices",
+        "download_documents",
       ],
       app_role: ["admin", "moderator", "user", "staff"],
       currency_type: ["USD", "EUR", "ZAR"],
