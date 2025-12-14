@@ -14,7 +14,8 @@ import {
   User,
   Bot,
   Filter,
-  ArrowRight
+  ArrowRight,
+  Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { useAIEvents } from '@/hooks/useAIIntelligence';
 import { supabase } from '@/integrations/supabase/client';
+import { DocumentPreviewModal } from '@/components/documents/DocumentPreviewModal';
 
 interface AIEvent {
   id: string;
@@ -49,23 +51,22 @@ interface AIEvent {
   user_email?: string;
 }
 
+function isDocumentEvent(event: AIEvent): boolean {
+  return event.entity_type === 'document' || 
+         event.event_type === 'document_uploaded' || 
+         event.event_type === 'document_updated' ||
+         event.event_type === 'ai_extraction_completed' ||
+         event.event_type === 'relationship_created';
+}
+
 function getNavigationTarget(event: AIEvent): string | null {
-  const relatedEntities = event.related_entities || {};
+  // Document events use modal
+  if (isDocumentEvent(event)) {
+    return null;
+  }
   
   if (event.entity_type === 'shipment' && event.entity_id) {
     return `/shipments/${event.entity_id}`;
-  }
-  
-  if (event.entity_type === 'document' && relatedEntities.shipment_id) {
-    return `/shipments/${relatedEntities.shipment_id}`;
-  }
-  
-  if (event.event_type === 'relationship_created' && relatedEntities.shipment_id) {
-    return `/shipments/${relatedEntities.shipment_id}`;
-  }
-  
-  if (event.entity_type === 'document') {
-    return '/documents';
   }
   
   return null;
@@ -134,6 +135,11 @@ export function AIActivityFeed({
   const [filter, setFilter] = useState<string>('all');
   const [events, setEvents] = useState<AIEvent[]>([]);
   const { data: initialEvents, isLoading, refetch } = useAIEvents(50);
+  
+  // Document preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [previewShipmentId, setPreviewShipmentId] = useState<string | null>(null);
 
   // Set initial events
   useEffect(() => {
@@ -168,102 +174,131 @@ export function AIActivityFeed({
     ? events 
     : events.filter(e => e.entity_type === filter || e.event_type.includes(filter));
 
+  const handleEventClick = (event: AIEvent) => {
+    // Document events open the preview modal
+    if (isDocumentEvent(event)) {
+      const relatedEntities = event.related_entities || {};
+      setPreviewDocId(event.entity_id || null);
+      setPreviewShipmentId(relatedEntities.shipment_id || null);
+      setPreviewOpen(true);
+      return;
+    }
+    
+    // Other events navigate
+    const navTarget = getNavigationTarget(event);
+    if (navTarget) {
+      navigate(navTarget);
+    }
+  };
+
   return (
-    <Card className={cn('', className)}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            AI Activity Feed
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {showFilters && (
-              <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="h-8 w-32">
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Events</SelectItem>
-                  <SelectItem value="document">Documents</SelectItem>
-                  <SelectItem value="shipment">Shipments</SelectItem>
-                  <SelectItem value="ai">AI Actions</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <Button variant="ghost" size="icon" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+    <>
+      <Card className={cn('', className)}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              AI Activity Feed
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {showFilters && (
+                <Select value={filter} onValueChange={setFilter}>
+                  <SelectTrigger className="h-8 w-32">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Events</SelectItem>
+                    <SelectItem value="document">Documents</SelectItem>
+                    <SelectItem value="shipment">Shipments</SelectItem>
+                    <SelectItem value="ai">AI Actions</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              <Button variant="ghost" size="icon" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea style={{ maxHeight }}>
-          {isLoading ? (
-            <div className="p-4 text-center text-muted-foreground">
-              <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
-              Loading activity...
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="p-4 text-center text-muted-foreground">
-              <Clock className="h-5 w-5 mx-auto mb-2" />
-              No activity yet
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filteredEvents.map((event) => {
-                const navTarget = getNavigationTarget(event);
-                const isClickable = !!navTarget;
-                
-                return (
-                  <div 
-                    key={event.id} 
-                    onClick={() => isClickable && navigate(navTarget)}
-                    className={cn(
-                      "px-4 py-3 transition-colors",
-                      isClickable 
-                        ? "cursor-pointer hover:bg-primary/5" 
-                        : "hover:bg-muted/50"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={cn(
-                        'p-2 rounded-lg shrink-0',
-                        EVENT_COLORS[event.event_type] || 'bg-muted'
-                      )}>
-                        {EVENT_ICONS[event.event_type] || <AlertCircle className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {getEventDescription(event)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {event.entity_type}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-                          </span>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea style={{ maxHeight }}>
+            {isLoading ? (
+              <div className="p-4 text-center text-muted-foreground">
+                <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+                Loading activity...
+              </div>
+            ) : filteredEvents.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                <Clock className="h-5 w-5 mx-auto mb-2" />
+                No activity yet
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredEvents.map((event) => {
+                  const isDocument = isDocumentEvent(event);
+                  const navTarget = getNavigationTarget(event);
+                  const isClickable = isDocument || !!navTarget;
+                  
+                  return (
+                    <div 
+                      key={event.id} 
+                      onClick={() => handleEventClick(event)}
+                      className={cn(
+                        "px-4 py-3 transition-colors",
+                        isClickable 
+                          ? "cursor-pointer hover:bg-primary/5" 
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          'p-2 rounded-lg shrink-0',
+                          EVENT_COLORS[event.event_type] || 'bg-muted'
+                        )}>
+                          {EVENT_ICONS[event.event_type] || <AlertCircle className="h-4 w-4" />}
                         </div>
-                        {event.ai_confidence && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {getEventDescription(event)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {event.entity_type}
+                            </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {Math.round(event.ai_confidence * 100)}% confidence
+                              {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
                             </span>
                           </div>
-                        )}
+                          {event.ai_confidence && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <CheckCircle2 className="h-3 w-3 text-green-500" />
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round(event.ai_confidence * 100)}% confidence
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {isDocument ? (
+                          <Eye className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                        ) : isClickable ? (
+                          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                        ) : null}
                       </div>
-                      {isClickable && (
-                        <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
-                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
-      </CardContent>
-    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <DocumentPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        documentId={previewDocId}
+        shipmentId={previewShipmentId}
+      />
+    </>
   );
 }
