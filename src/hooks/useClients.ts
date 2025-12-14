@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Client } from '@/types/database';
 import { toast } from 'sonner';
+import { useActivityLogger } from './useActivityLogger';
 
 export function useClients() {
   return useQuery({
@@ -37,6 +38,7 @@ export function useClient(id: string) {
 
 export function useCreateClient() {
   const queryClient = useQueryClient();
+  const { logCreate } = useActivityLogger();
   
   return useMutation({
     mutationFn: async (data: Omit<Client, 'id' | 'created_at' | 'updated_at'>) => {
@@ -49,8 +51,9 @@ export function useCreateClient() {
       if (error) throw error;
       return client;
     },
-    onSuccess: () => {
+    onSuccess: (client, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      logCreate('client', client.id, client.name, variables);
       toast.success('Client created successfully');
     },
     onError: (error: Error) => {
@@ -61,9 +64,10 @@ export function useCreateClient() {
 
 export function useUpdateClient() {
   const queryClient = useQueryClient();
+  const { logUpdate } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async ({ id, ...data }: Partial<Client> & { id: string }) => {
+    mutationFn: async ({ id, oldData, ...data }: Partial<Client> & { id: string; oldData?: Partial<Client> }) => {
       const { data: client, error } = await supabase
         .from('clients')
         .update(data)
@@ -72,11 +76,12 @@ export function useUpdateClient() {
         .single();
       
       if (error) throw error;
-      return client;
+      return { client, oldData, newData: data };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: ({ client, oldData, newData }, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['client', variables.id] });
+      logUpdate('client', client.id, client.name, oldData, newData);
       toast.success('Client updated successfully');
     },
     onError: (error: Error) => {
@@ -87,18 +92,21 @@ export function useUpdateClient() {
 
 export function useDeleteClient() {
   const queryClient = useQueryClient();
+  const { logDelete } = useActivityLogger();
   
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, name }: { id: string; name?: string }) => {
       const { error } = await supabase
         .from('clients')
         .delete()
         .eq('id', id);
       
       if (error) throw error;
+      return { id, name };
     },
-    onSuccess: () => {
+    onSuccess: ({ id, name }) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      logDelete('client', id, name || 'Client');
       toast.success('Client deleted successfully');
     },
     onError: (error: Error) => {

@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query, source = 'api' } = await req.json();
+    const { query, source = 'api', includeActivity = true } = await req.json();
     
     if (!query) {
       return new Response(
@@ -27,36 +27,58 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch recent activity for AI context
+    let recentActivity: any[] = [];
+    if (includeActivity) {
+      const { data: activities } = await supabase
+        .from('activity_logs')
+        .select('action_type, entity_type, entity_name, description, user_email, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      recentActivity = activities || [];
+    }
+
     // Use AI to interpret the query and determine what data to fetch
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a query interpreter for a freight forwarding system. Analyze the user's natural language query and determine:
-1. What entity type(s) they're asking about: clients, suppliers, shipments, payments, or balances
-2. Any specific filters (names, LOT numbers, statuses, dates)
-3. What information they want (summary, details, list, balance, etc.)
+    const activityContext = recentActivity.length > 0 
+      ? `\n\nRecent Activity (last 20 actions):\n${recentActivity.map(a => 
+          `- ${a.created_at}: ${a.user_email || 'System'} ${a.action_type} ${a.entity_type}: ${a.entity_name || ''} - ${a.description}`
+        ).join('\n')}`
+      : '';
 
-Respond with a JSON object:
+    const systemPrompt = `You are an intelligent assistant for a freight forwarding system. You have complete awareness of all recent activities and changes made in the system.
+
+Your capabilities:
+1. Query data: clients, suppliers, shipments, payments, balances
+2. Understand context from recent activity logs
+3. Provide insights based on patterns in activities
+4. Answer questions about what's been happening in the system
+
+${activityContext}
+
+When analyzing a query, respond with a JSON object:
 {
-  "entities": ["shipments", "clients", "suppliers", "payments"], // which tables to query
+  "entities": ["shipments", "clients", "suppliers", "payments", "activities"], // which data to query
   "filters": {
     "lot_number": "optional lot number",
     "client_name": "optional client name pattern",
     "supplier_name": "optional supplier name pattern",
     "status": "optional status filter",
-    "type": "summary|detail|list|balance"
+    "type": "summary|detail|list|balance|activity"
   },
-  "intent": "brief description of what user wants"
+  "intent": "brief description of what user wants",
+  "activityInsight": "any relevant insight from recent activities"
 }
 
 Examples:
-- "Show me LOT 881" → entities: ["shipments"], filters: {lot_number: "881", type: "detail"}
-- "What's the balance for WINTEX?" → entities: ["suppliers"], filters: {supplier_name: "WINTEX", type: "balance"}
-- "List all pending shipments" → entities: ["shipments"], filters: {status: "pending", type: "list"}
-- "Update me on MJ Oils" → entities: ["clients", "shipments"], filters: {client_name: "MJ Oils", type: "summary"}
-- "Show payments due this week" → entities: ["payments"], filters: {type: "list"}`;
+- "What happened today?" → entities: ["activities"], filters: {type: "activity"}
+- "Who made changes to LOT 881?" → entities: ["activities", "shipments"], filters: {lot_number: "881", type: "activity"}
+- "Show me recent updates" → entities: ["activities"], filters: {type: "list"}
+- "What's the status of WINTEX shipments?" → entities: ["shipments", "suppliers"], filters: {supplier_name: "WINTEX", type: "summary"}`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -97,6 +119,21 @@ Examples:
     // Gather data based on interpretation
     const results: Record<string, any> = {};
     const { entities = [], filters = {} } = parsedIntent || {};
+
+    // Query activities
+    if (entities.includes('activities')) {
+      let activityQuery = supabase.from('activity_logs').select('*');
+      
+      if (filters.lot_number) {
+        activityQuery = activityQuery.ilike('entity_name', `%${filters.lot_number}%`);
+      }
+      
+      const { data: activities, error } = await activityQuery
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) console.error('Activities query error:', error);
+      results.activities = activities || [];
+    }
 
     // Query shipments
     if (entities.includes('shipments')) {
@@ -169,20 +206,33 @@ Examples:
       results.payments = payments || [];
     }
 
+    // Add recent activity summary to results
+    results.recentActivitySummary = {
+      totalActions: recentActivity.length,
+      lastActivity: recentActivity[0] || null,
+      activityBreakdown: recentActivity.reduce((acc: Record<string, number>, a) => {
+        acc[a.action_type] = (acc[a.action_type] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+
     // Format response using AI
     const formatPrompt = `Format this data into a clear, concise response. Use emojis for visual appeal. Be brief but informative.
 
 Query: "${query}"
 Intent: ${parsedIntent?.intent || 'general query'}
+Activity Insight: ${parsedIntent?.activityInsight || 'none'}
 
 Data:
 ${JSON.stringify(results, null, 2)}
 
 Format rules:
 - Use 📦 for shipments, 👤 for clients, 🏭 for suppliers, 💰 for payments/money
+- Use 📝 for activities/changes, ✏️ for updates, ➕ for creates, 🗑️ for deletes
 - Include key numbers (totals, balances, counts)
 - Use currency formatting (R for ZAR, $ for USD, € for EUR)
-- Keep response under 500 characters for readability
+- Mention who made changes when relevant (from user_email)
+- Keep response under 600 characters for readability
 - If no data found, say so clearly`;
 
     const formatResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -194,7 +244,7 @@ Format rules:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant that formats freight forwarding data into clear, readable summaries.' },
+          { role: 'system', content: 'You are a helpful assistant that formats freight forwarding data and activity logs into clear, readable summaries. You are aware of all system activities and can provide insights on what has been happening.' },
           { role: 'user', content: formatPrompt }
         ],
       }),
