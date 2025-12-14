@@ -9,6 +9,7 @@ import { ShipmentTimeline } from '@/components/tracking/ShipmentTimeline';
 import { LiveStatusCards } from '@/components/tracking/LiveStatusCards';
 import { ActivityFeed } from '@/components/tracking/ActivityFeed';
 import { AIEventsWidget } from '@/components/ai/AIEventsWidget';
+import { AIAlertsWidget } from '@/components/ai/AIAlertsWidget';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
@@ -84,8 +85,9 @@ export default function Dashboard() {
 
         {/* Tracking Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <ShipmentTimeline />
+            <AIAlertsWidget />
           </div>
           <div className="space-y-6">
             <AIEventsWidget />
