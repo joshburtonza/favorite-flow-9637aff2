@@ -544,6 +544,119 @@ export type Database = {
           },
         ]
       }
+      duplicate_detection_settings: {
+        Row: {
+          auto_block_exact_duplicates: boolean | null
+          check_invoice_numbers: boolean | null
+          created_at: string | null
+          duplicate_check_days: number | null
+          duplicate_detection_enabled: boolean | null
+          filename_similarity_threshold: number | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          auto_block_exact_duplicates?: boolean | null
+          check_invoice_numbers?: boolean | null
+          created_at?: string | null
+          duplicate_check_days?: number | null
+          duplicate_detection_enabled?: boolean | null
+          filename_similarity_threshold?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          auto_block_exact_duplicates?: boolean | null
+          check_invoice_numbers?: boolean | null
+          created_at?: string | null
+          duplicate_check_days?: number | null
+          duplicate_detection_enabled?: boolean | null
+          filename_similarity_threshold?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      extraction_corrections: {
+        Row: {
+          ai_extracted_value: string | null
+          corrected_at: string | null
+          corrected_by: string | null
+          correction_context: Json | null
+          created_at: string | null
+          document_id: string | null
+          document_type: string | null
+          field_name: string
+          id: string
+          user_corrected_value: string | null
+        }
+        Insert: {
+          ai_extracted_value?: string | null
+          corrected_at?: string | null
+          corrected_by?: string | null
+          correction_context?: Json | null
+          created_at?: string | null
+          document_id?: string | null
+          document_type?: string | null
+          field_name: string
+          id?: string
+          user_corrected_value?: string | null
+        }
+        Update: {
+          ai_extracted_value?: string | null
+          corrected_at?: string | null
+          corrected_by?: string | null
+          correction_context?: Json | null
+          created_at?: string | null
+          document_id?: string | null
+          document_type?: string | null
+          field_name?: string
+          id?: string
+          user_corrected_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_corrections_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extraction_stats: {
+        Row: {
+          accuracy_rate: number | null
+          corrections_count: number | null
+          created_at: string | null
+          document_type: string
+          field_name: string
+          id: string
+          total_extractions: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          accuracy_rate?: number | null
+          corrections_count?: number | null
+          created_at?: string | null
+          document_type: string
+          field_name: string
+          id?: string
+          total_extractions?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          accuracy_rate?: number | null
+          corrections_count?: number | null
+          created_at?: string | null
+          document_type?: string
+          field_name?: string
+          id?: string
+          total_extractions?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       fx_rates: {
         Row: {
           applied_rate: number | null
@@ -1079,68 +1192,138 @@ export type Database = {
         Row: {
           ai_classification: string | null
           ai_confidence: number | null
+          approved_at: string | null
+          approved_by: string | null
+          auto_applied: boolean | null
           auto_linked: boolean | null
+          auto_route_enabled: boolean | null
           client_name: string | null
+          corrected_fields: string[] | null
+          destination_folder: string | null
           document_type: string | null
           extracted_data: Json | null
+          file_hash: string | null
           file_name: string
           file_path: string
           file_size: number | null
           file_type: string | null
           folder_id: string | null
           id: string
+          is_latest_version: boolean | null
           lot_number: string | null
+          original_folder: string | null
+          parent_document: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          replaced_by: string | null
+          requires_approval: boolean | null
+          requires_manual_entry: boolean | null
           requires_manual_linking: boolean | null
+          requires_user_review: boolean | null
           shipment_id: string | null
           status: Database["public"]["Enums"]["document_status"] | null
           summary: string | null
           supplier_name: string | null
           updated_at: string | null
           uploaded_at: string | null
+          uploaded_by: string | null
+          user_corrected: boolean | null
+          version: number | null
+          workflow_history: Json | null
+          workflow_status: Database["public"]["Enums"]["workflow_status"] | null
         }
         Insert: {
           ai_classification?: string | null
           ai_confidence?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_applied?: boolean | null
           auto_linked?: boolean | null
+          auto_route_enabled?: boolean | null
           client_name?: string | null
+          corrected_fields?: string[] | null
+          destination_folder?: string | null
           document_type?: string | null
           extracted_data?: Json | null
+          file_hash?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
           file_type?: string | null
           folder_id?: string | null
           id?: string
+          is_latest_version?: boolean | null
           lot_number?: string | null
+          original_folder?: string | null
+          parent_document?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          replaced_by?: string | null
+          requires_approval?: boolean | null
+          requires_manual_entry?: boolean | null
           requires_manual_linking?: boolean | null
+          requires_user_review?: boolean | null
           shipment_id?: string | null
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
+          uploaded_by?: string | null
+          user_corrected?: boolean | null
+          version?: number | null
+          workflow_history?: Json | null
+          workflow_status?:
+            | Database["public"]["Enums"]["workflow_status"]
+            | null
         }
         Update: {
           ai_classification?: string | null
           ai_confidence?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_applied?: boolean | null
           auto_linked?: boolean | null
+          auto_route_enabled?: boolean | null
           client_name?: string | null
+          corrected_fields?: string[] | null
+          destination_folder?: string | null
           document_type?: string | null
           extracted_data?: Json | null
+          file_hash?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
           file_type?: string | null
           folder_id?: string | null
           id?: string
+          is_latest_version?: boolean | null
           lot_number?: string | null
+          original_folder?: string | null
+          parent_document?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          replaced_by?: string | null
+          requires_approval?: boolean | null
+          requires_manual_entry?: boolean | null
           requires_manual_linking?: boolean | null
+          requires_user_review?: boolean | null
           shipment_id?: string | null
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
+          uploaded_by?: string | null
+          user_corrected?: boolean | null
+          version?: number | null
+          workflow_history?: Json | null
+          workflow_status?:
+            | Database["public"]["Enums"]["workflow_status"]
+            | null
         }
         Relationships: [
           {
@@ -1341,6 +1524,12 @@ export type Database = {
         | "in-transit"
         | "documents-submitted"
         | "completed"
+      workflow_status:
+        | "draft"
+        | "pending_review"
+        | "approved"
+        | "rejected"
+        | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1523,6 +1712,13 @@ export const Constants = {
         "in-transit",
         "documents-submitted",
         "completed",
+      ],
+      workflow_status: [
+        "draft",
+        "pending_review",
+        "approved",
+        "rejected",
+        "archived",
       ],
     },
   },
