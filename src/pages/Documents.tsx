@@ -1,15 +1,18 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { SecureDownloadButton } from '@/components/security/SecureDownloadButton';
 import { useDocumentAccess } from '@/hooks/useDocumentAccess';
+import { BulkDocumentUpload } from '@/components/documents/BulkDocumentUpload';
 import { 
   Search, FileText, Calendar, Package, Building2, 
-  Users, Filter, Eye, Loader2, FolderOpen, Lock, ShieldAlert
+  Users, Filter, Loader2, FolderOpen, Lock, ShieldAlert, Upload, Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -31,7 +34,9 @@ interface UploadedDocument {
 const Documents = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const { canViewDocumentType, canDownloadWithoutApproval, getAccessRestrictionReason, isAdmin } = useDocumentAccess();
+  const queryClient = useQueryClient();
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ['uploaded-documents'],
@@ -133,14 +138,41 @@ const Documents = () => {
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Document Management</p>
             <h1 className="text-3xl font-semibold gradient-text">Documents</h1>
           </div>
-          <div className="search-glass w-full md:w-80">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search documents, LOT, supplier..." 
-              className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-3">
+            <div className="search-glass w-full md:w-80">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search documents, LOT, supplier..." 
+                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-primary to-accent gap-2">
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Bulk Upload</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-accent" />
+                    Bulk Document Upload with AI Classification
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="overflow-y-auto max-h-[calc(90vh-100px)]">
+                  <BulkDocumentUpload
+                    onComplete={() => {
+                      queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] });
+                      setUploadDialogOpen(false);
+                    }}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </header>
 
