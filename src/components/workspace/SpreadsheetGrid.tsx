@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CustomColumn, CustomRow, ColumnType } from '@/hooks/useCustomTables';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { CustomColumn, CustomRow, ColumnType, ColumnOptions, CurrencyFormat, TextAlign, FontSize, evaluateFormula } from '@/hooks/useCustomTables';
 
 interface SpreadsheetGridProps {
   columns: CustomColumn[];
@@ -19,10 +25,25 @@ interface SpreadsheetGridProps {
   onAddRow: () => void;
   onUpdateRow: (rowId: string, data: Record<string, any>) => void;
   onDeleteRow: (rowId: string) => void;
-  onAddColumn: (name: string, type: ColumnType) => void;
+  onAddColumn: (name: string, type: ColumnType, options?: ColumnOptions) => void;
   onUpdateColumn: (columnId: string, updates: Partial<CustomColumn>) => void;
   onDeleteColumn: (columnId: string) => void;
 }
+
+const CURRENCY_SYMBOLS: Record<CurrencyFormat, string> = {
+  ZAR: 'R',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  none: '',
+};
+
+const FONT_SIZE_CLASSES: Record<FontSize, string> = {
+  xs: 'text-xs',
+  sm: 'text-sm',
+  base: 'text-base',
+  lg: 'text-lg',
+};
 
 export function SpreadsheetGrid({
   columns,
@@ -37,9 +58,12 @@ export function SpreadsheetGrid({
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnType, setNewColumnType] = useState<ColumnType>('text');
   const [showNewColumn, setShowNewColumn] = useState(false);
 
   const handleCellClick = (rowId: string, columnId: string, value: any) => {
+    const column = columns.find(c => c.id === columnId);
+    if (column?.column_type === 'formula') return; // Don't allow editing formula cells
     setEditingCell({ rowId, columnId });
     setEditValue(value?.toString() || '');
   };
@@ -66,20 +90,252 @@ export function SpreadsheetGrid({
       handleCellBlur(rowId, columnId);
     } else if (e.key === 'Escape') {
       setEditingCell(null);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleCellBlur(rowId, columnId);
+      // Move to next cell
+      const colIndex = columns.findIndex(c => c.id === columnId);
+      const rowIndex = rows.findIndex(r => r.id === rowId);
+      if (colIndex < columns.length - 1) {
+        const nextCol = columns[colIndex + 1];
+        handleCellClick(rowId, nextCol.id, rows[rowIndex]?.data[nextCol.id]);
+      } else if (rowIndex < rows.length - 1) {
+        const nextRow = rows[rowIndex + 1];
+        handleCellClick(nextRow.id, columns[0].id, nextRow.data[columns[0].id]);
+      }
     }
   };
 
   const handleAddColumn = () => {
     if (newColumnName.trim()) {
-      onAddColumn(newColumnName.trim(), 'text');
+      onAddColumn(newColumnName.trim(), newColumnType);
       setNewColumnName('');
+      setNewColumnType('text');
       setShowNewColumn(false);
     }
+  };
+
+  const formatValue = (value: any, column: CustomColumn): string => {
+    if (value === null || value === undefined) return '';
+    
+    const options = column.options || {};
+    
+    if (column.column_type === 'currency') {
+      const currency = options.currency || 'ZAR';
+      const decimals = options.decimals ?? 2;
+      const num = parseFloat(value) || 0;
+      const formatted = num.toFixed(decimals);
+      return `${CURRENCY_SYMBOLS[currency]}${formatted}`;
+    }
+    
+    if (column.column_type === 'number') {
+      const decimals = options.decimals ?? 0;
+      const num = parseFloat(value) || 0;
+      const formatted = decimals > 0 ? num.toFixed(decimals) : num.toString();
+      return `${options.prefix || ''}${formatted}${options.suffix || ''}`;
+    }
+    
+    if (column.column_type === 'date' && value) {
+      return new Date(value).toLocaleDateString();
+    }
+    
+    return String(value);
+  };
+
+  const getAlignClass = (align?: TextAlign): string => {
+    switch (align) {
+      case 'center': return 'text-center';
+      case 'right': return 'text-right';
+      default: return 'text-left';
+    }
+  };
+
+  const ColumnSettingsPopover = ({ column }: { column: CustomColumn }) => {
+    const [localOptions, setLocalOptions] = useState<ColumnOptions>(column.options || {});
+    const [localType, setLocalType] = useState<ColumnType>(column.column_type);
+    
+    const handleSave = () => {
+      onUpdateColumn(column.id, { column_type: localType, options: localOptions });
+    };
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+            <Settings2 className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72" align="start">
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs">Column Type</Label>
+              <Select value={localType} onValueChange={(v) => setLocalType(v as ColumnType)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="currency">Currency</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                  <SelectItem value="select">Select</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="formula">Formula</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(localType === 'currency') && (
+              <div>
+                <Label className="text-xs">Currency</Label>
+                <Select 
+                  value={localOptions.currency || 'ZAR'} 
+                  onValueChange={(v) => setLocalOptions({ ...localOptions, currency: v as CurrencyFormat })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ZAR">R - South African Rand</SelectItem>
+                    <SelectItem value="USD">$ - US Dollar</SelectItem>
+                    <SelectItem value="EUR">€ - Euro</SelectItem>
+                    <SelectItem value="GBP">£ - British Pound</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {(localType === 'number' || localType === 'currency') && (
+              <div>
+                <Label className="text-xs">Decimal Places</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={localOptions.decimals ?? 2}
+                  onChange={(e) => setLocalOptions({ ...localOptions, decimals: parseInt(e.target.value) || 0 })}
+                  className="mt-1"
+                />
+              </div>
+            )}
+
+            {localType === 'formula' && (
+              <div>
+                <Label className="text-xs">Formula</Label>
+                <Input
+                  placeholder="e.g., SUM(A:A), AVG(B:B)"
+                  value={localOptions.formula || ''}
+                  onChange={(e) => setLocalOptions({ ...localOptions, formula: e.target.value })}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Supports: SUM, AVG, COUNT, MIN, MAX
+                </p>
+              </div>
+            )}
+
+            {localType === 'select' && (
+              <div>
+                <Label className="text-xs">Options (comma-separated)</Label>
+                <Input
+                  placeholder="Option 1, Option 2, Option 3"
+                  value={(localOptions.choices || []).join(', ')}
+                  onChange={(e) => setLocalOptions({ ...localOptions, choices: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  className="mt-1"
+                />
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs">Text Alignment</Label>
+              <div className="flex gap-1 mt-1">
+                <Button
+                  variant={localOptions.textAlign === 'left' || !localOptions.textAlign ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setLocalOptions({ ...localOptions, textAlign: 'left' })}
+                >
+                  <AlignLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={localOptions.textAlign === 'center' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setLocalOptions({ ...localOptions, textAlign: 'center' })}
+                >
+                  <AlignCenter className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={localOptions.textAlign === 'right' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setLocalOptions({ ...localOptions, textAlign: 'right' })}
+                >
+                  <AlignRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Font Size</Label>
+              <Select 
+                value={localOptions.fontSize || 'sm'} 
+                onValueChange={(v) => setLocalOptions({ ...localOptions, fontSize: v as FontSize })}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="xs">Extra Small</SelectItem>
+                  <SelectItem value="sm">Small</SelectItem>
+                  <SelectItem value="base">Medium</SelectItem>
+                  <SelectItem value="lg">Large</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button className="w-full" onClick={handleSave}>
+              Apply Settings
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  const getColumnIcon = (column: CustomColumn) => {
+    const options = column.options || {};
+    if (options.isFormula || options.formula) return <span className="text-xs text-muted-foreground">fx</span>;
+    switch (column.column_type) {
+      case 'number': return <Hash className="h-3 w-3 text-muted-foreground" />;
+      case 'currency': return <DollarSign className="h-3 w-3 text-muted-foreground" />;
+      default: return <Type className="h-3 w-3 text-muted-foreground" />;
+    }
+  };
+
+  const isFormulaColumn = (column: CustomColumn): boolean => {
+    const options = column.options || {};
+    return !!(options.isFormula || options.formula);
   };
 
   const renderCell = (row: CustomRow, column: CustomColumn) => {
     const value = row.data[column.id];
     const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
+    const options = column.options || {};
+    const fontClass = FONT_SIZE_CLASSES[options.fontSize || 'sm'];
+    const alignClass = getAlignClass(options.textAlign);
+
+    // Formula column - calculate value
+    if (isFormulaColumn(column) && options.formula) {
+      const calculatedValue = evaluateFormula(options.formula, rows, columns);
+      return (
+        <div className={cn('px-3 py-2 h-full bg-muted/30 font-medium', fontClass, alignClass)}>
+          {formatValue(calculatedValue, { ...column, column_type: 'number' })}
+        </div>
+      );
+    }
 
     if (column.column_type === 'checkbox') {
       return (
@@ -94,7 +350,7 @@ export function SpreadsheetGrid({
       );
     }
 
-    if (column.column_type === 'select' && column.options?.choices) {
+    if (column.column_type === 'select' && options.choices) {
       return (
         <Select
           value={value || ''}
@@ -102,11 +358,11 @@ export function SpreadsheetGrid({
             onUpdateRow(row.id, { ...row.data, [column.id]: newValue });
           }}
         >
-          <SelectTrigger className="h-full border-0 rounded-none focus:ring-0">
+          <SelectTrigger className={cn('h-full border-0 rounded-none focus:ring-0', fontClass)}>
             <SelectValue placeholder="Select..." />
           </SelectTrigger>
           <SelectContent>
-            {(column.options.choices as string[]).map((choice) => (
+            {options.choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
                 {choice}
               </SelectItem>
@@ -124,30 +380,27 @@ export function SpreadsheetGrid({
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => handleCellBlur(row.id, column.id)}
           onKeyDown={(e) => handleKeyDown(e, row.id, column.id)}
-          className="h-full border-0 rounded-none focus-visible:ring-2 focus-visible:ring-primary"
-          type={column.column_type === 'number' || column.column_type === 'currency' ? 'number' : 'text'}
+          className={cn('h-full border-0 rounded-none focus-visible:ring-2 focus-visible:ring-primary', fontClass)}
+          type={column.column_type === 'number' || column.column_type === 'currency' ? 'number' : column.column_type === 'date' ? 'date' : 'text'}
         />
       );
     }
 
-    let displayValue = value;
-    if (column.column_type === 'currency' && value) {
-      displayValue = new Intl.NumberFormat('en-ZA', {
-        style: 'currency',
-        currency: 'ZAR',
-      }).format(value);
-    } else if (column.column_type === 'date' && value) {
-      displayValue = new Date(value).toLocaleDateString();
-    }
-
     return (
       <div
-        className="px-3 py-2 h-full cursor-text truncate"
+        className={cn('px-3 py-2 h-full cursor-text truncate', fontClass, alignClass)}
         onClick={() => handleCellClick(row.id, column.id, value)}
       >
-        {displayValue || <span className="text-muted-foreground">-</span>}
+        {formatValue(value, column) || <span className="text-muted-foreground">-</span>}
       </div>
     );
+  };
+
+  // Calculate formula totals for footer
+  const getColumnTotal = (column: CustomColumn): string | null => {
+    if (column.column_type !== 'number' && column.column_type !== 'currency') return null;
+    const sum = rows.reduce((acc, row) => acc + (parseFloat(row.data[column.id]) || 0), 0);
+    return formatValue(sum, column);
   };
 
   return (
@@ -162,8 +415,10 @@ export function SpreadsheetGrid({
                 className="border-b border-r text-left font-medium text-sm"
                 style={{ width: column.width, minWidth: column.width }}
               >
-                <div className="flex items-center px-3 py-2 group">
+                <div className="flex items-center px-3 py-2 group gap-2">
+                  {getColumnIcon(column)}
                   <span className="flex-1 truncate">{column.name}</span>
+                  <ColumnSettingsPopover column={column} />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -175,23 +430,34 @@ export function SpreadsheetGrid({
                 </div>
               </th>
             ))}
-            <th className="border-b w-32 p-0">
+            <th className="border-b w-40 p-0">
               {showNewColumn ? (
-                <div className="flex items-center p-1">
+                <div className="flex flex-col gap-1 p-1">
                   <Input
                     autoFocus
                     placeholder="Column name"
                     value={newColumnName}
                     onChange={(e) => setNewColumnName(e.target.value)}
-                    onBlur={() => {
-                      if (!newColumnName.trim()) setShowNewColumn(false);
-                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleAddColumn();
                       if (e.key === 'Escape') setShowNewColumn(false);
                     }}
                     className="h-7 text-sm"
                   />
+                  <Select value={newColumnType} onValueChange={(v) => setNewColumnType(v as ColumnType)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="currency">Currency</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="checkbox">Checkbox</SelectItem>
+                      <SelectItem value="select">Select</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" className="h-7" onClick={handleAddColumn}>Add</Button>
                 </div>
               ) : (
                 <Button
@@ -238,6 +504,22 @@ export function SpreadsheetGrid({
             </tr>
           ))}
         </tbody>
+        {/* Totals row */}
+        {rows.length > 0 && columns.some(c => c.column_type === 'number' || c.column_type === 'currency') && (
+          <tfoot>
+            <tr className="bg-muted/30 font-medium">
+              <td className="border-t border-r p-2 text-center text-xs text-muted-foreground">Σ</td>
+              {columns.map((column) => (
+                <td key={column.id} className="border-t border-r p-2 text-sm">
+                  <div className={getAlignClass(column.options?.textAlign)}>
+                    {getColumnTotal(column) || ''}
+                  </div>
+                </td>
+              ))}
+              <td className="border-t" />
+            </tr>
+          </tfoot>
+        )}
       </table>
       
       <Button
