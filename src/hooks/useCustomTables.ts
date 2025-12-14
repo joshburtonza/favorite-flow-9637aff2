@@ -11,16 +11,27 @@ export type CurrencyFormat = 'ZAR' | 'USD' | 'EUR' | 'GBP' | 'none';
 export type TextAlign = 'left' | 'center' | 'right';
 export type FontSize = 'xs' | 'sm' | 'base' | 'lg';
 
+export interface ConditionalFormat {
+  type: 'threshold' | 'comparison' | 'text';
+  operator?: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq' | 'between' | 'contains';
+  value?: number | string;
+  value2?: number; // For 'between' operator
+  color: string; // Tailwind class like 'bg-red-100' or 'text-red-600'
+  textColor?: string;
+}
+
 export interface ColumnOptions {
   choices?: string[];
   currency?: CurrencyFormat;
   textAlign?: TextAlign;
   fontSize?: FontSize;
-  formula?: string; // e.g., "SUM(A:A)", "AVG(B:B)", "COUNT(C:C)"
+  formula?: string; // e.g., "SUM(A:A)", "AVG(B:B)", "COUNT(C:C)", "=A+B" (row-level)
   isFormula?: boolean;
+  isRowFormula?: boolean; // True if formula should evaluate per-row (e.g., =A+B)
   decimals?: number;
   prefix?: string;
   suffix?: string;
+  conditionalFormats?: ConditionalFormat[];
 }
 
 export interface CustomTable {
@@ -272,6 +283,108 @@ export function evaluateFormula(
   // Try to evaluate as a plain number
   const num = parseFloat(expr);
   return isNaN(num) ? 0 : num;
+}
+
+// Evaluate row-level formula (e.g., =A+B where A and B are column letters in the same row)
+export function evaluateRowFormula(
+  formula: string,
+  row: CustomRow,
+  columns: CustomColumn[]
+): number {
+  let expr = formula.trim();
+  if (expr.startsWith('=')) expr = expr.substring(1);
+
+  // Replace column letters with their values from this row
+  // Match single column letters (A, B, C) that are not part of cell refs like A1
+  const colPattern = /\b([A-Z])(?!\d)/gi;
+  
+  const replaced = expr.replace(colPattern, (match, colLetter) => {
+    const colIndex = colLetterToIndex(colLetter.toUpperCase());
+    if (colIndex < 0 || colIndex >= columns.length) return '0';
+    const column = columns[colIndex];
+    const val = parseFloat(row.data[column.id]) || 0;
+    return val.toString();
+  });
+
+  return evaluateArithmetic(replaced);
+}
+
+// Check if a formula is a row-level formula (uses column letters without row numbers)
+export function isRowLevelFormula(formula: string): boolean {
+  if (!formula) return false;
+  let expr = formula.trim();
+  if (expr.startsWith('=')) expr = expr.substring(1);
+  
+  // Check if it contains column letters without numbers (e.g., A+B, not A1+B1)
+  // And doesn't contain aggregate functions
+  const hasAggregates = /\b(SUM|AVG|COUNT|MIN|MAX)\s*\(/i.test(expr);
+  const hasColumnLettersOnly = /\b[A-Z](?!\d)/i.test(expr);
+  const hasCellRefs = /[A-Z]+\d+/i.test(expr);
+  
+  return hasColumnLettersOnly && !hasCellRefs && !hasAggregates;
+}
+
+// Get conditional formatting style for a cell value
+export function getConditionalStyle(
+  value: any,
+  formats: ConditionalFormat[] | undefined
+): { bg?: string; text?: string } | null {
+  if (!formats || formats.length === 0) return null;
+  
+  const numValue = parseFloat(value);
+  
+  for (const format of formats) {
+    let matches = false;
+    
+    if (format.type === 'threshold' || format.type === 'comparison') {
+      if (isNaN(numValue)) continue;
+      
+      switch (format.operator) {
+        case 'gt':
+          matches = numValue > (format.value as number);
+          break;
+        case 'gte':
+          matches = numValue >= (format.value as number);
+          break;
+        case 'lt':
+          matches = numValue < (format.value as number);
+          break;
+        case 'lte':
+          matches = numValue <= (format.value as number);
+          break;
+        case 'eq':
+          matches = numValue === (format.value as number);
+          break;
+        case 'neq':
+          matches = numValue !== (format.value as number);
+          break;
+        case 'between':
+          matches = numValue >= (format.value as number) && numValue <= (format.value2 as number);
+          break;
+      }
+    } else if (format.type === 'text') {
+      const strValue = String(value || '').toLowerCase();
+      const searchValue = String(format.value || '').toLowerCase();
+      
+      switch (format.operator) {
+        case 'contains':
+          matches = strValue.includes(searchValue);
+          break;
+        case 'eq':
+          matches = strValue === searchValue;
+          break;
+        case 'neq':
+          matches = strValue !== searchValue;
+          break;
+      }
+    }
+    
+    if (matches) {
+      return { bg: format.color, text: format.textColor };
+    }
+  }
+  
+  return null;
 }
 
 // Generate CSV content as string (for saving to storage)

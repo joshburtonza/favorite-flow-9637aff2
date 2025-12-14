@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { CustomColumn, CustomRow, ColumnType, ColumnOptions, CurrencyFormat, TextAlign, FontSize, evaluateFormula, CustomTable } from '@/hooks/useCustomTables';
+import { CustomColumn, CustomRow, ColumnType, ColumnOptions, CurrencyFormat, TextAlign, FontSize, evaluateFormula, evaluateRowFormula, isRowLevelFormula, getConditionalStyle, ConditionalFormat, CustomTable } from '@/hooks/useCustomTables';
 import {
   Tooltip,
   TooltipContent,
@@ -239,16 +239,20 @@ export function SpreadsheetGrid({
               <div>
                 <Label className="text-xs">Formula</Label>
                 <Input
-                  placeholder="e.g., =A1+B1, SUM(A1:A10)"
+                  placeholder="e.g., =A+B, =A1+B1, SUM(A:A)"
                   value={localOptions.formula || ''}
-                  onChange={(e) => setLocalOptions({ ...localOptions, formula: e.target.value })}
+                  onChange={(e) => {
+                    const formula = e.target.value;
+                    const isRowLevel = isRowLevelFormula(formula);
+                    setLocalOptions({ ...localOptions, formula, isRowFormula: isRowLevel });
+                  }}
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
+                  Row-level: =A+B, =A*C/100<br />
                   Cell refs: =A1+B1, =A1*2<br />
                   Range: SUM(A1:A10), AVG(B1:B5)<br />
-                  Column: SUM(A:A), COUNT(B:B)<br />
-                  Cross-table: =TableName.A1
+                  Column: SUM(A:A), COUNT(B:B)
                 </p>
               </div>
             )}
@@ -313,6 +317,71 @@ export function SpreadsheetGrid({
               </Select>
             </div>
 
+            {/* Conditional Formatting */}
+            <div>
+              <Label className="text-xs">Conditional Formatting</Label>
+              <div className="space-y-2 mt-1">
+                {(localOptions.conditionalFormats || []).map((cf, idx) => (
+                  <div key={idx} className="flex items-center gap-1 p-1 bg-muted/50 rounded text-xs">
+                    <span className={cn('w-3 h-3 rounded', cf.color)} />
+                    <span className="flex-1 truncate">
+                      {cf.operator} {cf.value}{cf.value2 ? `-${cf.value2}` : ''}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => {
+                        const formats = [...(localOptions.conditionalFormats || [])];
+                        formats.splice(idx, 1);
+                        setLocalOptions({ ...localOptions, conditionalFormats: formats });
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex gap-1 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => {
+                      const formats = [...(localOptions.conditionalFormats || [])];
+                      formats.push({ type: 'threshold', operator: 'lt', value: 0, color: 'bg-red-100', textColor: 'text-red-700' });
+                      setLocalOptions({ ...localOptions, conditionalFormats: formats });
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded bg-red-500 mr-1" /> Negative
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => {
+                      const formats = [...(localOptions.conditionalFormats || [])];
+                      formats.push({ type: 'threshold', operator: 'gt', value: 0, color: 'bg-green-100', textColor: 'text-green-700' });
+                      setLocalOptions({ ...localOptions, conditionalFormats: formats });
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded bg-green-500 mr-1" /> Positive
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => {
+                      const formats = [...(localOptions.conditionalFormats || [])];
+                      formats.push({ type: 'threshold', operator: 'eq', value: 0, color: 'bg-yellow-100', textColor: 'text-yellow-700' });
+                      setLocalOptions({ ...localOptions, conditionalFormats: formats });
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded bg-yellow-500 mr-1" /> Zero
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <Button className="w-full" onClick={handleSave}>
               Apply Settings
             </Button>
@@ -337,7 +406,7 @@ export function SpreadsheetGrid({
     return !!(options.isFormula || options.formula);
   };
 
-  const renderCell = (row: CustomRow, column: CustomColumn) => {
+  const renderCell = (row: CustomRow, column: CustomColumn, rowIndex: number) => {
     const value = row.data[column.id];
     const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
     const options = column.options || {};
@@ -346,13 +415,33 @@ export function SpreadsheetGrid({
 
     // Formula column - calculate value
     if (isFormulaColumn(column) && options.formula) {
-      const calculatedValue = evaluateFormula(options.formula, rows, columns, allTables, allTableData);
+      let calculatedValue: number;
+      
+      // Check if it's a row-level formula (e.g., =A+B) or global formula
+      if (options.isRowFormula || isRowLevelFormula(options.formula)) {
+        calculatedValue = evaluateRowFormula(options.formula, row, columns);
+      } else {
+        calculatedValue = evaluateFormula(options.formula, rows, columns, allTables, allTableData);
+      }
+      
+      // Apply conditional formatting
+      const condStyle = getConditionalStyle(calculatedValue, options.conditionalFormats);
+      
       return (
-        <div className={cn('px-3 py-2 h-full bg-muted/30 font-medium', fontClass, alignClass)}>
+        <div className={cn(
+          'px-3 py-2 h-full bg-muted/30 font-medium', 
+          fontClass, 
+          alignClass,
+          condStyle?.bg,
+          condStyle?.text
+        )}>
           {formatValue(calculatedValue, { ...column, column_type: 'number' })}
         </div>
       );
     }
+
+    // Apply conditional formatting for regular cells
+    const condStyle = getConditionalStyle(value, options.conditionalFormats);
 
     if (column.column_type === 'checkbox') {
       return (
@@ -405,7 +494,13 @@ export function SpreadsheetGrid({
 
     return (
       <div
-        className={cn('px-3 py-2 h-full cursor-text truncate', fontClass, alignClass)}
+        className={cn(
+          'px-3 py-2 h-full cursor-text truncate', 
+          fontClass, 
+          alignClass,
+          condStyle?.bg,
+          condStyle?.text
+        )}
         onClick={() => handleCellClick(row.id, column.id, value)}
       >
         {formatValue(value, column) || <span className="text-muted-foreground">-</span>}
@@ -688,7 +783,7 @@ export function SpreadsheetGrid({
                     editingCell?.rowId === row.id && editingCell?.columnId === column.id && 'ring-2 ring-primary ring-inset'
                   )}
                 >
-                  {renderCell(row, column)}
+                  {renderCell(row, column, index)}
                 </td>
               ))}
               <td className="border-b" />
