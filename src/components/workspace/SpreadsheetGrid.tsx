@@ -72,6 +72,38 @@ export function SpreadsheetGrid({
   const [showNewColumn, setShowNewColumn] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
   const [formulaBarValue, setFormulaBarValue] = useState('');
+  
+  // Column resizing state
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
+
+  const handleResizeStart = (e: React.MouseEvent, columnId: string, currentWidth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColumn(columnId);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(currentWidth);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - e.clientX;
+      const newWidth = Math.max(60, currentWidth + delta);
+      onUpdateColumn(columnId, { width: newWidth });
+    };
+    
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
 
   const handleCellClick = (rowId: string, columnId: string, value: any) => {
     const column = columns.find(c => c.id === columnId);
@@ -700,7 +732,7 @@ export function SpreadsheetGrid({
             {columns.map((column) => (
               <th
                 key={column.id}
-                className="border-b border-r text-left font-medium text-sm"
+                className="border-b border-r text-left font-medium text-sm relative group/header"
                 style={{ width: column.width, minWidth: column.width }}
               >
                 <div className="flex items-center px-3 py-2 group gap-2">
@@ -716,6 +748,14 @@ export function SpreadsheetGrid({
                     <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
+                {/* Resize handle */}
+                <div
+                  className={cn(
+                    "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
+                    resizingColumn === column.id && "bg-primary"
+                  )}
+                  onMouseDown={(e) => handleResizeStart(e, column.id, column.width)}
+                />
               </th>
             ))}
             <th className="border-b w-40 p-0">
