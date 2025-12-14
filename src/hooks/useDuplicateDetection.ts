@@ -252,7 +252,7 @@ export function useDuplicateDetection() {
       setLoading(false);
     }
   }, [fetchSettings]);
-      
+
   // Replace existing document with new one
   const replaceExisting = useCallback(async (
     existingDocId: string,
