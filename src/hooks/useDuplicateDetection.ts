@@ -234,78 +234,6 @@ export function useDuplicateDetection() {
           reason: 'Identical file contents (100% match)',
         });
       }
-          type: 'exact_filename',
-          confidence: 1.0,
-          document: exactMatch,
-          reason: 'Identical filename',
-        });
-      }
-      
-      // Check 2: Similar filename (fuzzy match)
-      if (settings.filename_similarity_threshold < 1) {
-        for (const doc of existingDocs || []) {
-          if (doc.file_name.toLowerCase() !== file.name.toLowerCase()) {
-            const similarity = calculateSimilarity(file.name, doc.file_name);
-            if (similarity >= settings.filename_similarity_threshold) {
-              potentialDuplicates.push({
-                type: 'similar_filename',
-                confidence: similarity,
-                document: doc,
-                reason: `${(similarity * 100).toFixed(0)}% filename similarity`,
-              });
-            }
-          }
-        }
-      }
-      
-      // Check 3: Invoice number match
-      if (settings.check_invoice_numbers && extractedData?.invoice_number) {
-        const invoiceMatch = existingDocs?.find(doc => {
-          const docData = doc.ai_extracted_data as Record<string, unknown> | null;
-          return docData?.invoice_number === extractedData.invoice_number;
-        });
-        
-        if (invoiceMatch) {
-          potentialDuplicates.push({
-            type: 'invoice_number_match',
-            confidence: 0.95,
-            document: invoiceMatch,
-            reason: `Same invoice number: ${extractedData.invoice_number}`,
-          });
-        }
-      }
-      
-      // Check 4: Amount + date + supplier match
-      if (extractedData?.total_amount && extractedData?.invoice_date && extractedData?.supplier_name) {
-        const dataMatch = existingDocs?.find(doc => {
-          const docData = doc.ai_extracted_data as Record<string, unknown> | null;
-          return docData?.total_amount === extractedData.total_amount &&
-                 docData?.invoice_date === extractedData.invoice_date &&
-                 docData?.supplier_name === extractedData.supplier_name;
-        });
-        
-        if (dataMatch) {
-          potentialDuplicates.push({
-            type: 'data_match',
-            confidence: 0.90,
-            document: dataMatch,
-            reason: 'Same amount, date, and supplier',
-          });
-        }
-      }
-      
-      // Check 5: File hash match (exact file contents)
-      const fileHash = await calculateFileHash(file);
-      const hashMatch = existingDocs?.find(doc => doc.file_hash === fileHash);
-      
-      if (hashMatch) {
-        potentialDuplicates.push({
-          type: 'file_hash_match',
-          confidence: 1.0,
-          document: hashMatch,
-          reason: 'Identical file contents (100% match)',
-        });
-      }
       
       // Deduplicate by document ID
       const uniqueDuplicates = potentialDuplicates.filter((dup, index, self) =>
@@ -324,7 +252,7 @@ export function useDuplicateDetection() {
       setLoading(false);
     }
   }, [fetchSettings]);
-
+      
   // Replace existing document with new one
   const replaceExisting = useCallback(async (
     existingDocId: string,

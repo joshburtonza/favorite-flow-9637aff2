@@ -133,6 +133,8 @@ export function useDocumentWorkflow() {
         to_folder: finalDestination,
       };
 
+      const existingHistory = Array.isArray(doc.workflow_history) ? doc.workflow_history : [];
+
       const { error } = await supabase
         .from('uploaded_documents')
         .update({
@@ -140,7 +142,7 @@ export function useDocumentWorkflow() {
           approved_by: user.id,
           approved_at: new Date().toISOString(),
           folder_id: finalDestination,
-          workflow_history: [...(doc.workflow_history || []), newHistory],
+          workflow_history: [...existingHistory, newHistory] as unknown as Json,
         })
         .eq('id', documentId);
 
@@ -204,6 +206,8 @@ export function useDocumentWorkflow() {
         reason,
       };
 
+      const existingHistory = Array.isArray(doc.workflow_history) ? doc.workflow_history : [];
+
       const { error } = await supabase
         .from('uploaded_documents')
         .update({
@@ -211,7 +215,7 @@ export function useDocumentWorkflow() {
           rejected_by: user.id,
           rejected_at: new Date().toISOString(),
           rejection_reason: reason,
-          workflow_history: [...(doc.workflow_history || []), newHistory],
+          workflow_history: [...existingHistory, newHistory] as unknown as Json,
         })
         .eq('id', documentId);
 
@@ -272,11 +276,13 @@ export function useDocumentWorkflow() {
         action: 'archived',
       };
 
+      const existingHistory = Array.isArray(doc?.workflow_history) ? doc.workflow_history : [];
+
       const { error } = await supabase
         .from('uploaded_documents')
         .update({
           workflow_status: 'archived',
-          workflow_history: [...(doc?.workflow_history || []), newHistory],
+          workflow_history: [...existingHistory, newHistory] as unknown as Json,
         })
         .eq('id', documentId);
 
