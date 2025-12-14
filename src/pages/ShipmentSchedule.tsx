@@ -215,7 +215,7 @@ export default function ShipmentSchedule() {
                 <div
                   key={index}
                   className={cn(
-                    "min-h-[100px] p-1 rounded-lg border transition-colors",
+                    "min-h-[120px] p-2 rounded-lg border transition-colors",
                     isCurrentMonth 
                       ? "bg-card border-border/50" 
                       : "bg-muted/30 border-transparent",
@@ -223,35 +223,42 @@ export default function ShipmentSchedule() {
                   )}
                 >
                   <div className={cn(
-                    "text-xs font-medium mb-1 px-1",
+                    "text-xs font-medium mb-1.5 px-1",
                     isCurrentMonth ? "text-foreground" : "text-muted-foreground/50",
                     isCurrentDay && "text-primary"
                   )}>
                     {format(day, 'd')}
                   </div>
-                  <div className="space-y-1 max-h-[80px] overflow-y-auto">
-                    {dayShipments.slice(0, 3).map(shipment => {
+                  <div className="space-y-1 max-h-[90px] overflow-y-auto">
+                    {dayShipments.map(shipment => {
                       const config = statusConfig[shipment.status];
+                      const Icon = config.icon;
                       return (
                         <div
                           key={shipment.id}
                           onClick={() => navigate(`/shipments/${shipment.id}`)}
                           className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded cursor-pointer truncate transition-opacity hover:opacity-80",
+                            "text-[10px] px-2 py-1.5 rounded cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm",
                             config.bgColor,
                             config.color
                           )}
-                          title={`${shipment.lot_number} - ${shipment.supplier?.name || 'No supplier'}`}
+                          title={`${shipment.lot_number} - ${shipment.supplier?.name || 'No supplier'} → ${shipment.client?.name || 'No client'}\nStatus: ${config.label}\nCommodity: ${shipment.commodity || 'N/A'}`}
                         >
-                          {shipment.lot_number}
+                          <div className="flex items-center gap-1 font-semibold">
+                            <Icon className="h-3 w-3" />
+                            {shipment.lot_number}
+                          </div>
+                          <div className="truncate opacity-80 mt-0.5">
+                            {shipment.supplier?.name ? `${shipment.supplier.name.slice(0, 8)}${shipment.supplier.name.length > 8 ? '...' : ''}` : 'N/A'}
+                          </div>
+                          {shipment.commodity && (
+                            <div className="truncate opacity-70 text-[9px]">
+                              {shipment.commodity.slice(0, 12)}{shipment.commodity.length > 12 ? '...' : ''}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
-                    {dayShipments.length > 3 && (
-                      <div className="text-[10px] text-muted-foreground px-1">
-                        +{dayShipments.length - 3} more
-                      </div>
-                    )}
                   </div>
                 </div>
               );
