@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { useCustomTables, useTableColumns, useTableRows, ColumnType, ColumnOptions, exportTableToCSV, parseCSV } from '@/hooks/useCustomTables';
+import { useCustomTables, useTableColumns, useTableRows, ColumnType, ColumnOptions, exportTableToCSV, parseCSV, generateCSVContent } from '@/hooks/useCustomTables';
 import { SpreadsheetGrid } from '@/components/workspace/SpreadsheetGrid';
 import {
   Dialog,
@@ -25,6 +25,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useDocumentFolders } from '@/hooks/useDocumentFolders';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Workspace() {
   const { toast } = useToast();
@@ -37,6 +39,12 @@ export default function Workspace() {
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; tableId?: string; name?: string; description?: string; group?: string }>({ open: false });
   const [importDialog, setImportDialog] = useState(false);
   const [importData, setImportData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
+  const [saveToFolderDialog, setSaveToFolderDialog] = useState(false);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [saveFileName, setSaveFileName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { folders, folderTree } = useDocumentFolders();
 
   const { tables, isLoading: tablesLoading, createTable, deleteTable, updateTable } = useCustomTables();
   const { columns, addColumn, updateColumn, deleteColumn } = useTableColumns(selectedTableId);
@@ -84,6 +92,55 @@ export default function Workspace() {
     if (selectedTable && columns.length > 0) {
       exportTableToCSV(columns, rows, selectedTable.name);
       toast({ title: 'Table exported', description: `${selectedTable.name}.csv downloaded` });
+    }
+  };
+
+  const handleSaveToFolderOpen = () => {
+    if (selectedTable) {
+      setSaveFileName(`${selectedTable.name.replace(/\s+/g, '_')}.csv`);
+      setSaveToFolderDialog(true);
+    }
+  };
+
+  const handleSaveToFolder = async () => {
+    if (!selectedTable || !saveFileName.trim() || columns.length === 0) return;
+    
+    setIsSaving(true);
+    try {
+      const csvContent = generateCSVContent(columns, rows);
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const fileName = saveFileName.endsWith('.csv') ? saveFileName : `${saveFileName}.csv`;
+      const filePath = `tables/${selectedTable.id}/${Date.now()}_${fileName}`;
+      
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, blob, { contentType: 'text/csv' });
+      
+      if (uploadError) throw uploadError;
+      
+      // Create document record
+      const { error: docError } = await supabase
+        .from('uploaded_documents')
+        .insert({
+          file_name: fileName,
+          file_path: filePath,
+          file_type: 'text/csv',
+          file_size: blob.size,
+          folder_id: selectedFolderId,
+          document_type: 'spreadsheet_export',
+          status: 'finalized',
+        });
+      
+      if (docError) throw docError;
+      
+      toast({ title: 'Table saved to folder', description: `${fileName} saved successfully` });
+      setSaveToFolderDialog(false);
+      setSelectedFolderId(null);
+    } catch (error: any) {
+      toast({ title: 'Error saving table', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -292,6 +349,10 @@ export default function Workspace() {
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleSaveToFolderOpen} disabled={columns.length === 0}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save to Folder
+                  </Button>
                 </div>
               </div>
 
@@ -456,6 +517,65 @@ export default function Workspace() {
             </Button>
             <Button onClick={handleImportConfirm}>
               Import {importData?.rows.length} Rows
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save to Folder Dialog */}
+      <Dialog open={saveToFolderDialog} onOpenChange={setSaveToFolderDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save Table to Folder</DialogTitle>
+            <DialogDescription>
+              Export this table as a CSV file and save it to your document folders
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>File Name</Label>
+              <Input
+                placeholder="filename.csv"
+                value={saveFileName}
+                onChange={(e) => setSaveFileName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Select Folder</Label>
+              <ScrollArea className="h-48 border rounded-md mt-1 p-2">
+                <div
+                  className={cn(
+                    'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',
+                    selectedFolderId === null ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                  )}
+                  onClick={() => setSelectedFolderId(null)}
+                >
+                  <Folder className="h-4 w-4" />
+                  <span className="text-sm">Root (No Folder)</span>
+                </div>
+                {folders.map((folder) => (
+                  <div
+                    key={folder.id}
+                    className={cn(
+                      'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',
+                      selectedFolderId === folder.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                    )}
+                    onClick={() => setSelectedFolderId(folder.id)}
+                  >
+                    <Folder className="h-4 w-4" />
+                    <span className="text-sm">{folder.name}</span>
+                  </div>
+                ))}
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveToFolderDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveToFolder} disabled={isSaving || !saveFileName.trim()}>
+              {isSaving ? 'Saving...' : 'Save to Folder'}
             </Button>
           </DialogFooter>
         </DialogContent>

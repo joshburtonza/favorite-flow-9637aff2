@@ -82,8 +82,8 @@ export function evaluateFormula(formula: string, rows: CustomRow[], columns: Cus
   }
 }
 
-// Export table to CSV
-export function exportTableToCSV(columns: CustomColumn[], rows: CustomRow[], tableName: string) {
+// Generate CSV content as string (for saving to storage)
+export function generateCSVContent(columns: CustomColumn[], rows: CustomRow[]): string {
   const headers = columns.map(c => c.name).join(',');
   const csvRows = rows.map(row => 
     columns.map(col => {
@@ -94,7 +94,12 @@ export function exportTableToCSV(columns: CustomColumn[], rows: CustomRow[], tab
     }).join(',')
   );
   
-  const csv = [headers, ...csvRows].join('\n');
+  return [headers, ...csvRows].join('\n');
+}
+
+// Export table to CSV (downloads file)
+export function exportTableToCSV(columns: CustomColumn[], rows: CustomRow[], tableName: string) {
+  const csv = generateCSVContent(columns, rows);
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
