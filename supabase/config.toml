@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.query]
 verify_jwt = false
+
+[functions.log-screenshot-attempt]
+verify_jwt = false
