@@ -39,9 +39,9 @@ serve(async (req) => {
     }
 
     // Use AI to interpret the query and determine what data to fetch
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
+    if (!DEEPSEEK_API_KEY) {
+      throw new Error('DEEPSEEK_API_KEY is not configured');
     }
 
     const activityContext = recentActivity.length > 0 
@@ -80,14 +80,14 @@ Examples:
 - "Show me recent updates" → entities: ["activities"], filters: {type: "list"}
 - "What's the status of WINTEX shipments?" → entities: ["shipments", "suppliers"], filters: {supplier_name: "WINTEX", type: "summary"}`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: query }
@@ -235,14 +235,14 @@ Format rules:
 - Keep response under 600 characters for readability
 - If no data found, say so clearly`;
 
-    const formatResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const formatResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: 'You are a helpful assistant that formats freight forwarding data and activity logs into clear, readable summaries. You are aware of all system activities and can provide insights on what has been happening.' },
           { role: 'user', content: formatPrompt }
