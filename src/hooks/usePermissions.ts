@@ -17,11 +17,17 @@ export type AppPermission =
   | 'view_documents'
   | 'manage_team'
   | 'manage_bank_accounts'
-  | 'bulk_import';
+  | 'bulk_import'
+  | 'view_supplier_invoices'
+  | 'view_packing_lists'
+  | 'view_shipping_documents'
+  | 'view_transport_invoices'
+  | 'view_clearing_invoices'
+  | 'download_documents';
 
 export type AppRole = 'admin' | 'staff' | 'user' | 'moderator';
 
-export const ALL_PERMISSIONS: { value: AppPermission; label: string; description: string }[] = [
+export const ALL_PERMISSIONS: { value: AppPermission; label: string; description: string; category?: string }[] = [
   { value: 'view_dashboard', label: 'View Dashboard', description: 'Access main dashboard' },
   { value: 'view_shipments', label: 'View Shipments', description: 'View shipment list and details' },
   { value: 'manage_shipments', label: 'Manage Shipments', description: 'Create, edit, delete shipments' },
@@ -37,6 +43,13 @@ export const ALL_PERMISSIONS: { value: AppPermission; label: string; description
   { value: 'manage_team', label: 'Manage Team', description: 'Add, remove, and manage team members' },
   { value: 'manage_bank_accounts', label: 'Manage Bank Accounts', description: 'Manage bank account settings' },
   { value: 'bulk_import', label: 'Bulk Import', description: 'Access bulk data import feature' },
+  // Document-specific permissions
+  { value: 'view_supplier_invoices', label: 'View Supplier Invoices', description: 'Access supplier invoices (Abdul)', category: 'documents' },
+  { value: 'view_packing_lists', label: 'View Packing Lists', description: 'Access packing lists (Abdul)', category: 'documents' },
+  { value: 'view_shipping_documents', label: 'View Shipping Documents', description: 'Access shipping documents (Marissa)', category: 'documents' },
+  { value: 'view_transport_invoices', label: 'View Transport Invoices', description: 'Access transport invoices (Shamima)', category: 'documents' },
+  { value: 'view_clearing_invoices', label: 'View Clearing Invoices', description: 'Access clearing agent invoices (Shamima)', category: 'documents' },
+  { value: 'download_documents', label: 'Download Documents', description: 'Download documents without approval', category: 'documents' },
 ];
 
 export function usePermissions() {

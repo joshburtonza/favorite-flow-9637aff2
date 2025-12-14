@@ -5,11 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import { SecureDownloadButton } from '@/components/security/SecureDownloadButton';
+import { useDocumentAccess } from '@/hooks/useDocumentAccess';
 import { 
-  Search, FileText, Download, Calendar, Package, Building2, 
-  Users, Filter, Eye, Loader2, FolderOpen
+  Search, FileText, Calendar, Package, Building2, 
+  Users, Filter, Eye, Loader2, FolderOpen, Lock, ShieldAlert
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface UploadedDocument {
   id: string;
@@ -28,6 +31,7 @@ interface UploadedDocument {
 const Documents = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const { canViewDocumentType, canDownloadWithoutApproval, getAccessRestrictionReason, isAdmin } = useDocumentAccess();
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ['uploaded-documents'],
@@ -44,7 +48,13 @@ const Documents = () => {
 
   const documentTypes = ['all', ...new Set(documents?.map(d => d.document_type).filter(Boolean) || [])];
 
+  // Filter documents based on search, type, and user permissions
   const filteredDocuments = documents?.filter(doc => {
+    // Check permission to view this document type
+    if (!canViewDocumentType(doc.document_type)) {
+      return false;
+    }
+    
     const matchesSearch = searchQuery === '' || 
       doc.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.lot_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,7 +67,8 @@ const Documents = () => {
     return matchesSearch && matchesType;
   });
 
-  const handleDownload = async (doc: UploadedDocument) => {
+  // Secure download handler
+  const handleSecureDownload = async (doc: UploadedDocument) => {
     try {
       const { data, error } = await supabase.storage
         .from('documents')
@@ -65,6 +76,7 @@ const Documents = () => {
       
       if (error) {
         console.error('Download error:', error);
+        toast.error('Failed to download document');
         return;
       }
 
@@ -76,20 +88,41 @@ const Documents = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      
+      toast.success(`Downloaded: ${doc.file_name}`);
     } catch (err) {
       console.error('Download failed:', err);
+      toast.error('Download failed');
     }
   };
 
   const getDocumentTypeColor = (type: string | null) => {
     switch (type?.toLowerCase()) {
-      case 'invoice': return 'bg-primary/20 text-primary border-primary/30';
-      case 'bol': return 'bg-accent/20 text-accent border-accent/30';
-      case 'payment': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'shipment': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      default: return 'bg-muted text-muted-foreground border-border';
+      case 'invoice': 
+      case 'supplier_invoice':
+        return 'bg-primary/20 text-primary border-primary/30';
+      case 'bol': 
+      case 'bill of lading':
+      case 'shipping':
+        return 'bg-accent/20 text-accent border-accent/30';
+      case 'payment': 
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'transport':
+      case 'transport_invoice':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'clearing':
+      case 'clearing_invoice':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'packing_list':
+      case 'packing list':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      default: 
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
+
+  // Count documents user doesn't have access to
+  const restrictedCount = documents?.filter(doc => !canViewDocumentType(doc.document_type)).length || 0;
 
   return (
     <AppLayout>
@@ -111,14 +144,35 @@ const Documents = () => {
           </div>
         </header>
 
+        {/* Access Notice for non-admins */}
+        {!isAdmin && restrictedCount > 0 && (
+          <div className="glass-card border-warning/30 bg-warning/5">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="h-5 w-5 text-warning" />
+              <div>
+                <p className="font-medium text-warning">Restricted Access</p>
+                <p className="text-sm text-muted-foreground">
+                  {restrictedCount} document(s) are hidden based on your permissions. 
+                  Contact admin to request access.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats & Filters */}
         <div className="bento-grid">
           <div className="glass-card" style={{ animationDelay: '0.1s' }}>
             <div className="card-label">
               <FolderOpen className="h-4 w-4 text-primary" />
-              Total Documents
+              Accessible Documents
             </div>
-            <div className="big-number">{documents?.length || 0}</div>
+            <div className="big-number">{filteredDocuments?.length || 0}</div>
+            {!isAdmin && (
+              <span className="text-xs text-muted-foreground">
+                of {documents?.length || 0} total
+              </span>
+            )}
           </div>
 
           <div className="glass-card" style={{ animationDelay: '0.2s' }}>
@@ -145,11 +199,25 @@ const Documents = () => {
 
           <div className="glass-card" style={{ animationDelay: '0.3s' }}>
             <div className="card-label">
-              <Eye className="h-4 w-4 text-warning" />
-              Showing
+              <Lock className="h-4 w-4 text-warning" />
+              Download Access
             </div>
-            <div className="big-number">{filteredDocuments?.length || 0}</div>
-            <span className="text-sm text-muted-foreground">of {documents?.length || 0} documents</span>
+            <div className="mt-2">
+              {canDownloadWithoutApproval() ? (
+                <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/30">
+                  Full Access
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30">
+                  Requires Approval
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {canDownloadWithoutApproval() 
+                ? 'You can download documents directly' 
+                : 'Downloads require admin approval'}
+            </p>
           </div>
         </div>
 
@@ -157,7 +225,7 @@ const Documents = () => {
         <div className="glass-card">
           <div className="card-label border-b border-glass-border pb-4 mb-4">
             <FileText className="h-4 w-4 text-primary" />
-            All Documents
+            Your Documents
           </div>
 
           {isLoading ? (
@@ -168,7 +236,11 @@ const Documents = () => {
             <div className="text-center py-16 text-muted-foreground">
               <FolderOpen className="h-16 w-16 mx-auto mb-4 opacity-20" />
               <p className="font-medium text-lg">No documents found</p>
-              <p className="text-sm mt-2">Upload documents in the AI Hub to see them here</p>
+              <p className="text-sm mt-2">
+                {restrictedCount > 0 
+                  ? 'You may not have permission to view some documents' 
+                  : 'Upload documents in the AI Hub to see them here'}
+              </p>
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -236,13 +308,16 @@ const Documents = () => {
                         </div>
                       </div>
                       
-                      <button
-                        onClick={() => handleDownload(doc)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs bg-accent/20 hover:bg-accent/30 text-accent transition-colors shrink-0"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Download
-                      </button>
+                      {/* Secure Download Button */}
+                      <SecureDownloadButton
+                        entityType="document"
+                        entityId={doc.id}
+                        entityName={doc.file_name}
+                        onApproved={() => handleSecureDownload(doc)}
+                        variant="ghost"
+                        size="sm"
+                        className="bg-accent/20 hover:bg-accent/30 text-accent shrink-0"
+                      />
                     </div>
                   </div>
                 ))}
