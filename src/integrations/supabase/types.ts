@@ -104,6 +104,114 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_event_logs: {
+        Row: {
+          after_state: Json | null
+          ai_classification: string | null
+          ai_confidence: number | null
+          ai_extracted_data: Json | null
+          ai_summary: string | null
+          before_state: Json | null
+          changes: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          related_entities: Json | null
+          timestamp: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          after_state?: Json | null
+          ai_classification?: string | null
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_summary?: string | null
+          before_state?: Json | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          related_entities?: Json | null
+          timestamp?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          after_state?: Json | null
+          ai_classification?: string | null
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_summary?: string | null
+          before_state?: Json | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          related_entities?: Json | null
+          timestamp?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_job_queue: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          failed_at: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          params: Json
+          priority: number
+          result: Json | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          failed_at?: string | null
+          id?: string
+          job_type: string
+          max_attempts?: number
+          params?: Json
+          priority?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          failed_at?: string | null
+          id?: string
+          job_type?: string
+          max_attempts?: number
+          params?: Json
+          priority?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       automation_logs: {
         Row: {
           action: string
@@ -747,6 +855,7 @@ export type Database = {
       }
       shipments: {
         Row: {
+          ai_summary: string | null
           client_id: string | null
           commodity: string | null
           created_at: string
@@ -755,6 +864,7 @@ export type Database = {
           document_submitted_date: string | null
           eta: string | null
           id: string
+          last_updated_by: string | null
           lot_number: string
           notes: string | null
           status: Database["public"]["Enums"]["shipment_status"]
@@ -764,6 +874,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_summary?: string | null
           client_id?: string | null
           commodity?: string | null
           created_at?: string
@@ -772,6 +883,7 @@ export type Database = {
           document_submitted_date?: string | null
           eta?: string | null
           id?: string
+          last_updated_by?: string | null
           lot_number: string
           notes?: string | null
           status?: Database["public"]["Enums"]["shipment_status"]
@@ -781,6 +893,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_summary?: string | null
           client_id?: string | null
           commodity?: string | null
           created_at?: string
@@ -789,6 +902,7 @@ export type Database = {
           document_submitted_date?: string | null
           eta?: string | null
           id?: string
+          last_updated_by?: string | null
           lot_number?: string
           notes?: string | null
           status?: Database["public"]["Enums"]["shipment_status"]
@@ -963,6 +1077,9 @@ export type Database = {
       }
       uploaded_documents: {
         Row: {
+          ai_classification: string | null
+          ai_confidence: number | null
+          auto_linked: boolean | null
           client_name: string | null
           document_type: string | null
           extracted_data: Json | null
@@ -973,6 +1090,8 @@ export type Database = {
           folder_id: string | null
           id: string
           lot_number: string | null
+          requires_manual_linking: boolean | null
+          shipment_id: string | null
           status: Database["public"]["Enums"]["document_status"] | null
           summary: string | null
           supplier_name: string | null
@@ -980,6 +1099,9 @@ export type Database = {
           uploaded_at: string | null
         }
         Insert: {
+          ai_classification?: string | null
+          ai_confidence?: number | null
+          auto_linked?: boolean | null
           client_name?: string | null
           document_type?: string | null
           extracted_data?: Json | null
@@ -990,6 +1112,8 @@ export type Database = {
           folder_id?: string | null
           id?: string
           lot_number?: string | null
+          requires_manual_linking?: boolean | null
+          shipment_id?: string | null
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
@@ -997,6 +1121,9 @@ export type Database = {
           uploaded_at?: string | null
         }
         Update: {
+          ai_classification?: string | null
+          ai_confidence?: number | null
+          auto_linked?: boolean | null
           client_name?: string | null
           document_type?: string | null
           extracted_data?: Json | null
@@ -1007,6 +1134,8 @@ export type Database = {
           folder_id?: string | null
           id?: string
           lot_number?: string | null
+          requires_manual_linking?: boolean | null
+          shipment_id?: string | null
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
@@ -1019,6 +1148,20 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uploaded_documents_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uploaded_documents_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
             referencedColumns: ["id"]
           },
         ]

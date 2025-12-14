@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.log-screenshot-attempt]
 verify_jwt = false
+
+[functions.ai-intelligence]
+verify_jwt = false
