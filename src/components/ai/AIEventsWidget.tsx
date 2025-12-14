@@ -25,6 +25,33 @@ interface AIEvent {
   ai_classification?: string;
   ai_confidence?: number;
   metadata?: any;
+  related_entities?: any;
+}
+
+function getNavigationTarget(event: AIEvent): string | null {
+  const relatedEntities = event.related_entities || {};
+  
+  // For shipment events, navigate to shipment detail
+  if (event.entity_type === 'shipment' && event.entity_id) {
+    return `/shipments/${event.entity_id}`;
+  }
+  
+  // For document events with linked shipment, navigate to shipment
+  if (event.entity_type === 'document' && relatedEntities.shipment_id) {
+    return `/shipments/${relatedEntities.shipment_id}`;
+  }
+  
+  // For relationship_created events, navigate to shipment
+  if (event.event_type === 'relationship_created' && relatedEntities.shipment_id) {
+    return `/shipments/${relatedEntities.shipment_id}`;
+  }
+  
+  // For document events, navigate to documents page
+  if (event.entity_type === 'document') {
+    return '/documents';
+  }
+  
+  return null;
 }
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
@@ -127,30 +154,46 @@ export function AIEventsWidget({ className }: { className?: string }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {events.map((event) => (
-            <div 
-              key={event.id} 
-              className="flex items-center gap-3 p-2 rounded-xl transition-colors hover:bg-glass-surface"
-            >
-              <div className={cn(
-                'p-1.5 rounded-lg shrink-0',
-                EVENT_COLORS[event.event_type] || 'bg-muted text-muted-foreground'
-              )}>
-                {EVENT_ICONS[event.event_type] || <Zap className="h-3.5 w-3.5" />}
+          {events.map((event) => {
+            const navTarget = getNavigationTarget(event);
+            const isClickable = !!navTarget;
+            
+            return (
+              <div 
+                key={event.id} 
+                onClick={() => isClickable && navigate(navTarget)}
+                className={cn(
+                  "flex items-center gap-3 p-2 rounded-xl transition-colors",
+                  isClickable 
+                    ? "cursor-pointer hover:bg-primary/10 hover:border-primary/20 border border-transparent" 
+                    : "hover:bg-glass-surface"
+                )}
+              >
+                <div className={cn(
+                  'p-1.5 rounded-lg shrink-0',
+                  EVENT_COLORS[event.event_type] || 'bg-muted text-muted-foreground'
+                )}>
+                  {EVENT_ICONS[event.event_type] || <Zap className="h-3.5 w-3.5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">
+                    {getEventDescription(event)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-glass-border">
+                    {event.entity_type}
+                  </Badge>
+                  {isClickable && (
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">
-                  {getEventDescription(event)}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-                </p>
-              </div>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-glass-border">
-                {event.entity_type}
-              </Badge>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
