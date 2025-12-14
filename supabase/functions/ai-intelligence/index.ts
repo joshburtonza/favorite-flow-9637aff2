@@ -404,13 +404,13 @@ serve(async (req) => {
       entityId 
     } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!LOVABLE_API_KEY) {
+    if (!DEEPSEEK_API_KEY) {
       return new Response(
-        JSON.stringify({ success: false, error: 'AI service not configured' }),
+        JSON.stringify({ success: false, error: 'Deepseek API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -421,14 +421,14 @@ serve(async (req) => {
     if (action === 'classify_document') {
       console.log(`Classifying document: ${documentName}`);
 
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'deepseek-chat',
           messages: [
             { role: 'system', content: CLASSIFICATION_PROMPT },
             { role: 'user', content: `Classify this document:\n\nFilename: ${documentName}\n\nContent:\n${documentContent}` }
@@ -514,14 +514,14 @@ serve(async (req) => {
       // Fetch comprehensive system context
       const context = await fetchSystemContext(supabase, entityType, entityId);
 
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'deepseek-chat',
           messages: [
             { role: 'system', content: getSystemAwarenessPrompt(context) },
             { role: 'user', content: query }
