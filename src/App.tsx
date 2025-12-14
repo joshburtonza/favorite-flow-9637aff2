@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import AIHub from "./pages/AIHub";
 import Dashboard from "./pages/Dashboard";
 import ShipmentDetail from "./pages/ShipmentDetail";
+import ShipmentSchedule from "./pages/ShipmentSchedule";
 import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
 import Clients from "./pages/Clients";
@@ -107,6 +108,7 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
+              <Route path="/schedule" element={<ProtectedRoute><ShipmentSchedule /></ProtectedRoute>} />
               <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
               <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
