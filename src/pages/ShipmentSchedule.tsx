@@ -15,13 +15,16 @@ import {
   endOfWeek,
   isToday
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Ship, FileCheck, Clock, Package, Calendar, LayoutGrid, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Ship, FileCheck, Clock, Package, Calendar, LayoutGrid, List, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useShipments } from '@/hooks/useShipments';
+import { useSuppliers } from '@/hooks/useSuppliers';
+import { useClients } from '@/hooks/useClients';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ShipmentStatus } from '@/types/database';
@@ -39,7 +42,12 @@ export default function ShipmentSchedule() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [supplierFilter, setSupplierFilter] = useState<string>('all');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  
   const { data: shipments, isLoading } = useShipments();
+  const { data: suppliers } = useSuppliers();
+  const { data: clients } = useClients();
 
   // Real-time subscription for auto-updates
   useEffect(() => {
@@ -69,20 +77,28 @@ export default function ShipmentSchedule() {
     return eachDayOfInterval({ start, end });
   }, [monthStart, monthEnd]);
 
-  // Filter shipments for current month based on ETA
-  const currentMonthShipments = useMemo(() => {
+  // Filter shipments by supplier and client
+  const filteredShipments = useMemo(() => {
     if (!shipments) return [];
     return shipments.filter(s => {
+      if (supplierFilter !== 'all' && s.supplier_id !== supplierFilter) return false;
+      if (clientFilter !== 'all' && s.client_id !== clientFilter) return false;
+      return true;
+    });
+  }, [shipments, supplierFilter, clientFilter]);
+
+  // Filter shipments for current month based on ETA
+  const currentMonthShipments = useMemo(() => {
+    return filteredShipments.filter(s => {
       if (!s.eta) return false;
       const etaDate = parseISO(s.eta);
       return isWithinInterval(etaDate, { start: monthStart, end: monthEnd });
     });
-  }, [shipments, monthStart, monthEnd]);
+  }, [filteredShipments, monthStart, monthEnd]);
 
   // Get shipments for a specific day
   const getShipmentsForDay = (day: Date) => {
-    if (!shipments) return [];
-    return shipments.filter(s => {
+    return filteredShipments.filter(s => {
       if (!s.eta) return false;
       return isSameDay(parseISO(s.eta), day);
     });
@@ -90,14 +106,21 @@ export default function ShipmentSchedule() {
 
   // Group by status
   const inClearance = useMemo(() => 
-    shipments?.filter(s => s.status === 'documents-submitted') || [], 
-    [shipments]
+    filteredShipments.filter(s => s.status === 'documents-submitted'), 
+    [filteredShipments]
   );
 
   const incoming = useMemo(() => 
-    shipments?.filter(s => s.status === 'in-transit' || s.status === 'pending') || [], 
-    [shipments]
+    filteredShipments.filter(s => s.status === 'in-transit' || s.status === 'pending'), 
+    [filteredShipments]
   );
+
+  const hasActiveFilters = supplierFilter !== 'all' || clientFilter !== 'all';
+
+  const clearFilters = () => {
+    setSupplierFilter('all');
+    setClientFilter('all');
+  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
@@ -288,6 +311,51 @@ export default function ShipmentSchedule() {
         </div>
       </div>
 
+      {/* Filters Row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filters:</span>
+        </div>
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Suppliers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Suppliers</SelectItem>
+            {suppliers?.map(supplier => (
+              <SelectItem key={supplier.id} value={supplier.id}>
+                {supplier.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Clients" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Clients</SelectItem>
+            {clients?.map(client => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
+            <X className="h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
+        {hasActiveFilters && (
+          <Badge variant="secondary" className="ml-auto">
+            {filteredShipments.length} shipment{filteredShipments.length !== 1 ? 's' : ''} matching
+          </Badge>
+        )}
+      </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-border/50">
@@ -337,7 +405,7 @@ export default function ShipmentSchedule() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">
-                  {shipments?.filter(s => s.status === 'completed').length || 0}
+                  {filteredShipments.filter(s => s.status === 'completed').length}
                 </p>
                 <p className="text-xs text-muted-foreground">Completed</p>
               </div>
