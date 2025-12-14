@@ -57,18 +57,114 @@ export interface CustomRow {
   updated_at: string;
 }
 
-// Formula evaluation helper with cross-table reference support
+// Helper to convert column letter to index (A=0, B=1, ..., Z=25, AA=26, etc.)
+function colLetterToIndex(col: string): number {
+  let result = 0;
+  for (let i = 0; i < col.length; i++) {
+    result = result * 26 + (col.charCodeAt(i) - 64);
+  }
+  return result - 1;
+}
+
+// Helper to get cell value by A1 notation
+function getCellValue(
+  cellRef: string,
+  rows: CustomRow[],
+  columns: CustomColumn[]
+): number {
+  const match = cellRef.match(/^([A-Z]+)(\d+)$/i);
+  if (!match) return 0;
+  
+  const [, colLetter, rowNum] = match;
+  const colIndex = colLetterToIndex(colLetter.toUpperCase());
+  const rowIndex = parseInt(rowNum) - 1; // Convert to 0-based
+  
+  if (colIndex < 0 || colIndex >= columns.length) return 0;
+  if (rowIndex < 0 || rowIndex >= rows.length) return 0;
+  
+  const column = columns[colIndex];
+  const row = rows[rowIndex];
+  
+  return parseFloat(row.data[column.id]) || 0;
+}
+
+// Helper to get range of cell values (e.g., A1:A10)
+function getCellRange(
+  rangeRef: string,
+  rows: CustomRow[],
+  columns: CustomColumn[]
+): number[] {
+  const [start, end] = rangeRef.split(':');
+  if (!start || !end) return [];
+  
+  const startMatch = start.match(/^([A-Z]+)(\d+)$/i);
+  const endMatch = end.match(/^([A-Z]+)(\d+)$/i);
+  
+  if (!startMatch || !endMatch) return [];
+  
+  const startCol = colLetterToIndex(startMatch[1].toUpperCase());
+  const startRow = parseInt(startMatch[2]) - 1;
+  const endCol = colLetterToIndex(endMatch[1].toUpperCase());
+  const endRow = parseInt(endMatch[2]) - 1;
+  
+  const values: number[] = [];
+  
+  for (let r = Math.min(startRow, endRow); r <= Math.max(startRow, endRow); r++) {
+    for (let c = Math.min(startCol, endCol); c <= Math.max(startCol, endCol); c++) {
+      if (r >= 0 && r < rows.length && c >= 0 && c < columns.length) {
+        const column = columns[c];
+        const row = rows[r];
+        values.push(parseFloat(row.data[column.id]) || 0);
+      }
+    }
+  }
+  
+  return values;
+}
+
+// Evaluate a simple arithmetic expression with numbers
+function evaluateArithmetic(expr: string): number {
+  try {
+    // Only allow numbers, operators, parentheses, and spaces
+    const sanitized = expr.replace(/[^0-9+\-*/().  ]/g, '');
+    if (sanitized !== expr) return 0;
+    // eslint-disable-next-line no-new-func
+    return new Function(`return ${sanitized}`)();
+  } catch {
+    return 0;
+  }
+}
+
+// Formula evaluation helper with cross-table reference and cell-level support
 export function evaluateFormula(
   formula: string, 
   rows: CustomRow[], 
   columns: CustomColumn[],
   allTables: CustomTable[] = [],
-  allTableData: { tableId: string; columns: CustomColumn[]; rows: CustomRow[] }[] = []
+  allTableData: { tableId: string; columns: CustomColumn[]; rows: CustomRow[] }[] = [],
+  currentRowIndex?: number // For per-row cell formulas
 ): number {
-  // Check for cross-table reference: =TableName.ColumnName
-  const crossTableMatch = formula.match(/^=(.+)\.(.+)$/);
-  if (crossTableMatch) {
-    const [, tableName, columnName] = crossTableMatch;
+  // Trim and handle = prefix
+  let expr = formula.trim();
+  if (expr.startsWith('=')) expr = expr.substring(1);
+
+  // Check for cross-table cell reference: TableName.A1
+  const crossTableCellMatch = expr.match(/^([A-Za-z_][A-Za-z0-9_]*)\.([A-Z]+\d+)$/i);
+  if (crossTableCellMatch) {
+    const [, tableName, cellRef] = crossTableCellMatch;
+    const targetTable = allTables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
+    if (!targetTable) return 0;
+    
+    const tableData = allTableData.find(td => td.tableId === targetTable.id);
+    if (!tableData) return 0;
+    
+    return getCellValue(cellRef, tableData.rows, tableData.columns);
+  }
+
+  // Check for cross-table column reference: =TableName.ColumnName (sum entire column)
+  const crossTableColMatch = expr.match(/^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_ ]*)$/);
+  if (crossTableColMatch) {
+    const [, tableName, columnName] = crossTableColMatch;
     const targetTable = allTables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
     if (!targetTable) return 0;
     
@@ -78,15 +174,31 @@ export function evaluateFormula(
     const targetColumn = tableData.columns.find(c => c.name.toLowerCase() === columnName.toLowerCase());
     if (!targetColumn) return 0;
     
-    // Sum all values from that column
     const values = tableData.rows
       .map(row => parseFloat(row.data[targetColumn.id]) || 0)
       .filter(v => !isNaN(v));
     return values.reduce((a, b) => a + b, 0);
   }
 
+  // Check for function with cell range: SUM(A1:A10), AVG(B2:B20), etc.
+  const funcRangeMatch = expr.match(/^(SUM|AVG|COUNT|MIN|MAX)\(([A-Z]+\d+):([A-Z]+\d+)\)$/i);
+  if (funcRangeMatch) {
+    const [, func, startCell, endCell] = funcRangeMatch;
+    const rangeRef = `${startCell}:${endCell}`;
+    const values = getCellRange(rangeRef, rows, columns);
+    
+    switch (func.toUpperCase()) {
+      case 'SUM': return values.reduce((a, b) => a + b, 0);
+      case 'AVG': return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      case 'COUNT': return values.length;
+      case 'MIN': return values.length > 0 ? Math.min(...values) : 0;
+      case 'MAX': return values.length > 0 ? Math.max(...values) : 0;
+      default: return 0;
+    }
+  }
+
   // Check for cross-table function: SUM(TableName.ColumnName)
-  const crossTableFuncMatch = formula.match(/^(SUM|AVG|COUNT|MIN|MAX)\((.+)\.(.+)\)$/i);
+  const crossTableFuncMatch = expr.match(/^(SUM|AVG|COUNT|MIN|MAX)\(([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_ ]*)\)$/i);
   if (crossTableFuncMatch) {
     const [, func, tableName, columnName] = crossTableFuncMatch;
     const targetTable = allTables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
@@ -112,28 +224,54 @@ export function evaluateFormula(
     }
   }
 
-  // Local table formula: SUM(A:A)
-  const match = formula.match(/^(SUM|AVG|COUNT|MIN|MAX)\(([A-Z]):([A-Z])\)$/i);
-  if (!match) return 0;
-  
-  const [, func, startCol] = match;
-  const colIndex = startCol.toUpperCase().charCodeAt(0) - 65;
-  const column = columns[colIndex];
-  
-  if (!column) return 0;
-  
-  const values = rows
-    .map(row => parseFloat(row.data[column.id]) || 0)
-    .filter(v => !isNaN(v));
-  
-  switch (func.toUpperCase()) {
-    case 'SUM': return values.reduce((a, b) => a + b, 0);
-    case 'AVG': return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-    case 'COUNT': return values.length;
-    case 'MIN': return values.length > 0 ? Math.min(...values) : 0;
-    case 'MAX': return values.length > 0 ? Math.max(...values) : 0;
-    default: return 0;
+  // Local table formula: SUM(A:A), AVG(B:B) etc. (entire column)
+  const colRangeMatch = expr.match(/^(SUM|AVG|COUNT|MIN|MAX)\(([A-Z]):([A-Z])\)$/i);
+  if (colRangeMatch) {
+    const [, func, startCol] = colRangeMatch;
+    const colIndex = colLetterToIndex(startCol.toUpperCase());
+    const column = columns[colIndex];
+    
+    if (!column) return 0;
+    
+    const values = rows
+      .map(row => parseFloat(row.data[column.id]) || 0)
+      .filter(v => !isNaN(v));
+    
+    switch (func.toUpperCase()) {
+      case 'SUM': return values.reduce((a, b) => a + b, 0);
+      case 'AVG': return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      case 'COUNT': return values.length;
+      case 'MIN': return values.length > 0 ? Math.min(...values) : 0;
+      case 'MAX': return values.length > 0 ? Math.max(...values) : 0;
+      default: return 0;
+    }
   }
+
+  // Cell-level arithmetic formulas: =A1+B1, =A1*2, =(A1+B1)/C1, etc.
+  // Replace all cell references with their values, then evaluate
+  const cellRefPattern = /([A-Z]+)(\d+)/gi;
+  let hasMatch = false;
+  const replaced = expr.replace(cellRefPattern, (match, colLetter, rowNum) => {
+    hasMatch = true;
+    const colIndex = colLetterToIndex(colLetter.toUpperCase());
+    const rowIndex = parseInt(rowNum) - 1;
+    
+    if (colIndex < 0 || colIndex >= columns.length) return '0';
+    if (rowIndex < 0 || rowIndex >= rows.length) return '0';
+    
+    const column = columns[colIndex];
+    const row = rows[rowIndex];
+    const val = parseFloat(row.data[column.id]) || 0;
+    return val.toString();
+  });
+
+  if (hasMatch) {
+    return evaluateArithmetic(replaced);
+  }
+
+  // Try to evaluate as a plain number
+  const num = parseFloat(expr);
+  return isNaN(num) ? 0 : num;
 }
 
 // Generate CSV content as string (for saving to storage)

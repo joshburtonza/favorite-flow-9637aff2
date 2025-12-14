@@ -239,14 +239,16 @@ export function SpreadsheetGrid({
               <div>
                 <Label className="text-xs">Formula</Label>
                 <Input
-                  placeholder="e.g., SUM(A:A), =TableName.Column"
+                  placeholder="e.g., =A1+B1, SUM(A1:A10)"
                   value={localOptions.formula || ''}
                   onChange={(e) => setLocalOptions({ ...localOptions, formula: e.target.value })}
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Local: SUM, AVG, COUNT, MIN, MAX<br />
-                  Cross-table: =TableName.ColumnName
+                  Cell refs: =A1+B1, =A1*2<br />
+                  Range: SUM(A1:A10), AVG(B1:B5)<br />
+                  Column: SUM(A:A), COUNT(B:B)<br />
+                  Cross-table: =TableName.A1
                 </p>
               </div>
             )}
@@ -562,10 +564,10 @@ export function SpreadsheetGrid({
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Cross-table reference hint */}
+        {/* Formula reference hint */}
         <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
           <Link2 className="h-3 w-3" />
-          <span>Formula: =TableName.Column</span>
+          <span>=A1+B1 | SUM(A1:A10) | =Table.A1</span>
         </div>
 
         <div className="flex-1" />
