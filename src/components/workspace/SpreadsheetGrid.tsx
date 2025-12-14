@@ -689,12 +689,14 @@ export function SpreadsheetGrid({
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-muted/50">
-            <th className="w-10 border-b border-r p-0" />
+      {/* Table with scrolling */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Scrollable container */}
+        <div className="overflow-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
+          <table className="w-full border-collapse min-w-max">
+            <thead className="sticky top-0 z-10 bg-background">
+              <tr className="bg-muted/50">
+                <th className="w-10 min-w-10 border-b border-r p-0 sticky left-0 bg-muted/50 z-20" />
             {columns.map((column) => (
               <th
                 key={column.id}
@@ -758,11 +760,11 @@ export function SpreadsheetGrid({
               )}
             </th>
           </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.id} className="group hover:bg-muted/30">
-              <td className="border-b border-r text-center text-xs text-muted-foreground p-0">
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.id} className="group hover:bg-muted/30">
+                  <td className="border-b border-r text-center text-xs text-muted-foreground p-0 sticky left-0 bg-background z-10">
                 <div className="flex items-center justify-center h-10">
                   <span className="group-hover:hidden">{index + 1}</span>
                   <Button
@@ -806,17 +808,21 @@ export function SpreadsheetGrid({
             </tr>
           </tfoot>
         )}
-      </table>
-      
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full justify-start mt-1 text-muted-foreground"
-        onClick={onAddRow}
-      >
-        <Plus className="h-4 w-4 mr-1" />
-        Add Row
-      </Button>
+          </table>
+        </div>
+        
+        {/* Add Row button - sticky at bottom */}
+        <div className="sticky bottom-0 bg-background border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground"
+            onClick={onAddRow}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Row
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -508,4 +508,30 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+
+  /* Custom scrollbar for spreadsheet */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-corner {
+    @apply bg-transparent;
+  }
 }
