@@ -20,7 +20,8 @@ import {
   Settings,
   Globe,
   FileText,
-  UserCog
+  UserCog,
+  Shield
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings, permission: 'manage_bank_accounts' },
   { path: '/import', label: 'Bulk Import', icon: Upload, permission: 'bulk_import' },
   { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
+  { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {

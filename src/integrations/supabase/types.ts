@@ -65,6 +65,45 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          notification_type: string
+          severity: string
+          title: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          notification_type: string
+          severity?: string
+          title: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          notification_type?: string
+          severity?: string
+          title?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       automation_logs: {
         Row: {
           action: string
@@ -403,6 +442,60 @@ export type Database = {
           id?: string
           permission?: Database["public"]["Enums"]["app_permission"]
           role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
+      security_requests: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_name: string | null
+          entity_type: string
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          reason: string | null
+          request_type: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          request_type: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          request_type?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_email?: string
+          user_id?: string
         }
         Relationships: []
       }

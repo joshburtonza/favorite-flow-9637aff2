@@ -1,23 +1,28 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-
-const logScreenshotAttempt = async (action: string) => {
-  try {
-    await supabase.functions.invoke('log-screenshot-attempt', {
-      body: {
-        action,
-        userAgent: navigator.userAgent,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error) {
-    console.error('Failed to log screenshot attempt:', error);
-  }
-};
+import { useAuth } from '@/hooks/useAuth';
 
 export const useScreenshotProtection = () => {
+  const { user } = useAuth();
+
   useEffect(() => {
+    const logScreenshotAttempt = async (action: string) => {
+      try {
+        await supabase.functions.invoke('log-screenshot-attempt', {
+          body: {
+            action,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            userId: user?.id,
+            userEmail: user?.email,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log screenshot attempt:', error);
+      }
+    };
+
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -38,7 +43,7 @@ export const useScreenshotProtection = () => {
       if (e.key === 'PrintScreen') {
         e.preventDefault();
         toast.error('⚠️ Screenshots are not permitted', {
-          description: 'This action has been logged for security purposes.',
+          description: 'This action has been logged and admin has been notified.',
           duration: 5000,
         });
         logScreenshotAttempt('screenshot_printscreen_windows');
@@ -49,7 +54,7 @@ export const useScreenshotProtection = () => {
       if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) {
         e.preventDefault();
         toast.error('⚠️ Screenshots are not permitted', {
-          description: 'This action has been logged for security purposes.',
+          description: 'This action has been logged and admin has been notified.',
           duration: 5000,
         });
         logScreenshotAttempt(`screenshot_mac_cmd_shift_${e.key}`);
@@ -60,7 +65,7 @@ export const useScreenshotProtection = () => {
       if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         toast.error('⚠️ Screenshots are not permitted', {
-          description: 'This action has been logged for security purposes.',
+          description: 'This action has been logged and admin has been notified.',
           duration: 5000,
         });
         logScreenshotAttempt('screenshot_snipping_tool_windows');
@@ -117,5 +122,5 @@ export const useScreenshotProtection = () => {
       document.body.style.userSelect = '';
       document.body.style.webkitUserSelect = '';
     };
-  }, []);
+  }, [user]);
 };
