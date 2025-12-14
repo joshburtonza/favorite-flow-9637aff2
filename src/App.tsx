@@ -24,6 +24,8 @@ import Documents from "./pages/Documents";
 import NotFound from "./pages/NotFound";
 import TeamManagement from "./pages/TeamManagement";
 import SecurityCenter from "./pages/SecurityCenter";
+import FileBrowser from "./pages/FileBrowser";
+import Workspace from "./pages/Workspace";
 
 const queryClient = new QueryClient();
 
@@ -116,6 +118,8 @@ const App = () => (
               <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
               <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
               <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+              <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+              <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
               <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
               <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
