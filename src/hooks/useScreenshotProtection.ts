@@ -1,5 +1,20 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+const logScreenshotAttempt = async (action: string) => {
+  try {
+    await supabase.functions.invoke('log-screenshot-attempt', {
+      body: {
+        action,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Failed to log screenshot attempt:', error);
+  }
+};
 
 export const useScreenshotProtection = () => {
   useEffect(() => {
@@ -15,6 +30,7 @@ export const useScreenshotProtection = () => {
       if (e.ctrlKey && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         toast.error('🚫 Printing is disabled for security reasons');
+        logScreenshotAttempt('print_attempt_ctrl_p');
         return false;
       }
 
@@ -25,6 +41,7 @@ export const useScreenshotProtection = () => {
           description: 'This action has been logged for security purposes.',
           duration: 5000,
         });
+        logScreenshotAttempt('screenshot_printscreen_windows');
         return false;
       }
 
@@ -35,6 +52,7 @@ export const useScreenshotProtection = () => {
           description: 'This action has been logged for security purposes.',
           duration: 5000,
         });
+        logScreenshotAttempt(`screenshot_mac_cmd_shift_${e.key}`);
         return false;
       }
 
@@ -45,6 +63,7 @@ export const useScreenshotProtection = () => {
           description: 'This action has been logged for security purposes.',
           duration: 5000,
         });
+        logScreenshotAttempt('screenshot_snipping_tool_windows');
         return false;
       }
     };
