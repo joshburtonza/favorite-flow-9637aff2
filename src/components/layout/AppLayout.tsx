@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions, AppPermission } from '@/hooks/usePermissions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -27,25 +28,33 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: typeof Package;
+  permission?: AppPermission;
+}
+
+const navItems: NavItem[] = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/documents', label: 'Documents', icon: FileText },
-  { path: '/orders', label: 'Orders', icon: Globe },
-  { path: '/financials', label: 'Financials', icon: BarChart3 },
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
-  { path: '/clients', label: 'Clients', icon: Building2 },
-  { path: '/payments', label: 'Payments', icon: CreditCard },
-  { path: '/creditors', label: 'Creditors', icon: Landmark },
-  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings },
-  { path: '/import', label: 'Bulk Import', icon: Upload },
-  { path: '/team', label: 'Team', icon: UserCog },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
+  { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
+  { path: '/orders', label: 'Orders', icon: Globe, permission: 'view_shipments' },
+  { path: '/financials', label: 'Financials', icon: BarChart3, permission: 'view_financials' },
+  { path: '/suppliers', label: 'Suppliers', icon: Users, permission: 'view_suppliers' },
+  { path: '/clients', label: 'Clients', icon: Building2, permission: 'view_clients' },
+  { path: '/payments', label: 'Payments', icon: CreditCard, permission: 'view_payments' },
+  { path: '/creditors', label: 'Creditors', icon: Landmark, permission: 'view_suppliers' },
+  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings, permission: 'manage_bank_accounts' },
+  { path: '/import', label: 'Bulk Import', icon: Upload, permission: 'bulk_import' },
+  { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const { hasPermission, isAdmin } = usePermissions();
   const isMobile = useIsMobile();
 
   const handleSignOut = async () => {
@@ -56,6 +65,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleNavClick = (path: string) => {
     navigate(path);
   };
+
+  const canAccessNavItem = (item: NavItem): boolean => {
+    if (!item.permission) return true;
+    if (isAdmin) return true;
+    return hasPermission(item.permission);
+  };
+
+  const filteredNavItems = navItems.filter(canAccessNavItem);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -84,7 +101,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Navigation Items */}
       <ScrollArea className="flex-1">
         <nav className="flex flex-col items-center gap-2">
-          {navItems.slice(0, 6).map((item) => (
+          {filteredNavItems.slice(0, 6).map((item) => (
             <button
               key={item.path}
               onClick={() => handleNavClick(item.path)}
