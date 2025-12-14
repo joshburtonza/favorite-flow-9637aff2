@@ -18,7 +18,8 @@ import {
   LayoutDashboard,
   Settings,
   Globe,
-  FileText
+  FileText,
+  UserCog
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -38,6 +39,7 @@ const navItems = [
   { path: '/creditors', label: 'Creditors', icon: Landmark },
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings },
   { path: '/import', label: 'Bulk Import', icon: Upload },
+  { path: '/team', label: 'Team', icon: UserCog },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
