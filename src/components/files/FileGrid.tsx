@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { FileText, MoreVertical, FolderInput, Download, Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { FileText, MoreVertical, FolderInput, Download, Trash2, CheckCircle, Clock, AlertCircle, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +51,17 @@ export function FileGrid({
   onDeleteDocument,
 }: FileGridProps) {
   const { toast } = useToast();
+  const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, docId: string) => {
+    setDraggedDocId(docId);
+    e.dataTransfer.setData('documentId', docId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedDocId(null);
+  };
 
   const handleSecureDownload = async (document: Document) => {
     try {
@@ -116,7 +127,13 @@ export function FileGrid({
         {documents.map((doc) => (
           <div
             key={doc.id}
-            className="group relative p-4 rounded-lg border bg-card hover:shadow-md transition-shadow"
+            draggable
+            onDragStart={(e) => handleDragStart(e, doc.id)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              "group relative p-4 rounded-lg border bg-card hover:shadow-md transition-all cursor-grab active:cursor-grabbing",
+              draggedDocId === doc.id && "opacity-50 ring-2 ring-primary"
+            )}
           >
             <div className="flex flex-col items-center text-center">
               <FileText className="h-12 w-12 text-muted-foreground mb-2" />
@@ -211,7 +228,13 @@ export function FileGrid({
       {documents.map((doc) => (
         <div
           key={doc.id}
-          className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 group"
+          draggable
+          onDragStart={(e) => handleDragStart(e, doc.id)}
+          onDragEnd={handleDragEnd}
+          className={cn(
+            "flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 group cursor-grab active:cursor-grabbing",
+            draggedDocId === doc.id && "opacity-50 ring-2 ring-primary"
+          )}
         >
           <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
           <div className="flex-1 min-w-0">

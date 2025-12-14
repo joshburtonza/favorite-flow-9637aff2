@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder, FileText, ArrowLeft } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,8 +49,10 @@ export default function Workspace() {
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [selectedDocForImport, setSelectedDocForImport] = useState<any | null>(null);
   const [importFromFolderData, setImportFromFolderData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
-  const { folders, folderTree } = useDocumentFolders();
+  const { folders, folderTree, createFolder } = useDocumentFolders();
 
   const { tables, isLoading: tablesLoading, createTable, deleteTable, updateTable } = useCustomTables();
   const { columns, addColumn, updateColumn, deleteColumn } = useTableColumns(selectedTableId);
@@ -640,8 +642,73 @@ export default function Workspace() {
               />
             </div>
             <div>
-              <Label>Select Folder</Label>
-              <ScrollArea className="h-48 border rounded-md mt-1 p-2">
+              <div className="flex items-center justify-between mb-1">
+                <Label>Select Folder</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setIsCreatingFolder(true)}
+                >
+                  <FolderPlus className="h-3 w-3 mr-1" />
+                  New Folder
+                </Button>
+              </div>
+              {isCreatingFolder && (
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    placeholder="Folder name"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="h-8 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newFolderName.trim()) {
+                        createFolder.mutate({ name: newFolderName.trim() }, {
+                          onSuccess: (data) => {
+                            setSelectedFolderId(data.id);
+                            setNewFolderName('');
+                            setIsCreatingFolder(false);
+                          }
+                        });
+                      } else if (e.key === 'Escape') {
+                        setNewFolderName('');
+                        setIsCreatingFolder(false);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      if (newFolderName.trim()) {
+                        createFolder.mutate({ name: newFolderName.trim() }, {
+                          onSuccess: (data) => {
+                            setSelectedFolderId(data.id);
+                            setNewFolderName('');
+                            setIsCreatingFolder(false);
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!newFolderName.trim() || createFolder.isPending}
+                  >
+                    {createFolder.isPending ? '...' : 'Create'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      setNewFolderName('');
+                      setIsCreatingFolder(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              <ScrollArea className="h-48 border rounded-md p-2">
                 <div
                   className={cn(
                     'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',

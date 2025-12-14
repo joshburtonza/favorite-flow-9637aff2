@@ -144,6 +144,7 @@ export default function FileBrowser() {
               onCreateFolder={(name, parentId) => createFolder.mutate({ name, parent_id: parentId })}
               onRenameFolder={(id, name) => renameFolder.mutate({ id, name })}
               onDeleteFolder={(id) => deleteFolder.mutate(id)}
+              onMoveDocument={(docId, folderId) => moveDocument.mutate({ documentId: docId, folderId })}
             />
           </ScrollArea>
         </div>
