@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { FloatingAIChat } from '@/components/ai/FloatingAIChat';
 import { 
   Package, 
   Users, 
@@ -153,6 +154,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       {/* Mobile bottom navigation */}
       {isMobile && <BottomNavigation />}
+      
+      {/* Floating AI Chat Button */}
+      <FloatingAIChat />
     </div>
   );
 }

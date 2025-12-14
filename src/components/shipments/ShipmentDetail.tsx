@@ -51,6 +51,7 @@ import { ArrowLeft, Save, Trash2, CalendarIcon, Loader2, Eye, CreditCard, Downlo
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
+import { ShipmentStatusHistory } from '@/components/tracking/ShipmentStatusHistory';
 import { toast } from 'sonner';
 
 export function ShipmentDetail() {
@@ -636,6 +637,16 @@ export function ShipmentDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Status History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Status History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ShipmentStatusHistory shipmentId={id} limit={15} />
+        </CardContent>
+      </Card>
 
       {/* Supplier Ledger Modal */}
       {supplierId && (
