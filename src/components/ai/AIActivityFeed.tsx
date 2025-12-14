@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
 import { 
   FileText, 
@@ -12,7 +13,8 @@ import {
   Clock,
   User,
   Bot,
-  Filter
+  Filter,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +47,28 @@ interface AIEvent {
   ai_confidence?: number;
   ai_summary?: string;
   user_email?: string;
+}
+
+function getNavigationTarget(event: AIEvent): string | null {
+  const relatedEntities = event.related_entities || {};
+  
+  if (event.entity_type === 'shipment' && event.entity_id) {
+    return `/shipments/${event.entity_id}`;
+  }
+  
+  if (event.entity_type === 'document' && relatedEntities.shipment_id) {
+    return `/shipments/${relatedEntities.shipment_id}`;
+  }
+  
+  if (event.event_type === 'relationship_created' && relatedEntities.shipment_id) {
+    return `/shipments/${relatedEntities.shipment_id}`;
+  }
+  
+  if (event.entity_type === 'document') {
+    return '/documents';
+  }
+  
+  return null;
 }
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
@@ -106,6 +130,7 @@ export function AIActivityFeed({
   maxHeight?: number;
   showFilters?: boolean;
 }) {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('all');
   const [events, setEvents] = useState<AIEvent[]>([]);
   const { data: initialEvents, isLoading, refetch } = useAIEvents(50);
@@ -185,42 +210,56 @@ export function AIActivityFeed({
             </div>
           ) : (
             <div className="divide-y">
-              {filteredEvents.map((event) => (
-                <div 
-                  key={event.id} 
-                  className="px-4 py-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      'p-2 rounded-lg shrink-0',
-                      EVENT_COLORS[event.event_type] || 'bg-muted'
-                    )}>
-                      {EVENT_ICONS[event.event_type] || <AlertCircle className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {getEventDescription(event)}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {event.entity_type}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-                        </span>
+              {filteredEvents.map((event) => {
+                const navTarget = getNavigationTarget(event);
+                const isClickable = !!navTarget;
+                
+                return (
+                  <div 
+                    key={event.id} 
+                    onClick={() => isClickable && navigate(navTarget)}
+                    className={cn(
+                      "px-4 py-3 transition-colors",
+                      isClickable 
+                        ? "cursor-pointer hover:bg-primary/5" 
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        'p-2 rounded-lg shrink-0',
+                        EVENT_COLORS[event.event_type] || 'bg-muted'
+                      )}>
+                        {EVENT_ICONS[event.event_type] || <AlertCircle className="h-4 w-4" />}
                       </div>
-                      {event.ai_confidence && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {getEventDescription(event)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {event.entity_type}
+                          </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {Math.round(event.ai_confidence * 100)}% confidence
+                            {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
                           </span>
                         </div>
+                        {event.ai_confidence && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            <span className="text-xs text-muted-foreground">
+                              {Math.round(event.ai_confidence * 100)}% confidence
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {isClickable && (
+                        <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
                       )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ScrollArea>
