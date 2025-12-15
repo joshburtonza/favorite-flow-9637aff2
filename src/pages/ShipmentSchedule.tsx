@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { useShipments } from '@/hooks/useShipments';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useClients } from '@/hooks/useClients';
@@ -271,19 +272,22 @@ export default function ShipmentSchedule() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-[400px]" />
-          <Skeleton className="h-[400px]" />
-          <Skeleton className="h-[400px]" />
+      <AppLayout>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-10 w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Skeleton className="h-[400px]" />
+            <Skeleton className="h-[400px]" />
+            <Skeleton className="h-[400px]" />
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <AppLayout>
+      <div className="p-6 space-y-6">
       {/* Header with Month Navigation */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -446,6 +450,7 @@ export default function ShipmentSchedule() {
           />
         </div>
       )}
-    </div>
+      </div>
+    </AppLayout>
   );
 }
