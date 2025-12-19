@@ -28,7 +28,8 @@ import {
   FolderOpen,
   Table2,
   CalendarDays,
-  Calculator
+  Calculator,
+  Workflow
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -62,6 +63,7 @@ const navItems: NavItem[] = [
   { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
   { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
   { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
+  { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {

@@ -24,6 +24,7 @@ import BankAccounts from "./pages/BankAccounts";
 import ImportData from "./pages/ImportData";
 import Financials from "./pages/Financials";
 import Documents from "./pages/Documents";
+import DocumentWorkflow from "./pages/DocumentWorkflow";
 import NotFound from "./pages/NotFound";
 import TeamManagement from "./pages/TeamManagement";
 import SecurityCenter from "./pages/SecurityCenter";
@@ -126,6 +127,7 @@ const App = () => (
                 <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
                 <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
                 <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+                <Route path="/document-workflow" element={<ProtectedRoute><DocumentWorkflow /></ProtectedRoute>} />
                 <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
                 <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
                 <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
