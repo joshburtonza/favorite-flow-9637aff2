@@ -1345,6 +1345,82 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          assigned_by: string | null
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          document_id: string | null
+          due_date: string | null
+          id: string
+          lot_number: string | null
+          notes: string | null
+          priority: Database["public"]["Enums"]["task_priority"] | null
+          shipment_id: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          document_id?: string | null
+          due_date?: string | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          document_id?: string | null
+          due_date?: string | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uploaded_documents: {
         Row: {
           ai_classification: string | null
@@ -1684,6 +1760,8 @@ export type Database = {
         | "in-transit"
         | "documents-submitted"
         | "completed"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status: "pending" | "in_progress" | "completed" | "cancelled"
       workflow_status:
         | "draft"
         | "pending_review"
@@ -1875,6 +1953,8 @@ export const Constants = {
         "documents-submitted",
         "completed",
       ],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: ["pending", "in_progress", "completed", "cancelled"],
       workflow_status: [
         "draft",
         "pending_review",

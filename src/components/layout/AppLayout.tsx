@@ -29,7 +29,8 @@ import {
   Table2,
   CalendarDays,
   Calculator,
-  Workflow
+  Workflow,
+  ListTodo
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -61,6 +62,7 @@ const navItems: NavItem[] = [
   { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings, permission: 'manage_bank_accounts' },
   { path: '/import', label: 'Bulk Import', icon: Upload, permission: 'bulk_import' },
   { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
+  { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
   { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
   { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
