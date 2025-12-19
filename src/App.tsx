@@ -32,6 +32,7 @@ import FileBrowser from "./pages/FileBrowser";
 import Workspace from "./pages/Workspace";
 import Invoices from "./pages/Invoices";
 import FileCosting from "./pages/FileCosting";
+import Tasks from "./pages/Tasks";
 
 const queryClient = new QueryClient();
 
@@ -133,6 +134,7 @@ const App = () => (
                 <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
                 <Route path="/file-costing" element={<ProtectedRoute><FileCosting /></ProtectedRoute>} />
                 <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
+                <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
                 <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
