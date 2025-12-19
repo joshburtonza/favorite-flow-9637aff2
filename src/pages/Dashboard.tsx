@@ -4,7 +4,7 @@ import { KPICard } from '@/components/ui/kpi-card';
 import { ShipmentList } from '@/components/shipments/ShipmentList';
 import { NewShipmentDialog } from '@/components/shipments/NewShipmentDialog';
 import { AutomationStatus } from '@/components/automation/AutomationStatus';
-import { WhatsAppCommands } from '@/components/automation/WhatsAppCommands';
+import { TelegramCommands } from '@/components/automation/TelegramCommands';
 import { ShipmentTimeline } from '@/components/tracking/ShipmentTimeline';
 import { LiveStatusCards } from '@/components/tracking/LiveStatusCards';
 import { ActivityFeed } from '@/components/tracking/ActivityFeed';
@@ -131,7 +131,7 @@ export default function Dashboard() {
             <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} externalSearch={searchQuery} />
           )}
           {activeTab === 'automation' && <AutomationStatus />}
-          {activeTab === 'commands' && <WhatsAppCommands />}
+          {activeTab === 'commands' && <TelegramCommands />}
         </div>
       </div>
 

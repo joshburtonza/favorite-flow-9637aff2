@@ -26,7 +26,7 @@ export function EditModeBanner({ isEditMode, onEnableEdit, onDisableEdit }: Edit
           <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
           <div>
             <p className="font-medium text-warning-foreground text-sm">Manual Override Mode</p>
-            <p className="text-xs text-muted-foreground">Changes are normally automated via WhatsApp. Editing manually.</p>
+            <p className="text-xs text-muted-foreground">Changes are normally automated via Telegram. Editing manually.</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={onDisableEdit}>
@@ -43,7 +43,7 @@ export function EditModeBanner({ isEditMode, onEnableEdit, onDisableEdit }: Edit
         <Lock className="h-5 w-5 text-muted-foreground shrink-0" />
         <div>
           <p className="font-medium text-foreground text-sm">View Only Mode</p>
-          <p className="text-xs text-muted-foreground">Data is updated via WhatsApp automation</p>
+          <p className="text-xs text-muted-foreground">Data is updated via Telegram automation</p>
         </div>
       </div>
       <AlertDialog>
@@ -60,7 +60,7 @@ export function EditModeBanner({ isEditMode, onEnableEdit, onDisableEdit }: Edit
               Enable Manual Override?
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>This data is normally updated automatically via WhatsApp commands.</p>
+              <p>This data is normally updated automatically via Telegram commands.</p>
               <p className="font-medium text-foreground">Manual editing should only be used for:</p>
               <ul className="list-disc list-inside text-sm space-y-1 ml-2">
                 <li>Emergency corrections</li>

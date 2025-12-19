@@ -65,8 +65,8 @@ export function useRealtimeSubscription({ tables, onUpdate, showToasts = true }:
             const lotNumber = newRecord.lot_number as string;
             const success = newRecord.success as boolean;
 
-            if (source === 'whatsapp' || source === 'email') {
-              const icon = source === 'whatsapp' ? '💬' : '📧';
+            if (source === 'telegram' || source === 'email') {
+              const icon = source === 'telegram' ? '✈️' : '📧';
               if (success) {
                 toast.success(`${icon} ${lotNumber ? `LOT ${lotNumber}` : 'Update'} via ${source}`, {
                   description: action,

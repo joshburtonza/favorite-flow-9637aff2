@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MessageSquare, Package, DollarSign, Search, FileText, Truck, CreditCard } from 'lucide-react';
+import { Send, Package, DollarSign, Search, FileText, Truck, CreditCard } from 'lucide-react';
 
 const commands = [
   {
@@ -105,18 +105,18 @@ const commands = [
   }
 ];
 
-export function WhatsAppCommands() {
+export function TelegramCommands() {
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-green-600" />
-            WhatsApp Command Reference
+            <Send className="h-5 w-5 text-blue-500" />
+            Telegram Command Reference
           </CardTitle>
           <CardDescription>
-            Send these commands via WhatsApp to update shipments automatically.
-            The n8n workflow parses your message and calls the appropriate API endpoint.
+            Send these commands via Telegram to update shipments automatically.
+            The bot parses your message and calls the appropriate API endpoint.
           </CardDescription>
         </CardHeader>
       </Card>
