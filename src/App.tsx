@@ -6,7 +6,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import AIHub from "./pages/AIHub";
 import Dashboard from "./pages/Dashboard";
 import ShipmentDetail from "./pages/ShipmentDetail";
@@ -94,43 +96,46 @@ function ScreenshotProtectionWrapper({ children }: { children: React.ReactNode }
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <TooltipProvider>
-        <ScreenshotProtectionWrapper>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-              <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
-              <Route path="/analyze" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
-              <Route path="/schedule" element={<ProtectedRoute><ShipmentSchedule /></ProtectedRoute>} />
-              <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-              <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
-              <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-              <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
-              <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-              <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
-              <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
-              <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
-              <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
-              <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
-              <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-              <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
-              <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
-              <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
-              <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ScreenshotProtectionWrapper>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <TooltipProvider>
+          <ScreenshotProtectionWrapper>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+                <Route path="/analyze" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
+                <Route path="/schedule" element={<ProtectedRoute><ShipmentSchedule /></ProtectedRoute>} />
+                <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+                <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
+                <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+                <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+                <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+                <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
+                <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
+                <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
+                <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
+                <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
+                <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+                <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
+                <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
+                <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </ScreenshotProtectionWrapper>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

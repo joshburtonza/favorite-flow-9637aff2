@@ -37,9 +37,10 @@ import { toast } from 'sonner';
 
 interface ShipmentListProps {
   onNewShipment: () => void;
+  externalSearch?: string;
 }
 
-export function ShipmentList({ onNewShipment }: ShipmentListProps) {
+export function ShipmentList({ onNewShipment, externalSearch = '' }: ShipmentListProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
@@ -60,19 +61,22 @@ export function ShipmentList({ onNewShipment }: ShipmentListProps) {
   const { data: suppliers } = useSuppliers();
   const { data: clients } = useClients();
 
+  // Combine external search with local search
+  const combinedSearch = externalSearch || search;
+
   // Filter shipments by search (LOT number, supplier name, client name)
   const filteredShipments = useMemo(() => {
     if (!shipments) return [];
-    if (!search.trim()) return shipments;
+    if (!combinedSearch.trim()) return shipments;
     
-    const searchLower = search.toLowerCase().trim();
+    const searchLower = combinedSearch.toLowerCase().trim();
     return shipments.filter((s) => 
       s.lot_number.toLowerCase().includes(searchLower) ||
       s.supplier?.name?.toLowerCase().includes(searchLower) ||
       s.client?.name?.toLowerCase().includes(searchLower) ||
       s.commodity?.toLowerCase().includes(searchLower)
     );
-  }, [shipments, search]);
+  }, [shipments, combinedSearch]);
 
   const handleViewShipment = (id: string) => {
     navigate(`/shipments/${id}`);

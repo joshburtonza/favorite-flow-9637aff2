@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Package, Loader2 } from 'lucide-react';
+import { Package, Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -19,9 +20,9 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
+  const [activeTab, setActiveTab] = useState<'signin' | 'signup' | 'forgot'>('signin');
 
-  const validateInputs = () => {
+  const validateInputs = (checkPassword = true) => {
     const newErrors: { email?: string; password?: string } = {};
     
     const emailResult = emailSchema.safeParse(email);
@@ -29,9 +30,11 @@ export default function Auth() {
       newErrors.email = emailResult.error.errors[0].message;
     }
     
-    const passwordResult = passwordSchema.safeParse(password);
-    if (!passwordResult.success) {
-      newErrors.password = passwordResult.error.errors[0].message;
+    if (checkPassword) {
+      const passwordResult = passwordSchema.safeParse(password);
+      if (!passwordResult.success) {
+        newErrors.password = passwordResult.error.errors[0].message;
+      }
     }
     
     setErrors(newErrors);
@@ -77,6 +80,24 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateInputs(false)) return;
+    
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setIsLoading(false);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Password reset email sent! Check your inbox.');
+      setActiveTab('signin');
+    }
+  };
+
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4"
@@ -108,41 +129,43 @@ export default function Auth() {
           className="glass-card"
           style={{ padding: '2rem' }}
         >
-          {/* Tab Switcher */}
-          <div className="flex gap-2 mb-8">
-            <button
-              onClick={() => setActiveTab('signin')}
-              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'signin' 
-                  ? 'text-foreground border border-primary/30' 
-                  : 'text-muted-foreground'
-              }`}
-              style={{
-                background: activeTab === 'signin' 
-                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
-                  : 'transparent',
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => setActiveTab('signup')}
-              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'signup' 
-                  ? 'text-foreground border border-primary/30' 
-                  : 'text-muted-foreground'
-              }`}
-              style={{
-                background: activeTab === 'signup' 
-                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
-                  : 'transparent',
-              }}
-            >
-              Sign Up
-            </button>
-          </div>
+          {/* Tab Switcher - only show for signin/signup */}
+          {activeTab !== 'forgot' && (
+            <div className="flex gap-2 mb-8">
+              <button
+                onClick={() => setActiveTab('signin')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'signin' 
+                    ? 'text-foreground border border-primary/30' 
+                    : 'text-muted-foreground'
+                }`}
+                style={{
+                  background: activeTab === 'signin' 
+                    ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
+                    : 'transparent',
+                }}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => setActiveTab('signup')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === 'signup' 
+                    ? 'text-foreground border border-primary/30' 
+                    : 'text-muted-foreground'
+                }`}
+                style={{
+                  background: activeTab === 'signup' 
+                    ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' 
+                    : 'transparent',
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
           
-          {activeTab === 'signin' ? (
+          {activeTab === 'signin' && (
             <>
               <h2 className="text-xl font-semibold mb-1">Welcome back</h2>
               <p className="text-sm text-muted-foreground mb-6">
@@ -182,6 +205,16 @@ export default function Auth() {
                   )}
                 </div>
                 
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('forgot')}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                
                 <Button 
                   type="submit" 
                   className="w-full h-12 rounded-xl text-base font-medium" 
@@ -201,7 +234,9 @@ export default function Auth() {
                 </Button>
               </form>
             </>
-          ) : (
+          )}
+          
+          {activeTab === 'signup' && (
             <>
               <h2 className="text-xl font-semibold mb-1">Create an account</h2>
               <p className="text-sm text-muted-foreground mb-6">
@@ -269,6 +304,59 @@ export default function Auth() {
                     </>
                   ) : (
                     'Create Account'
+                  )}
+                </Button>
+              </form>
+            </>
+          )}
+          
+          {activeTab === 'forgot' && (
+            <>
+              <button
+                onClick={() => setActiveTab('signin')}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to sign in
+              </button>
+              
+              <h2 className="text-xl font-semibold mb-1">Forgot password?</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Enter your email and we'll send you a reset link
+              </p>
+              
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="forgot-email" className="text-sm text-muted-foreground">Email</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    className="h-12 rounded-xl bg-glass-surface border-glass-border focus:border-primary"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 rounded-xl text-base font-medium" 
+                  disabled={isLoading}
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))',
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Reset Link'
                   )}
                 </Button>
               </form>
