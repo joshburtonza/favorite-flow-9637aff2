@@ -27,7 +27,8 @@ import {
   Shield,
   FolderOpen,
   Table2,
-  CalendarDays
+  CalendarDays,
+  Calculator
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
   { path: '/schedule', label: 'Schedule', icon: CalendarDays, permission: 'view_shipments' },
   { path: '/invoices', label: 'Invoices', icon: FileText, permission: 'view_payments' },
+  { path: '/file-costing', label: 'File Costing', icon: Calculator, permission: 'view_financials' },
   { path: '/files', label: 'Files', icon: FolderOpen, permission: 'view_documents' },
   { path: '/workspace', label: 'Workspace', icon: Table2 },
   { path: '/orders', label: 'Orders', icon: Globe, permission: 'view_shipments' },
