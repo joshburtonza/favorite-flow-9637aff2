@@ -62,22 +62,22 @@ export function AutomationStatus() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-green-600" />
-              Last WhatsApp
+              <MessageSquare className="h-4 w-4 text-blue-500" />
+              Last Telegram
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stats?.lastWhatsApp ? (
+            {stats?.lastTelegram ? (
               <>
                 <div className="text-lg font-semibold truncate">
-                  {stats.lastWhatsApp.action.replace(/_/g, ' ')}
+                  {stats.lastTelegram.action.replace(/_/g, ' ')}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {stats.lastWhatsApp.lot_number && `LOT ${stats.lastWhatsApp.lot_number} • `}
-                  {formatDistanceToNow(new Date(stats.lastWhatsApp.created_at), { addSuffix: true })}
+                  {stats.lastTelegram.lot_number && `LOT ${stats.lastTelegram.lot_number} • `}
+                  {formatDistanceToNow(new Date(stats.lastTelegram.created_at), { addSuffix: true })}
                 </div>
-                <Badge variant={stats.lastWhatsApp.success ? "default" : "destructive"} className="mt-2">
-                  {stats.lastWhatsApp.success ? 'Success' : 'Failed'}
+                <Badge variant={stats.lastTelegram.success ? "default" : "destructive"} className="mt-2">
+                  {stats.lastTelegram.success ? 'Success' : 'Failed'}
                 </Badge>
               </>
             ) : (
@@ -188,7 +188,7 @@ export function AutomationStatus() {
                   <XCircle className="h-4 w-4 text-red-600 shrink-0" />
                 )}
                 <Badge variant="outline" className="shrink-0">
-                  {log.source === 'whatsapp' ? '💬' : log.source === 'email' ? '📧' : '✏️'} {log.source}
+                  {log.source === 'telegram' ? '✈️' : log.source === 'email' ? '📧' : '✏️'} {log.source}
                 </Badge>
                 <span className="font-medium">{log.action.replace(/_/g, ' ')}</span>
                 {log.lot_number && (

@@ -3,10 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions, AppPermission } from '@/hooks/usePermissions';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { FloatingAIChat } from '@/components/ai/FloatingAIChat';
+import { OfflineBanner } from '@/components/ui/offline-banner';
 import { 
   Package, 
   Users, 
@@ -65,7 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { signOut, user } = useAuth();
   const { hasPermission, isAdmin } = usePermissions();
   const isMobile = useIsMobile();
-
+  const isOnline = useOnlineStatus();
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
@@ -142,11 +144,14 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
+      {/* Offline Banner */}
+      <OfflineBanner />
+      
       {/* Desktop floating dock */}
       {!isMobile && <FloatingDock />}
       
       {/* Main content */}
-      <div className={cn('min-h-screen', !isMobile && 'ml-28')}>
+      <div className={cn('min-h-screen', !isMobile && 'ml-28', !isOnline && 'pt-10')}>
         <main className={cn('p-6 md:p-10', isMobile && 'pb-28')}>
           {children}
         </main>

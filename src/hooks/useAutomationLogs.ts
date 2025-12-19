@@ -17,7 +17,7 @@ export interface AutomationStats {
   totalToday: number;
   successToday: number;
   failedToday: number;
-  lastWhatsApp: AutomationLog | null;
+  lastTelegram: AutomationLog | null;
   lastEmail: AutomationLog | null;
   recentFailed: AutomationLog[];
 }
@@ -38,11 +38,11 @@ export function useAutomationLogs() {
 
       if (error) throw error;
 
-      // Get last WhatsApp message
-      const { data: lastWhatsApp } = await supabase
+      // Get last Telegram message
+      const { data: lastTelegram } = await supabase
         .from('automation_logs')
         .select('*')
-        .eq('source', 'whatsapp')
+        .eq('source', 'telegram')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -70,7 +70,7 @@ export function useAutomationLogs() {
         totalToday: logs.length,
         successToday: logs.filter(l => l.success).length,
         failedToday: logs.filter(l => !l.success).length,
-        lastWhatsApp: lastWhatsApp as AutomationLog | null,
+        lastTelegram: lastTelegram as AutomationLog | null,
         lastEmail: lastEmail as AutomationLog | null,
         recentFailed: (recentFailed || []) as AutomationLog[]
       };
