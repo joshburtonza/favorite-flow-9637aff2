@@ -29,6 +29,7 @@ import TeamManagement from "./pages/TeamManagement";
 import SecurityCenter from "./pages/SecurityCenter";
 import FileBrowser from "./pages/FileBrowser";
 import Workspace from "./pages/Workspace";
+import Invoices from "./pages/Invoices";
 
 const queryClient = new QueryClient();
 
@@ -126,6 +127,7 @@ const App = () => (
                 <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
                 <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
                 <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
+                <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
                 <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
                 <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
