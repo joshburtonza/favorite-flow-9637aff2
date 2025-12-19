@@ -128,7 +128,7 @@ export default function Dashboard() {
         {/* Tab Content */}
         <div className="animate-fade-in">
           {activeTab === 'shipments' && (
-            <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} />
+            <ShipmentList onNewShipment={() => setNewShipmentOpen(true)} externalSearch={searchQuery} />
           )}
           {activeTab === 'automation' && <AutomationStatus />}
           {activeTab === 'commands' && <WhatsAppCommands />}
