@@ -349,6 +349,88 @@ export type Database = {
           },
         ]
       }
+      client_invoices: {
+        Row: {
+          amount_zar: number
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string
+          line_items: Json | null
+          lot_number: string | null
+          notes: string | null
+          paid_date: string | null
+          shipment_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          total_amount: number | null
+          updated_at: string
+          vat_amount: number | null
+        }
+        Insert: {
+          amount_zar?: number
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          line_items?: Json | null
+          lot_number?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total_amount?: number | null
+          updated_at?: string
+          vat_amount?: number | null
+        }
+        Update: {
+          amount_zar?: number
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          line_items?: Json | null
+          lot_number?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total_amount?: number | null
+          updated_at?: string
+          vat_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_invoices_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_invoices_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -1456,6 +1538,7 @@ export type Database = {
       }
     }
     Functions: {
+      generate_invoice_number: { Args: never; Returns: string }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]
@@ -1517,6 +1600,7 @@ export type Database = {
       currency_type: "USD" | "EUR" | "ZAR"
       document_status: "new" | "in_progress" | "finalized"
       folder_type: "system" | "staff" | "clearing_agent" | "custom"
+      invoice_status: "draft" | "sent" | "paid" | "cancelled"
       ledger_type: "debit" | "credit"
       payment_status: "pending" | "completed"
       shipment_status:
@@ -1705,6 +1789,7 @@ export const Constants = {
       currency_type: ["USD", "EUR", "ZAR"],
       document_status: ["new", "in_progress", "finalized"],
       folder_type: ["system", "staff", "clearing_agent", "custom"],
+      invoice_status: ["draft", "sent", "paid", "cancelled"],
       ledger_type: ["debit", "credit"],
       payment_status: ["pending", "completed"],
       shipment_status: [
