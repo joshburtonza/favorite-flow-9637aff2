@@ -739,6 +739,81 @@ export type Database = {
         }
         Relationships: []
       }
+      file_costings: {
+        Row: {
+          clearing_cost_zar: number | null
+          clearing_documents: Json | null
+          created_at: string | null
+          created_by: string | null
+          finalized_at: string | null
+          finalized_by: string | null
+          grand_total_zar: number | null
+          id: string
+          lot_number: string | null
+          notes: string | null
+          other_costs_zar: number | null
+          other_documents: Json | null
+          shipment_id: string | null
+          status: Database["public"]["Enums"]["file_costing_status"] | null
+          transport_cost_zar: number | null
+          transport_documents: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          clearing_cost_zar?: number | null
+          clearing_documents?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          grand_total_zar?: number | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          other_costs_zar?: number | null
+          other_documents?: Json | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["file_costing_status"] | null
+          transport_cost_zar?: number | null
+          transport_documents?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          clearing_cost_zar?: number | null
+          clearing_documents?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          grand_total_zar?: number | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          other_costs_zar?: number | null
+          other_documents?: Json | null
+          shipment_id?: string | null
+          status?: Database["public"]["Enums"]["file_costing_status"] | null
+          transport_cost_zar?: number | null
+          transport_documents?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_costings_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_costings_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fx_rates: {
         Row: {
           applied_rate: number | null
@@ -1599,6 +1674,7 @@ export type Database = {
         | "phone"
       currency_type: "USD" | "EUR" | "ZAR"
       document_status: "new" | "in_progress" | "finalized"
+      file_costing_status: "draft" | "pending_review" | "finalized"
       folder_type: "system" | "staff" | "clearing_agent" | "custom"
       invoice_status: "draft" | "sent" | "paid" | "cancelled"
       ledger_type: "debit" | "credit"
@@ -1788,6 +1864,7 @@ export const Constants = {
       ],
       currency_type: ["USD", "EUR", "ZAR"],
       document_status: ["new", "in_progress", "finalized"],
+      file_costing_status: ["draft", "pending_review", "finalized"],
       folder_type: ["system", "staff", "clearing_agent", "custom"],
       invoice_status: ["draft", "sent", "paid", "cancelled"],
       ledger_type: ["debit", "credit"],
