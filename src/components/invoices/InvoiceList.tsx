@@ -33,6 +33,8 @@ import {
   XCircle,
   Filter
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { InvoiceCardMobile } from './InvoiceCardMobile';
 
 interface InvoiceListProps {
   onCreateNew: () => void;
@@ -50,6 +52,7 @@ export function InvoiceList({ onCreateNew }: InvoiceListProps) {
   const updateStatus = useUpdateInvoiceStatus();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
+  const isMobile = useIsMobile();
 
   const filteredInvoices = invoices?.filter(inv => {
     const matchesSearch = 
@@ -172,81 +175,94 @@ export function InvoiceList({ onCreateNew }: InvoiceListProps) {
         </CardHeader>
         <CardContent>
           {filteredInvoices && filteredInvoices.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>LOT</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            isMobile ? (
+              <div className="space-y-3">
                 {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-mono font-medium">
-                      {invoice.invoice_number}
-                    </TableCell>
-                    <TableCell>{invoice.client_name || '-'}</TableCell>
-                    <TableCell>
-                      {invoice.lot_number ? (
-                        <Badge variant="outline">LOT {invoice.lot_number}</Badge>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(invoice.invoice_date), 'dd MMM yyyy')}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(invoice.total_amount || invoice.amount_zar)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusConfig[invoice.status].variant}>
-                        {statusConfig[invoice.status].label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download PDF
-                          </DropdownMenuItem>
-                          {invoice.status === 'draft' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, 'sent')}>
-                              <Send className="h-4 w-4 mr-2" />
-                              Mark as Sent
-                            </DropdownMenuItem>
-                          )}
-                          {invoice.status === 'sent' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, 'paid')}>
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Mark as Paid
-                            </DropdownMenuItem>
-                          )}
-                          {invoice.status !== 'cancelled' && invoice.status !== 'paid' && (
-                            <DropdownMenuItem 
-                              onClick={() => handleStatusChange(invoice.id, 'cancelled')}
-                              className="text-destructive"
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Cancel Invoice
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                  <InvoiceCardMobile
+                    key={invoice.id}
+                    invoice={invoice}
+                    onStatusChange={handleStatusChange}
+                    onExportPDF={handleExportPDF}
+                  />
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>LOT</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredInvoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-mono font-medium">
+                        {invoice.invoice_number}
+                      </TableCell>
+                      <TableCell>{invoice.client_name || '-'}</TableCell>
+                      <TableCell>
+                        {invoice.lot_number ? (
+                          <Badge variant="outline">LOT {invoice.lot_number}</Badge>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(invoice.invoice_date), 'dd MMM yyyy')}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(invoice.total_amount || invoice.amount_zar)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusConfig[invoice.status].variant}>
+                          {statusConfig[invoice.status].label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleExportPDF(invoice)}>
+                              <Download className="h-4 w-4 mr-2" />
+                              Download PDF
+                            </DropdownMenuItem>
+                            {invoice.status === 'draft' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, 'sent')}>
+                                <Send className="h-4 w-4 mr-2" />
+                                Mark as Sent
+                              </DropdownMenuItem>
+                            )}
+                            {invoice.status === 'sent' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, 'paid')}>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Mark as Paid
+                              </DropdownMenuItem>
+                            )}
+                            {invoice.status !== 'cancelled' && invoice.status !== 'paid' && (
+                              <DropdownMenuItem 
+                                onClick={() => handleStatusChange(invoice.id, 'cancelled')}
+                                className="text-destructive"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Cancel Invoice
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
