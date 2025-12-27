@@ -15,10 +15,10 @@ interface InvoiceCardMobileProps {
   invoice: {
     id: string;
     invoice_number: string;
-    client_name: string | null;
-    lot_number: string | null;
+    client_name?: string | null;
+    lot_number?: string | null;
     invoice_date: string;
-    total_amount: number | null;
+    total_amount?: number | null;
     amount_zar: number;
     status: InvoiceStatus;
   };
