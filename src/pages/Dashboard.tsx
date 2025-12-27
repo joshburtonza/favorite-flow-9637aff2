@@ -10,6 +10,10 @@ import { LiveStatusCards } from '@/components/tracking/LiveStatusCards';
 import { ActivityFeed } from '@/components/tracking/ActivityFeed';
 import { AIEventsWidget } from '@/components/ai/AIEventsWidget';
 import { AIAlertsWidget } from '@/components/ai/AIAlertsWidget';
+import { MyTasksWidget } from '@/components/tasks/MyTasksWidget';
+import { RecentInvoicesWidget } from '@/components/dashboard/RecentInvoicesWidget';
+import { PendingCostingsWidget } from '@/components/dashboard/PendingCostingsWidget';
+import { QuickStatsWidget } from '@/components/dashboard/QuickStatsWidget';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/formatters';
@@ -29,12 +33,12 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-6 md:space-y-8">
         {/* Header Section */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Control Tower</p>
-            <h1 className="text-3xl font-semibold gradient-text">Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold gradient-text">Dashboard</h1>
           </div>
           <div className="search-glass w-full md:w-80">
             <Search className="h-4 w-4 text-muted-foreground" />
@@ -49,47 +53,54 @@ export default function Dashboard() {
 
         {/* KPI Cards Bento Grid */}
         {statsLoading ? (
-          <div className="bento-grid">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
+              <Skeleton key={i} className="h-24 md:h-32 rounded-2xl md:rounded-3xl" style={{ background: 'hsl(0 0% 100% / 0.03)' }} />
             ))}
           </div>
         ) : (
-          <div className="bento-grid">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
             <KPICard
               title="Active Shipments"
               value={stats?.activeShipments || 0}
               icon={Package}
-              description="Currently in progress"
+              description={isMobile ? undefined : "Currently in progress"}
             />
             <KPICard
               title="Value in Transit"
               value={formatCurrency(stats?.totalValueInTransit || 0, 'ZAR', { compact: true })}
               icon={DollarSign}
-              description="Total client invoices"
+              description={isMobile ? undefined : "Total client invoices"}
             />
             <KPICard
-              title="Documents Pending"
+              title="Docs Pending"
               value={stats?.documentsPending || 0}
               icon={FileText}
-              description="Awaiting submission"
+              description={isMobile ? undefined : "Awaiting submission"}
             />
             <KPICard
-              title="Deliveries This Week"
+              title="Deliveries"
               value={stats?.deliveriesThisWeek || 0}
               icon={Truck}
-              description="Scheduled for delivery"
+              description={isMobile ? undefined : "This week"}
             />
           </div>
         )}
 
-        {/* Tracking Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        {/* Dashboard Widgets Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Left Column - Main Content */}
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             <ShipmentTimeline />
             <AIAlertsWidget />
+            <MyTasksWidget />
           </div>
-          <div className="space-y-6">
+          
+          {/* Right Column - Widgets */}
+          <div className="space-y-4 md:space-y-6">
+            <QuickStatsWidget />
+            <RecentInvoicesWidget />
+            <PendingCostingsWidget />
             <AIEventsWidget />
             <ActivityFeed />
           </div>
@@ -99,7 +110,7 @@ export default function Dashboard() {
 
         {/* Tab Switcher */}
         <div className="glass-card p-2">
-          <div className="flex gap-2">
+          <div className="flex gap-1 md:gap-2">
             {[
               { id: 'shipments', label: 'Shipments' },
               { id: 'automation', label: 'Automation' },
@@ -108,7 +119,7 @@ export default function Dashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                className={`flex-1 py-2.5 md:py-3 px-3 md:px-4 rounded-xl text-xs md:text-sm font-medium transition-all touch-manipulation ${
                   activeTab === tab.id
                     ? 'text-foreground border border-primary/30'
                     : 'text-muted-foreground hover:text-foreground'

@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { FloatingAIChat } from '@/components/ai/FloatingAIChat';
 import { OfflineBanner } from '@/components/ui/offline-banner';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { 
   Package, 
   Users, 
@@ -137,6 +138,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Bottom actions */}
       <div className="flex flex-col items-center gap-2 mt-auto pt-8">
+        <NotificationBell />
         <ThemeToggle />
         <button
           onClick={handleSignOut}

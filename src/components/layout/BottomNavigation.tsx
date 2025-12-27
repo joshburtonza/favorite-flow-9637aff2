@@ -8,27 +8,38 @@ import {
   Wallet, 
   Moon,
   Sun,
-  Plus,
   Menu,
   X,
   Users,
   FileText,
   Calendar,
   Building2,
-  Shield
+  Shield,
+  Calculator,
+  ListTodo,
+  Workflow,
+  FolderOpen,
+  BarChart3,
+  Upload
 } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'AI', icon: Sparkles },
-  { path: '/shipments', label: 'Shipments', icon: Package },
+  { path: '/schedule', label: 'Schedule', icon: Calendar },
   { path: '/payments', label: 'Payments', icon: Wallet },
 ];
 
 const moreItems = [
+  { path: '/invoices', label: 'Invoices', icon: FileText },
+  { path: '/file-costing', label: 'File Costing', icon: Calculator },
+  { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/suppliers', label: 'Suppliers', icon: Building2 },
   { path: '/clients', label: 'Clients', icon: Users },
   { path: '/documents', label: 'Documents', icon: FileText },
-  { path: '/schedule', label: 'Schedule', icon: Calendar },
+  { path: '/document-workflow', label: 'Workflow', icon: Workflow },
+  { path: '/files', label: 'Files', icon: FolderOpen },
+  { path: '/financials', label: 'Financials', icon: BarChart3 },
+  { path: '/import', label: 'Import', icon: Upload },
   { path: '/team', label: 'Team', icon: Shield },
 ];
 
@@ -65,25 +76,25 @@ export function BottomNavigation() {
       {/* More Menu */}
       {showMore && (
         <div 
-          className="fixed bottom-24 left-5 right-5 z-50 glass-card p-4 animate-slide-in"
+          className="fixed bottom-24 left-4 right-4 z-50 glass-card p-4 animate-slide-in max-h-[60vh] overflow-y-auto"
           style={{
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
           }}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {moreItems.map((item) => (
               <button
                 key={item.path}
                 onClick={() => handleNavigate(item.path)}
                 className={cn(
-                  'flex flex-col items-center gap-2 p-4 rounded-xl transition-colors',
+                  'flex flex-col items-center gap-2 p-3 rounded-xl transition-colors touch-manipulation',
                   isActive(item.path) 
                     ? 'bg-primary/20 text-foreground' 
-                    : 'text-muted-foreground hover:bg-primary/10'
+                    : 'text-muted-foreground hover:bg-primary/10 active:bg-primary/20'
                 )}
               >
                 <item.icon className="h-5 w-5" />
-                <span className="text-xs font-medium">{item.label}</span>
+                <span className="text-[10px] font-medium text-center leading-tight">{item.label}</span>
               </button>
             ))}
           </div>
@@ -91,9 +102,9 @@ export function BottomNavigation() {
       )}
       
       <nav 
-        className="fixed bottom-5 left-5 right-5 z-50 h-[75px] rounded-[25px] flex justify-evenly items-center safe-area-pb bg-card/85 backdrop-blur-xl border border-border/20"
+        className="fixed bottom-0 left-0 right-0 z-50 h-[70px] flex justify-evenly items-center safe-area-pb bg-card/95 backdrop-blur-xl border-t border-border/20"
         style={{
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
         }}
       >
         {navItems.map((item) => (
@@ -101,50 +112,49 @@ export function BottomNavigation() {
             key={item.path}
             onClick={() => handleNavigate(item.path)}
             className={cn(
-              'relative p-2.5 text-xl transition-colors',
+              'relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-colors touch-manipulation',
               isActive(item.path) 
-                ? 'text-foreground' 
-                : 'text-muted-foreground'
+                ? 'text-primary' 
+                : 'text-muted-foreground active:text-foreground'
             )}
           >
             <item.icon className="h-5 w-5" />
+            <span className="text-[10px] mt-1">{item.label}</span>
             {isActive(item.path) && (
               <span 
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent"
-                style={{
-                  boxShadow: '0 0 10px hsl(var(--accent))',
-                }}
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-primary"
               />
             )}
           </button>
         ))}
         
-        {/* Floating More Button */}
+        {/* More Button */}
         <button 
           onClick={() => setShowMore(!showMore)}
-          className="w-14 h-14 rounded-[20px] flex items-center justify-center -translate-y-6 bg-primary transition-transform"
-          style={{
-            boxShadow: '0 10px 25px hsl(var(--primary) / 0.3)',
-            transform: showMore ? 'translateY(-1.5rem) rotate(45deg)' : 'translateY(-1.5rem)',
-          }}
+          className={cn(
+            'relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-all touch-manipulation',
+            showMore ? 'text-primary' : 'text-muted-foreground'
+          )}
         >
           {showMore ? (
-            <X className="h-5 w-5 text-primary-foreground -rotate-45" />
+            <X className="h-5 w-5" />
           ) : (
-            <Menu className="h-5 w-5 text-primary-foreground" />
+            <Menu className="h-5 w-5" />
           )}
+          <span className="text-[10px] mt-1">More</span>
         </button>
 
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="relative p-2.5 text-xl transition-colors text-muted-foreground hover:text-foreground"
+          className="relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-colors text-muted-foreground touch-manipulation active:text-foreground"
         >
           {theme === 'dark' ? (
             <Sun className="h-5 w-5" />
           ) : (
             <Moon className="h-5 w-5" />
           )}
+          <span className="text-[10px] mt-1">Theme</span>
         </button>
       </nav>
     </>
