@@ -787,42 +787,83 @@ export default function TeamManagement() {
 
           {/* Members Tab */}
           <TabsContent value="members" className="space-y-6">
-            {/* Quick Seed Button */}
-            <Card className="border-primary/30 bg-primary/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
+            {/* Predefined Team Members */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Quick Setup: Seed Team Members
+                  Team Directory
                 </CardTitle>
                 <CardDescription>
-                  Create accounts for all predefined team members with password "12345678"
+                  All team members and their roles. Click "Create All Accounts" to set up accounts with default password "12345678"
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {STAFF_ACCESS_CONFIG.map((staff, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">
-                      {staff.name} ({staff.email})
-                    </Badge>
-                  ))}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {STAFF_ACCESS_CONFIG.map((staff, index) => {
+                      const existsInDb = teamMembers.some(
+                        m => m.email?.toLowerCase() === staff.email.toLowerCase()
+                      );
+                      return (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{staff.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{staff.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={staff.role === 'admin' ? 'default' : 'secondary'}>
+                              {staff.roleLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                            {staff.description}
+                          </TableCell>
+                          <TableCell>
+                            {existsInDb ? (
+                              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                Not Created
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <div className="mt-4 pt-4 border-t">
+                  <Button 
+                    onClick={seedTeamUsers} 
+                    disabled={seedingUsers}
+                    className="w-full sm:w-auto"
+                  >
+                    {seedingUsers ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Creating accounts...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Create All Team Accounts
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Creates accounts with default password "12345678" - users should change this on first login
+                  </p>
                 </div>
-                <Button 
-                  onClick={seedTeamUsers} 
-                  disabled={seedingUsers}
-                  className="w-full sm:w-auto"
-                >
-                  {seedingUsers ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Creating accounts...
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Create All Team Accounts
-                    </>
-                  )}
-                </Button>
               </CardContent>
             </Card>
 
