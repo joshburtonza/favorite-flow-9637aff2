@@ -139,6 +139,7 @@ export default function TeamManagement() {
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptDescription, setNewDeptDescription] = useState('');
   const [addingDept, setAddingDept] = useState(false);
+  const [seedingUsers, setSeedingUsers] = useState(false);
 
   useEffect(() => {
     if (user && !permLoading) {
@@ -193,6 +194,81 @@ export default function TeamManagement() {
       setRolePermissions((data || []) as RolePermission[]);
     } catch (error) {
       console.error('Error fetching role permissions:', error);
+    }
+  };
+
+  // Seed predefined team members
+  const seedTeamUsers = async () => {
+    setSeedingUsers(true);
+    const defaultPassword = '12345678';
+    
+    const teamToSeed = [
+      { email: 'rapizo92@gmail.com', full_name: 'Mohamed Irshad', role: 'admin' as AppRole },
+      { email: 'ars7866@gmail.com', full_name: 'Abdul', role: 'accountant' as AppRole },
+      { email: 'shamimahc7866@gmail.com', full_name: 'Shamima', role: 'file_costing' as AppRole },
+      { email: 'marissa.m7866@gmail.com', full_name: 'Marissa', role: 'shipping' as AppRole },
+      { email: 'cindyoldewage857@gmail.com', full_name: 'Cindy', role: 'accountant' as AppRole },
+    ];
+    
+    let created = 0;
+    let existing = 0;
+    let errors = 0;
+    
+    for (const member of teamToSeed) {
+      try {
+        // Try to create the user via signup
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: member.email,
+          password: defaultPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: { full_name: member.full_name },
+          },
+        });
+        
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            existing++;
+            // User exists - try to find and update their role
+            const existingMember = teamMembers.find(m => m.email?.toLowerCase() === member.email.toLowerCase());
+            if (existingMember) {
+              await supabase.from('user_roles').upsert(
+                { user_id: existingMember.id, role: member.role },
+                { onConflict: 'user_id,role' }
+              );
+            }
+          } else {
+            console.error(`Error creating ${member.email}:`, signUpError);
+            errors++;
+          }
+          continue;
+        }
+        
+        if (signUpData.user) {
+          // Assign role
+          await supabase.from('user_roles').upsert(
+            { user_id: signUpData.user.id, role: member.role },
+            { onConflict: 'user_id,role' }
+          );
+          created++;
+        }
+      } catch (error) {
+        console.error(`Error with ${member.email}:`, error);
+        errors++;
+      }
+    }
+    
+    setSeedingUsers(false);
+    fetchTeamMembers();
+    
+    if (created > 0) {
+      toast.success(`Created ${created} new team member${created > 1 ? 's' : ''}`);
+    }
+    if (existing > 0) {
+      toast.info(`${existing} member${existing > 1 ? 's' : ''} already existed`);
+    }
+    if (errors > 0) {
+      toast.error(`Failed to create ${errors} member${errors > 1 ? 's' : ''}`);
     }
   };
 
@@ -711,13 +787,52 @@ export default function TeamManagement() {
 
           {/* Members Tab */}
           <TabsContent value="members" className="space-y-6">
+            {/* Quick Seed Button */}
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5" />
+                  Quick Setup: Seed Team Members
+                </CardTitle>
+                <CardDescription>
+                  Create accounts for all predefined team members with password "12345678"
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {STAFF_ACCESS_CONFIG.map((staff, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {staff.name} ({staff.email})
+                    </Badge>
+                  ))}
+                </div>
+                <Button 
+                  onClick={seedTeamUsers} 
+                  disabled={seedingUsers}
+                  className="w-full sm:w-auto"
+                >
+                  {seedingUsers ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Creating accounts...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Create All Team Accounts
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserPlus className="h-5 w-5" />
                   Add Team Member
                 </CardTitle>
-                <CardDescription>Create a new team member account</CardDescription>
+                <CardDescription>Create a new team member account manually</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col lg:flex-row gap-4">
