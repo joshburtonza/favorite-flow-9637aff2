@@ -83,7 +83,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
-  const { hasPermission, isAdmin } = usePermissions();
+  const { hasPermission, isAdmin, loading: permissionsLoading } = usePermissions();
   const isMobile = useIsMobile();
   const isOnline = useOnlineStatus();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -99,6 +99,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const canAccessNavItem = (item: NavItem): boolean => {
+    // While loading, show all items (prevents flash of missing items)
+    if (permissionsLoading) return true;
     if (!item.permission) return true;
     if (isAdmin) return true;
     return hasPermission(item.permission);
