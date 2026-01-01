@@ -650,6 +650,33 @@ export type Database = {
         }
         Relationships: []
       }
+      departments: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          lead_user_id: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          lead_user_id?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          lead_user_id?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_folders: {
         Row: {
           assigned_staff_id: string | null
@@ -1082,6 +1109,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          department_id: string | null
           email: string | null
           full_name: string | null
           id: string
@@ -1090,6 +1118,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          department_id?: string | null
           email?: string | null
           full_name?: string | null
           id: string
@@ -1098,13 +1127,22 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          department_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           role?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_permissions: {
         Row: {
@@ -1379,6 +1417,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      staff_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          department_id: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          department_id?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          department_id?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invites_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       supplier_ledger: {
         Row: {
