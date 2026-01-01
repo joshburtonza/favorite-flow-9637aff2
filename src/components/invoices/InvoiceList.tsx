@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useClientInvoices, useUpdateInvoiceStatus, InvoiceStatus } from '@/hooks/useClientInvoices';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,10 +33,12 @@ import {
   Send,
   CheckCircle,
   XCircle,
-  Filter
+  Filter,
+  Settings2
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { InvoiceCardMobile } from './InvoiceCardMobile';
+import { CompanySettingsDialog } from './CompanySettingsDialog';
 
 interface InvoiceListProps {
   onCreateNew: () => void;
@@ -49,9 +53,12 @@ const statusConfig: Record<InvoiceStatus, { label: string; variant: 'default' | 
 
 export function InvoiceList({ onCreateNew }: InvoiceListProps) {
   const { data: invoices, isLoading } = useClientInvoices();
+  const { data: clients } = useClients();
+  const { settings: companySettings } = useCompanySettings();
   const updateStatus = useUpdateInvoiceStatus();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const filteredInvoices = invoices?.filter(inv => {
@@ -74,7 +81,15 @@ export function InvoiceList({ onCreateNew }: InvoiceListProps) {
   };
 
   const handleExportPDF = (invoice: typeof invoices extends (infer T)[] ? T : never) => {
-    exportInvoicePDF(invoice);
+    // Get client details for the invoice
+    const client = clients?.find(c => c.id === invoice.client_id);
+    const enrichedInvoice = {
+      ...invoice,
+      client_address: client?.address || undefined,
+      client_email: client?.email || undefined,
+      client_phone: client?.phone || undefined,
+    };
+    exportInvoicePDF(enrichedInvoice, { companySettings });
   };
 
   if (isLoading) {
@@ -159,10 +174,16 @@ export function InvoiceList({ onCreateNew }: InvoiceListProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <Button onClick={onCreateNew} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Invoice
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setSettingsOpen(true)} className="gap-2">
+            <Settings2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Settings</span>
+          </Button>
+          <Button onClick={onCreateNew} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Invoice
+          </Button>
+        </div>
       </div>
 
       {/* Invoice Table */}
@@ -274,6 +295,8 @@ export function InvoiceList({ onCreateNew }: InvoiceListProps) {
           )}
         </CardContent>
       </Card>
+
+      <CompanySettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
