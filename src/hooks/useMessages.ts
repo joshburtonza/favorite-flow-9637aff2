@@ -214,7 +214,11 @@ export function useMessages(conversationId: string | null) {
   }, [conversationId, refetch, queryClient]);
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, replyToId }: { content: string; replyToId?: string }) => {
+    mutationFn: async ({ content, replyToId, attachments }: { 
+      content: string; 
+      replyToId?: string;
+      attachments?: { name: string; url: string; type: string; size: number }[];
+    }) => {
       if (!conversationId) throw new Error('No conversation selected');
 
       const { data, error } = await supabase
@@ -224,6 +228,7 @@ export function useMessages(conversationId: string | null) {
           sender_id: user?.id,
           content,
           reply_to_id: replyToId,
+          attachments: attachments || [],
           read_by: [user!.id]
         })
         .select()

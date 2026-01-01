@@ -14,6 +14,9 @@ import { MyTasksWidget } from '@/components/tasks/MyTasksWidget';
 import { RecentInvoicesWidget } from '@/components/dashboard/RecentInvoicesWidget';
 import { PendingCostingsWidget } from '@/components/dashboard/PendingCostingsWidget';
 import { QuickStatsWidget } from '@/components/dashboard/QuickStatsWidget';
+import { AnnouncementsWidget } from '@/components/dashboard/AnnouncementsWidget';
+import { MessagesWidget } from '@/components/dashboard/MessagesWidget';
+import { CalendarWidget } from '@/components/dashboard/CalendarWidget';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
@@ -108,6 +111,9 @@ export default function Dashboard() {
             
             {/* Right Column - Widgets */}
             <div className="space-y-4 md:space-y-6">
+              <AnnouncementsWidget />
+              <MessagesWidget />
+              <CalendarWidget />
               <QuickStatsWidget />
               <RecentInvoicesWidget />
               <PendingCostingsWidget />

@@ -40,6 +40,14 @@ export interface EventParticipant {
   user?: { full_name: string | null; email: string | null };
 }
 
+export interface RecurringRule {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  interval: number; // e.g., every 2 weeks
+  end_date?: string;
+  count?: number; // or after X occurrences
+  days_of_week?: number[]; // 0-6, for weekly recurrence
+}
+
 export interface CreateEventInput {
   title: string;
   description?: string;
@@ -51,6 +59,7 @@ export interface CreateEventInput {
   color?: string;
   visibility?: EventVisibility;
   participant_ids?: string[];
+  recurring_rule?: RecurringRule;
 }
 
 export function useTeamEvents(selectedDate?: Date) {
@@ -126,12 +135,21 @@ export function useTeamEvents(selectedDate?: Date) {
 
   const createEvent = useMutation({
     mutationFn: async (input: CreateEventInput) => {
-      const { participant_ids, ...eventData } = input;
+      const { participant_ids, recurring_rule, ...eventData } = input;
       
       const { data, error } = await supabase
         .from('team_events')
         .insert({
-          ...eventData,
+          title: eventData.title,
+          description: eventData.description,
+          event_type: eventData.event_type,
+          event_date: eventData.event_date,
+          start_time: eventData.start_time,
+          end_time: eventData.end_time,
+          all_day: eventData.all_day,
+          color: eventData.color,
+          visibility: eventData.visibility,
+          recurring_rule: recurring_rule as any,
           created_by: user?.id
         })
         .select()
