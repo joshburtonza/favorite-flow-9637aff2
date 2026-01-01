@@ -398,12 +398,12 @@ export default function TeamManagement() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={inviteDepartment} onValueChange={setInviteDepartment}>
+                  <Select value={inviteDepartment || "none"} onValueChange={(v) => setInviteDepartment(v === "none" ? "" : v)}>
                     <SelectTrigger className="w-[160px]">
                       <SelectValue placeholder="Department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Department</SelectItem>
+                      <SelectItem value="none">No Department</SelectItem>
                       {departments.map(dept => (
                         <SelectItem key={dept.id} value={dept.id}>
                           {dept.name}
