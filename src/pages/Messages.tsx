@@ -446,7 +446,7 @@ export default function Messages() {
 
       {/* New Conversation Dialog */}
       <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
-        <DialogContent disableMobileFullScreen>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>New Conversation</DialogTitle>
             <DialogDescription>
