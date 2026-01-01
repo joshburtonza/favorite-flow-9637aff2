@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2, FileText, Briefcase, Mail, Building2, Clock, XCircle, RefreshCw, Send } from 'lucide-react';
+import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2, FileText, Briefcase, Mail, Building2, Clock, XCircle, RefreshCw, Send, UserCog } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Navigate } from 'react-router-dom';
@@ -31,6 +31,11 @@ interface RolePermission {
   permission: AppPermission;
 }
 
+interface UserPermission {
+  user_id: string;
+  permission: AppPermission;
+}
+
 const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: 'admin', label: 'Admin', description: 'Full access to all features' },
   { value: 'accountant', label: 'Accountant', description: 'Financial documents, client invoices, packing lists' },
@@ -42,62 +47,67 @@ const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] 
   { value: 'moderator', label: 'Moderator', description: 'Can moderate content' },
 ];
 
-// Staff document access definitions mapped to new roles
+// Staff document access definitions mapped to team members
 const STAFF_ACCESS_CONFIG = [
   {
-    name: 'Abdul',
-    role: 'accountant',
-    roleLabel: 'Accountant',
-    documentAccess: ['Supplier Invoices', 'Packing Lists'],
-    folderAccess: ['/statements/', '/invoices/', '/shipments/', '/packing_lists/'],
-    uploadFolders: ['/invoices/client/', '/statements/pending/'],
-    description: 'Access to supplier invoices for creating client invoices, access to packing lists',
-    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents', 'view_shipments', 'view_payments', 'manage_payments'],
-    restrictions: ['Cannot see: Exchange rates, supplier costs', 'Cannot delete documents'],
-  },
-  {
-    name: 'Marissa',
-    role: 'shipping',
-    roleLabel: 'Shipping Coordinator',
-    documentAccess: ['Shipping Documents', 'Bills of Lading', 'Packing Lists'],
-    folderAccess: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/', '/packing_lists/'],
-    uploadFolders: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/'],
-    description: 'Access to shipping documents and tracking',
-    permissions: ['view_shipping_documents', 'view_packing_lists', 'view_documents', 'manage_documents', 'view_shipments', 'manage_shipments'],
-    restrictions: ['Cannot see: Financial data (costs, invoices, exchange rates)', 'Cannot delete documents'],
-  },
-  {
-    name: 'Shamima',
-    role: 'file_costing',
-    roleLabel: 'File Costing',
-    documentAccess: ['Transport Invoices', 'Clearing Agent Invoices'],
-    folderAccess: ['/staff_folders/shamima/', '/clearing_agent/', '/transport/'],
-    uploadFolders: ['/staff_folders/shamima/', '/clearing_agent/'],
-    description: 'Access for file costings (transport invoices, clearing agent invoices)',
-    permissions: ['view_transport_invoices', 'view_clearing_invoices', 'view_documents', 'view_shipments'],
-    restrictions: ['Cannot see: Supplier costs, exchange rates, client invoice amounts', 'Cannot delete documents'],
-  },
-  {
-    name: 'Paint Shop',
-    role: 'operations',
-    roleLabel: 'Operations (Read-Only)',
-    documentAccess: [],
-    folderAccess: [],
-    uploadFolders: [],
-    description: 'Read-only access to shipment tracking information',
-    permissions: ['view_dashboard', 'view_shipments'],
-    restrictions: ['Cannot see: Product details, costs, invoices, supplier info, client info', 'Cannot upload or delete anything', 'Read-only access'],
-  },
-  {
-    name: 'MI (Mo)',
+    name: 'Mohamed Irshad (Mo)',
+    email: 'rapizo92@gmail.com',
     role: 'admin',
-    roleLabel: 'Admin',
+    roleLabel: 'Admin / Owner',
     documentAccess: ['All Documents'],
     folderAccess: ['All Folders'],
     uploadFolders: ['All Folders'],
     description: 'Full admin access to everything',
     permissions: ['all'],
     restrictions: [],
+  },
+  {
+    name: 'Abdul',
+    email: 'ars7866@gmail.com',
+    role: 'accountant',
+    roleLabel: 'Accountant',
+    documentAccess: ['Supplier Invoices', 'Packing Lists', 'Client Invoices', 'Debtors'],
+    folderAccess: ['/statements/', '/invoices/', '/shipments/', '/packing_lists/', '/debtors/'],
+    uploadFolders: ['/invoices/client/', '/statements/pending/'],
+    description: 'Accounts, invoicing, debtors, properties',
+    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents', 'view_shipments', 'view_payments', 'manage_payments', 'view_clients', 'manage_clients'],
+    restrictions: ['Cannot see: Exchange rates, supplier costs', 'Cannot delete documents'],
+  },
+  {
+    name: 'Shamima',
+    email: 'shamimahc7866@gmail.com',
+    role: 'file_costing',
+    roleLabel: 'File Costing',
+    documentAccess: ['Clearing Agent Invoices', 'Freight Forwarder Invoices', 'Transporter Invoices'],
+    folderAccess: ['/staff_folders/shamima/', '/clearing_agent/', '/transport/', '/freight/'],
+    uploadFolders: ['/staff_folders/shamima/', '/clearing_agent/'],
+    description: 'Accounts: Clearing agents, freight forwarders, transporters',
+    permissions: ['view_transport_invoices', 'view_clearing_invoices', 'view_documents', 'view_shipments'],
+    restrictions: ['Cannot see: Supplier costs, exchange rates, client invoice amounts', 'Cannot delete documents'],
+  },
+  {
+    name: 'Marissa',
+    email: 'marissa.m7866@gmail.com',
+    role: 'shipping',
+    roleLabel: 'Shipping / Operations',
+    documentAccess: ['Shipping Documents', 'Bills of Lading', 'Packing Lists', 'Delivery Notes'],
+    folderAccess: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/', '/packing_lists/', '/deliveries/'],
+    uploadFolders: ['/shipments/', '/shipping_documents/', '/new_shipping_documents/'],
+    description: 'Freight rate bookings, deliveries, operations, finance house payments',
+    permissions: ['view_shipping_documents', 'view_packing_lists', 'view_documents', 'manage_documents', 'view_shipments', 'manage_shipments', 'view_payments'],
+    restrictions: ['Cannot see: Supplier costs, exchange rates', 'Cannot delete documents'],
+  },
+  {
+    name: 'Cindy',
+    email: 'cindyoldewage857@gmail.com',
+    role: 'accountant',
+    roleLabel: 'Accounts Assistant',
+    documentAccess: ['Client Invoices', 'Property Accounting', 'Rental Documents'],
+    folderAccess: ['/invoices/', '/properties/', '/rentals/'],
+    uploadFolders: ['/invoices/client/'],
+    description: 'Assists Abdul with invoices, property accounting, rentals',
+    permissions: ['view_supplier_invoices', 'view_packing_lists', 'view_documents', 'view_shipments', 'view_clients'],
+    restrictions: ['Cannot see: Exchange rates, supplier costs', 'Cannot delete documents', 'Limited to invoice assistance'],
   },
 ];
 
@@ -109,6 +119,7 @@ export default function TeamManagement() {
   
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
+  const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
@@ -116,6 +127,7 @@ export default function TeamManagement() {
   const [newRole, setNewRole] = useState<AppRole>('staff');
   const [addingMember, setAddingMember] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [selectedMemberForPerms, setSelectedMemberForPerms] = useState<string | null>(null);
   
   // Invite form state
   const [inviteEmail, setInviteEmail] = useState('');
@@ -132,6 +144,7 @@ export default function TeamManagement() {
     if (user && !permLoading) {
       fetchTeamMembers();
       fetchRolePermissions();
+      fetchUserPermissions();
     }
   }, [user, permLoading]);
 
@@ -180,6 +193,19 @@ export default function TeamManagement() {
       setRolePermissions((data || []) as RolePermission[]);
     } catch (error) {
       console.error('Error fetching role permissions:', error);
+    }
+  };
+
+  const fetchUserPermissions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('user_id, permission');
+
+      if (error) throw error;
+      setUserPermissions((data || []) as UserPermission[]);
+    } catch (error) {
+      console.error('Error fetching user permissions:', error);
     }
   };
 
@@ -298,6 +324,49 @@ export default function TeamManagement() {
     return rolePermissions.some(rp => rp.role === role && rp.permission === permission);
   };
 
+  const userHasDirectPermission = (userId: string, permission: AppPermission): boolean => {
+    return userPermissions.some(up => up.user_id === userId && up.permission === permission);
+  };
+
+  const toggleUserPermission = async (userId: string, permission: AppPermission) => {
+    const hasPermissionCurrently = userHasDirectPermission(userId, permission);
+
+    setSavingPermissions(true);
+    try {
+      if (hasPermissionCurrently) {
+        const { error } = await supabase
+          .from('user_permissions')
+          .delete()
+          .eq('user_id', userId)
+          .eq('permission', permission);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_permissions')
+          .insert({ user_id: userId, permission, granted_by: user?.id });
+
+        if (error) throw error;
+      }
+
+      await fetchUserPermissions();
+      toast.success('User permission updated');
+    } catch (error: any) {
+      console.error('Error toggling user permission:', error);
+      toast.error(error.message || 'Failed to update user permission');
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+  const getUserRolePermissions = (userId: string): AppPermission[] => {
+    const member = teamMembers.find(m => m.id === userId);
+    if (!member?.role) return [];
+    return rolePermissions
+      .filter(rp => rp.role === member.role)
+      .map(rp => rp.permission);
+  };
+
   if (authLoading || permLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -334,8 +403,16 @@ export default function TeamManagement() {
           </div>
         </div>
 
-        <Tabs defaultValue="invites" className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+        <Tabs defaultValue="members" className="space-y-6">
+          <TabsList className="grid w-full max-w-4xl grid-cols-7">
+            <TabsTrigger value="members" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="user-perms" className="flex items-center gap-2">
+              <UserCog className="h-4 w-4" />
+              User Perms
+            </TabsTrigger>
             <TabsTrigger value="invites" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               Invites
@@ -347,15 +424,7 @@ export default function TeamManagement() {
             </TabsTrigger>
             <TabsTrigger value="departments" className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              Departments
-            </TabsTrigger>
-            <TabsTrigger value="members" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Members
-            </TabsTrigger>
-            <TabsTrigger value="staff-access" className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4" />
-              Staff Access
+              Depts
             </TabsTrigger>
             <TabsTrigger value="roles" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
@@ -363,7 +432,11 @@ export default function TeamManagement() {
             </TabsTrigger>
             <TabsTrigger value="permissions" className="flex items-center gap-2">
               <Key className="h-4 w-4" />
-              Permissions
+              Role Perms
+            </TabsTrigger>
+            <TabsTrigger value="staff-access" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              Access Info
             </TabsTrigger>
           </TabsList>
 
@@ -781,6 +854,121 @@ export default function TeamManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* User Permissions Tab */}
+          <TabsContent value="user-perms" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="h-5 w-5" />
+                  Individual User Permissions
+                </CardTitle>
+                <CardDescription>
+                  Configure specific permissions for each team member. These are in addition to their role-based permissions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <Select 
+                    value={selectedMemberForPerms || "select"} 
+                    onValueChange={(v) => setSelectedMemberForPerms(v === "select" ? null : v)}
+                  >
+                    <SelectTrigger className="w-full md:w-[300px]">
+                      <SelectValue placeholder="Select team member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="select">Select a team member...</SelectItem>
+                      {teamMembers.map(member => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.full_name || member.email} ({member.role || 'No role'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedMemberForPerms ? (
+                  <div className="space-y-4">
+                    {(() => {
+                      const member = teamMembers.find(m => m.id === selectedMemberForPerms);
+                      const rolePerms = getUserRolePermissions(selectedMemberForPerms);
+                      
+                      return (
+                        <>
+                          <div className="p-4 bg-muted/50 rounded-lg mb-4">
+                            <h4 className="font-medium mb-2">
+                              {member?.full_name || member?.email}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              Email: {member?.email}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Role: <Badge variant="outline">{member?.role || 'No role'}</Badge>
+                            </p>
+                            {rolePerms.length > 0 && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                Role provides {rolePerms.length} base permissions
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-[250px]">Permission</TableHead>
+                                  <TableHead className="w-[100px] text-center">From Role</TableHead>
+                                  <TableHead className="w-[100px] text-center">Direct Grant</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {ALL_PERMISSIONS.map(perm => {
+                                  const fromRole = rolePerms.includes(perm.value);
+                                  const directGrant = userHasDirectPermission(selectedMemberForPerms, perm.value);
+                                  
+                                  return (
+                                    <TableRow key={perm.value}>
+                                      <TableCell>
+                                        <div>
+                                          <div className="font-medium">{perm.label}</div>
+                                          <div className="text-xs text-muted-foreground">{perm.description}</div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        {fromRole ? (
+                                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                            ✓
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground">-</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <Checkbox
+                                          checked={directGrant}
+                                          onCheckedChange={() => toggleUserPermission(selectedMemberForPerms, perm.value)}
+                                          disabled={savingPermissions || fromRole}
+                                        />
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <UserCog className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Select a team member to manage their permissions</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
