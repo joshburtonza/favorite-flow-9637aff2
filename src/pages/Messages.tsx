@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MentionInput } from '@/components/messages/MentionInput';
@@ -446,29 +446,40 @@ export default function Messages() {
 
       {/* New Conversation Dialog */}
       <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New Conversation</DialogTitle>
+            <DialogDescription>
+              Select a team member to start a conversation.
+            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-96">
             <div className="space-y-2">
-              {teamMembers.map(member => (
-                <button
-                  key={member.id}
-                  onClick={() => startNewConversation(member.id)}
-                  className="w-full p-3 flex items-center gap-3 hover:bg-accent rounded-lg transition-colors text-left"
-                >
-                  <Avatar>
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {getInitials(member.full_name || member.email || 'U')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{member.full_name || 'Unknown'}</p>
-                    <p className="text-sm text-muted-foreground">{member.email}</p>
-                  </div>
-                </button>
-              ))}
+              {teamMembers.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground">
+                  <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>No team members available</p>
+                  <p className="text-sm">Add team members to start conversations.</p>
+                </div>
+              ) : (
+                teamMembers.map(member => (
+                  <button
+                    key={member.id}
+                    onClick={() => startNewConversation(member.id)}
+                    className="w-full p-3 flex items-center gap-3 hover:bg-accent rounded-lg transition-colors text-left"
+                  >
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {getInitials(member.full_name || member.email || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{member.full_name || 'Unknown'}</p>
+                      <p className="text-sm text-muted-foreground">{member.email}</p>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </ScrollArea>
         </DialogContent>
