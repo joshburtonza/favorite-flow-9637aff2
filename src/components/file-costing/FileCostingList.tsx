@@ -28,6 +28,8 @@ import { useFileCostings, useDeleteFileCosting, useFinalizeFileCosting, FileCost
 import { downloadFileCostingPDF } from '@/lib/file-costing-pdf';
 import { formatCurrency } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { FileCostingCardMobile } from './FileCostingCardMobile';
 
 interface FileCostingListProps {
   onEdit: (costing: FileCosting) => void;
@@ -50,6 +52,7 @@ export function FileCostingList({ onEdit }: FileCostingListProps) {
   const { data: costings, isLoading } = useFileCostings();
   const deleteCosting = useDeleteFileCosting();
   const finalizeCosting = useFinalizeFileCosting();
+  const isMobile = useIsMobile();
 
   const filteredCostings = costings?.filter(c => {
     if (activeTab === 'all') return true;
@@ -121,6 +124,19 @@ export function FileCostingList({ onEdit }: FileCostingListProps) {
             {filteredCostings.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 No file costings found
+              </div>
+            ) : isMobile ? (
+              <div className="space-y-3">
+                {filteredCostings.map((costing) => (
+                  <FileCostingCardMobile
+                    key={costing.id}
+                    costing={costing}
+                    onEdit={onEdit}
+                    onFinalize={(id) => finalizeCosting.mutate(id)}
+                    onDownload={handleDownloadPDF}
+                    onDelete={(id) => deleteCosting.mutate(id)}
+                  />
+                ))}
               </div>
             ) : (
               <Table>
