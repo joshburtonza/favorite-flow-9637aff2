@@ -212,6 +212,74 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_reads: {
+        Row: {
+          announcement_id: string
+          id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          id?: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_reads_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_pinned: boolean
+          priority: Database["public"]["Enums"]["announcement_priority"]
+          target_audience: Database["public"]["Enums"]["target_audience"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_pinned?: boolean
+          priority?: Database["public"]["Enums"]["announcement_priority"]
+          target_audience?: Database["public"]["Enums"]["target_audience"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_pinned?: boolean
+          priority?: Database["public"]["Enums"]["announcement_priority"]
+          target_audience?: Database["public"]["Enums"]["target_audience"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       automation_logs: {
         Row: {
           action: string
@@ -658,6 +726,38 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      event_participants: {
+        Row: {
+          event_id: string
+          id: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["rsvp_status"]
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["rsvp_status"]
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["rsvp_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_participants_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "team_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       extraction_corrections: {
         Row: {
@@ -1466,6 +1566,144 @@ export type Database = {
           },
         ]
       }
+      team_conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          last_message_at: string | null
+          name: string | null
+          participant_ids: string[]
+          type: Database["public"]["Enums"]["conversation_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_message_at?: string | null
+          name?: string | null
+          participant_ids?: string[]
+          type?: Database["public"]["Enums"]["conversation_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_message_at?: string | null
+          name?: string | null
+          participant_ids?: string[]
+          type?: Database["public"]["Enums"]["conversation_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      team_events: {
+        Row: {
+          all_day: boolean
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_time: string | null
+          event_date: string
+          event_type: Database["public"]["Enums"]["event_type"]
+          id: string
+          recurring_rule: Json | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          start_time: string | null
+          title: string
+          updated_at: string
+          visibility: Database["public"]["Enums"]["event_visibility"]
+        }
+        Insert: {
+          all_day?: boolean
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_date: string
+          event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
+          recurring_rule?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          start_time?: string | null
+          title: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["event_visibility"]
+        }
+        Update: {
+          all_day?: boolean
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_date?: string
+          event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
+          recurring_rule?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          start_time?: string | null
+          title?: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["event_visibility"]
+        }
+        Relationships: []
+      }
+      team_messages: {
+        Row: {
+          attachments: Json | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          read_by: string[]
+          reply_to_id: string | null
+          sender_id: string | null
+        }
+        Insert: {
+          attachments?: Json | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          read_by?: string[]
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          attachments?: Json | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          read_by?: string[]
+          reply_to_id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "team_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "team_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uploaded_documents: {
         Row: {
           ai_classification: string | null
@@ -1751,6 +1989,7 @@ export type Database = {
       }
     }
     Enums: {
+      announcement_priority: "urgent" | "high" | "normal" | "low"
       app_permission:
         | "view_dashboard"
         | "manage_shipments"
@@ -1793,18 +2032,37 @@ export type Database = {
         | "link"
         | "email"
         | "phone"
+      conversation_type: "direct" | "group"
       currency_type: "USD" | "EUR" | "ZAR"
       document_status: "new" | "in_progress" | "finalized"
+      event_type:
+        | "meeting"
+        | "reminder"
+        | "deadline"
+        | "leave"
+        | "shipment"
+        | "other"
+      event_visibility: "private" | "team" | "public"
       file_costing_status: "draft" | "pending_review" | "finalized"
       folder_type: "system" | "staff" | "clearing_agent" | "custom"
       invoice_status: "draft" | "sent" | "paid" | "cancelled"
       ledger_type: "debit" | "credit"
       payment_status: "pending" | "completed"
+      rsvp_status: "pending" | "accepted" | "declined" | "tentative"
       shipment_status:
         | "pending"
         | "in-transit"
         | "documents-submitted"
         | "completed"
+      target_audience:
+        | "all"
+        | "admin"
+        | "staff"
+        | "moderator"
+        | "accountant"
+        | "shipping"
+        | "file_costing"
+        | "operations"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "pending" | "in_progress" | "completed" | "cancelled"
       workflow_status:
@@ -1940,6 +2198,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      announcement_priority: ["urgent", "high", "normal", "low"],
       app_permission: [
         "view_dashboard",
         "manage_shipments",
@@ -1985,18 +2244,39 @@ export const Constants = {
         "email",
         "phone",
       ],
+      conversation_type: ["direct", "group"],
       currency_type: ["USD", "EUR", "ZAR"],
       document_status: ["new", "in_progress", "finalized"],
+      event_type: [
+        "meeting",
+        "reminder",
+        "deadline",
+        "leave",
+        "shipment",
+        "other",
+      ],
+      event_visibility: ["private", "team", "public"],
       file_costing_status: ["draft", "pending_review", "finalized"],
       folder_type: ["system", "staff", "clearing_agent", "custom"],
       invoice_status: ["draft", "sent", "paid", "cancelled"],
       ledger_type: ["debit", "credit"],
       payment_status: ["pending", "completed"],
+      rsvp_status: ["pending", "accepted", "declined", "tentative"],
       shipment_status: [
         "pending",
         "in-transit",
         "documents-submitted",
         "completed",
+      ],
+      target_audience: [
+        "all",
+        "admin",
+        "staff",
+        "moderator",
+        "accountant",
+        "shipping",
+        "file_costing",
+        "operations",
       ],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["pending", "in_progress", "completed", "cancelled"],

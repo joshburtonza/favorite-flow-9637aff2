@@ -33,6 +33,9 @@ import Workspace from "./pages/Workspace";
 import Invoices from "./pages/Invoices";
 import FileCosting from "./pages/FileCosting";
 import Tasks from "./pages/Tasks";
+import Announcements from "./pages/Announcements";
+import Messages from "./pages/Messages";
+import TeamCalendar from "./pages/TeamCalendar";
 
 const queryClient = new QueryClient();
 
@@ -136,6 +139,9 @@ const App = () => (
                 <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
                 <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
+                <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+                <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+                <Route path="/calendar" element={<ProtectedRoute><TeamCalendar /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
