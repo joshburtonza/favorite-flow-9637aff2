@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useTeamEvents, TeamEvent, EventType, EventVisibility, CreateEventInput } from '@/hooks/useTeamEvents';
+import { useTeamEvents, TeamEvent, EventType, EventVisibility, CreateEventInput, RecurringRule } from '@/hooks/useTeamEvents';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Calendar, ChevronLeft, ChevronRight, Plus, Clock, MapPin, Users, Trash2, Edit } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Clock, MapPin, Users, Trash2, Edit, Repeat } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
@@ -50,6 +50,11 @@ export default function TeamCalendar() {
     color: '#3b82f6',
     visibility: 'team'
   });
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringRule, setRecurringRule] = useState<RecurringRule>({
+    frequency: 'weekly',
+    interval: 1
+  });
 
   const handleRefresh = async () => {
     await refetch();
@@ -82,13 +87,19 @@ export default function TeamCalendar() {
       end_time: '',
       all_day: false
     }));
+    setIsRecurring(false);
+    setRecurringRule({ frequency: 'weekly', interval: 1 });
     setSelectedDate(date);
     setShowCreateDialog(true);
   };
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) return;
-    await createEvent.mutateAsync(formData);
+    const eventData: CreateEventInput = {
+      ...formData,
+      recurring_rule: isRecurring ? recurringRule : undefined
+    };
+    await createEvent.mutateAsync(eventData);
     setShowCreateDialog(false);
   };
 
@@ -332,6 +343,77 @@ export default function TeamCalendar() {
                 </div>
               </div>
             )}
+
+            {/* Recurring Event Section */}
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="recurring"
+                checked={isRecurring}
+                onCheckedChange={setIsRecurring}
+              />
+              <Label htmlFor="recurring" className="flex items-center gap-2">
+                <Repeat className="h-4 w-4" />
+                Repeat
+              </Label>
+            </div>
+
+            {isRecurring && (
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={recurringRule.frequency}
+                      onValueChange={(value: RecurringRule['frequency']) => 
+                        setRecurringRule(prev => ({ ...prev, frequency: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="yearly">Yearly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Every</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={recurringRule.interval}
+                        onChange={(e) => setRecurringRule(prev => ({ 
+                          ...prev, 
+                          interval: parseInt(e.target.value) || 1 
+                        }))}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {recurringRule.frequency === 'daily' ? 'day(s)' :
+                         recurringRule.frequency === 'weekly' ? 'week(s)' :
+                         recurringRule.frequency === 'monthly' ? 'month(s)' : 'year(s)'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={recurringRule.end_date || ''}
+                    onChange={(e) => setRecurringRule(prev => ({ 
+                      ...prev, 
+                      end_date: e.target.value || undefined 
+                    }))}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -379,9 +461,17 @@ export default function TeamCalendar() {
                 <Badge variant="secondary">All Day</Badge>
               )}
 
-              <Badge style={{ backgroundColor: selectedEvent.color + '20', color: selectedEvent.color }}>
-                {eventTypeConfig[selectedEvent.event_type].label}
-              </Badge>
+              <div className="flex gap-2 flex-wrap">
+                <Badge style={{ backgroundColor: selectedEvent.color + '20', color: selectedEvent.color }}>
+                  {eventTypeConfig[selectedEvent.event_type].label}
+                </Badge>
+                {selectedEvent.recurring_rule && (
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Repeat className="h-3 w-3" />
+                    Recurring
+                  </Badge>
+                )}
+              </div>
 
               {selectedEvent.description && (
                 <div className="pt-4 border-t">

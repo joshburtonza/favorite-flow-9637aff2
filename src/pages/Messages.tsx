@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useConversations, useMessages, Conversation } from '@/hooks/useMessages';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,12 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MessageSquare, Plus, Send, ArrowLeft, Users, Search } from 'lucide-react';
+import { MessageSquare, Plus, Send, ArrowLeft, Users, Search, Paperclip, X, FileIcon } from 'lucide-react';
 import { format, isToday, isYesterday, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export default function Messages() {
   const { user } = useAuth();
@@ -28,6 +30,9 @@ export default function Messages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { messages, isLoading: messagesLoading, sendMessage, markAsRead } = useMessages(selectedConversation?.id || null);
+  const { typingText, sendTyping, stopTyping, isTyping } = useTypingIndicator(selectedConversation?.id || null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all team members for new conversation
   const { data: teamMembers = [] } = useQuery({
@@ -56,9 +61,43 @@ export default function Messages() {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-    await sendMessage.mutateAsync({ content: newMessage });
+    if (!newMessage.trim() && attachments.length === 0) return;
+    
+    let uploadedAttachments: { name: string; url: string; type: string; size: number }[] = [];
+    
+    // Upload attachments if any
+    if (attachments.length > 0) {
+      for (const file of attachments) {
+        const fileName = `${Date.now()}-${file.name}`;
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .upload(`messages/${selectedConversation?.id}/${fileName}`, file);
+        
+        if (error) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+        
+        const { data: urlData } = supabase.storage
+          .from('documents')
+          .getPublicUrl(data.path);
+        
+        uploadedAttachments.push({
+          name: file.name,
+          url: urlData.publicUrl,
+          type: file.type,
+          size: file.size
+        });
+      }
+    }
+    
+    await sendMessage.mutateAsync({ 
+      content: newMessage || (uploadedAttachments.length > 0 ? '📎 Attachment' : ''),
+      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+    });
     setNewMessage('');
+    setAttachments([]);
+    stopTyping();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -66,6 +105,24 @@ export default function Messages() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    const userName = user?.user_metadata?.full_name || user?.email || 'Someone';
+    sendTyping(userName);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setAttachments(prev => [...prev, ...files].slice(0, 5)); // Max 5 files
+    }
+    e.target.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const startNewConversation = async (participantId: string) => {
@@ -267,6 +324,28 @@ export default function Messages() {
                                 </p>
                               )}
                               <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                              
+                              {/* Attachments */}
+                              {message.attachments && message.attachments.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {message.attachments.map((att: any, i: number) => (
+                                    <a
+                                      key={i}
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        'flex items-center gap-2 text-xs p-2 rounded',
+                                        isMine ? 'bg-primary-foreground/10' : 'bg-background'
+                                      )}
+                                    >
+                                      <FileIcon className="h-4 w-4" />
+                                      <span className="truncate">{att.name}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                              
                               <p className={cn(
                                 'text-xs mt-1',
                                 isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'
@@ -282,19 +361,64 @@ export default function Messages() {
                   )}
                 </ScrollArea>
 
+                {/* Typing Indicator */}
+                {isTyping && (
+                  <div className="px-4 py-2 text-xs text-muted-foreground animate-pulse">
+                    {typingText}
+                  </div>
+                )}
+
                 {/* Message Input */}
-                <div className="p-4 border-t bg-card">
+                <div className="p-4 border-t bg-card space-y-2">
+                  {/* Attachment Preview */}
+                  {attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((file, i) => (
+                        <div 
+                          key={i} 
+                          className="flex items-center gap-2 bg-muted px-2 py-1 rounded text-sm"
+                        >
+                          <FileIcon className="h-4 w-4" />
+                          <span className="truncate max-w-32">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => removeAttachment(i)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      multiple
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
                     <Input
                       placeholder="Type a message..."
                       value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
+                      onChange={handleInputChange}
                       onKeyPress={handleKeyPress}
+                      onBlur={stopTyping}
                       className="flex-1"
                     />
                     <Button 
                       onClick={handleSendMessage} 
-                      disabled={!newMessage.trim() || sendMessage.isPending}
+                      disabled={(!newMessage.trim() && attachments.length === 0) || sendMessage.isPending}
                       size="icon"
                     >
                       <Send className="h-4 w-4" />
