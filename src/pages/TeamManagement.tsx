@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions, ALL_PERMISSIONS, AppPermission, AppRole } from '@/hooks/usePermissions';
+import { useDepartments, useStaffInvites } from '@/hooks/useStaffInvites';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2, FileText, Briefcase } from 'lucide-react';
+import { UserPlus, Trash2, Shield, Users, Loader2, Key, Settings2, FileText, Briefcase, Mail, Building2, Clock, XCircle, RefreshCw, Send } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { format } from 'date-fns';
 
 interface TeamMember {
   id: string;
@@ -102,6 +104,9 @@ const STAFF_ACCESS_CONFIG = [
 export default function TeamManagement() {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, hasPermission, loading: permLoading } = usePermissions();
+  const { departments, isLoading: deptLoading, createDepartment } = useDepartments();
+  const { invites, isLoading: invitesLoading, sendInvite, cancelInvite, resendInvite, pendingInvites } = useStaffInvites();
+  
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,6 +116,17 @@ export default function TeamManagement() {
   const [newRole, setNewRole] = useState<AppRole>('staff');
   const [addingMember, setAddingMember] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  
+  // Invite form state
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<AppRole>('staff');
+  const [inviteDepartment, setInviteDepartment] = useState<string>('');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  
+  // Department form state
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptDescription, setNewDeptDescription] = useState('');
+  const [addingDept, setAddingDept] = useState(false);
 
   useEffect(() => {
     if (user && !permLoading) {
@@ -318,8 +334,21 @@ export default function TeamManagement() {
           </div>
         </div>
 
-        <Tabs defaultValue="members" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <Tabs defaultValue="invites" className="space-y-6">
+          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+            <TabsTrigger value="invites" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Invites
+              {pendingInvites.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1">
+                  {pendingInvites.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="departments" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Departments
+            </TabsTrigger>
             <TabsTrigger value="members" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Members
@@ -337,6 +366,275 @@ export default function TeamManagement() {
               Permissions
             </TabsTrigger>
           </TabsList>
+
+          {/* Invites Tab */}
+          <TabsContent value="invites" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Send Staff Invite
+                </CardTitle>
+                <CardDescription>Send an email invitation to a new team member</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <Input
+                    type="email"
+                    placeholder="Email Address"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as AppRole)}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_ROLES.map(role => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={inviteDepartment} onValueChange={setInviteDepartment}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Department</SelectItem>
+                      {departments.map(dept => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    onClick={async () => {
+                      if (!inviteEmail) {
+                        toast.error('Email is required');
+                        return;
+                      }
+                      setSendingInvite(true);
+                      try {
+                        await sendInvite.mutateAsync({
+                          email: inviteEmail,
+                          role: inviteRole,
+                          department_id: inviteDepartment || null,
+                        });
+                        setInviteEmail('');
+                        setInviteRole('staff');
+                        setInviteDepartment('');
+                      } finally {
+                        setSendingInvite(false);
+                      }
+                    }} 
+                    disabled={sendingInvite || !inviteEmail}
+                  >
+                    {sendingInvite ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Send Invite
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Pending & Recent Invites</CardTitle>
+                <CardDescription>
+                  {invites.length} invite{invites.length !== 1 ? 's' : ''} sent
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {invitesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : invites.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No invites sent yet</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Sent</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {invites.map((invite) => (
+                        <TableRow key={invite.id}>
+                          <TableCell className="font-medium">{invite.email}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{invite.role}</Badge>
+                          </TableCell>
+                          <TableCell>{invite.department?.name || '-'}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={
+                                invite.status === 'pending' ? 'default' :
+                                invite.status === 'accepted' ? 'default' :
+                                'destructive'
+                              }
+                              className={
+                                invite.status === 'accepted' ? 'bg-green-500' : ''
+                              }
+                            >
+                              {invite.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {format(new Date(invite.created_at), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {new Date(invite.expires_at) < new Date() 
+                              ? <span className="text-destructive">Expired</span>
+                              : format(new Date(invite.expires_at), 'MMM d, yyyy')
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {invite.status === 'pending' && (
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => resendInvite.mutate(invite)}
+                                  disabled={resendInvite.isPending}
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => cancelInvite.mutate(invite.id)}
+                                  disabled={cancelInvite.isPending}
+                                >
+                                  <XCircle className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Departments Tab */}
+          <TabsContent value="departments" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Add Department
+                </CardTitle>
+                <CardDescription>Create a new department for organizing staff</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <Input
+                    placeholder="Department Name"
+                    value={newDeptName}
+                    onChange={(e) => setNewDeptName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Description (optional)"
+                    value={newDeptDescription}
+                    onChange={(e) => setNewDeptDescription(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    onClick={async () => {
+                      if (!newDeptName) {
+                        toast.error('Department name is required');
+                        return;
+                      }
+                      setAddingDept(true);
+                      try {
+                        await createDepartment.mutateAsync({
+                          name: newDeptName,
+                          description: newDeptDescription || undefined,
+                        });
+                        setNewDeptName('');
+                        setNewDeptDescription('');
+                      } finally {
+                        setAddingDept(false);
+                      }
+                    }} 
+                    disabled={addingDept || !newDeptName}
+                  >
+                    {addingDept ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Building2 className="h-4 w-4 mr-2" />
+                    )}
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Departments</CardTitle>
+                <CardDescription>
+                  {departments.length} department{departments.length !== 1 ? 's' : ''} configured
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {deptLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : departments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Building2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No departments created yet</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Created</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {departments.map((dept) => (
+                        <TableRow key={dept.id}>
+                          <TableCell className="font-medium">{dept.name}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {dept.description || '-'}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {format(new Date(dept.created_at), 'MMM d, yyyy')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Members Tab */}
           <TabsContent value="members" className="space-y-6">

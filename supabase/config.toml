@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.ai-smart-suggestions]
 verify_jwt = false
+
+[functions.send-staff-invite]
+verify_jwt = true

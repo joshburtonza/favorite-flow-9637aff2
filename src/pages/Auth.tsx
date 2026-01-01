@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useInviteByToken, useAcceptInvite } from '@/hooks/useStaffInvites';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Package, Loader2, ArrowLeft } from 'lucide-react';
+import { Package, Loader2, ArrowLeft, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -14,13 +15,34 @@ const passwordSchema = z.string().min(6, 'Password must be at least 6 characters
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+  
+  const { signIn, signUp, user } = useAuth();
+  const { data: invite, isLoading: inviteLoading } = useInviteByToken(inviteToken);
+  const acceptInvite = useAcceptInvite();
+  
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [activeTab, setActiveTab] = useState<'signin' | 'signup' | 'forgot'>('signin');
+
+  // Pre-fill email from invite
+  useEffect(() => {
+    if (invite && invite.status === 'pending') {
+      setEmail(invite.email);
+      setActiveTab('signup');
+    }
+  }, [invite]);
+
+  // Accept invite after successful signup
+  useEffect(() => {
+    if (user && inviteToken && invite && invite.status === 'pending') {
+      acceptInvite.mutate({ token: inviteToken, userId: user.id });
+    }
+  }, [user, inviteToken, invite]);
 
   const validateInputs = (checkPassword = true) => {
     const newErrors: { email?: string; password?: string } = {};
