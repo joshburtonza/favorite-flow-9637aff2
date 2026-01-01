@@ -8,21 +8,26 @@ interface PermissionGateProps {
   children: ReactNode;
 }
 
-export function PermissionGate({ 
-  permission, 
-  requireAll = false, 
-  fallback = null, 
-  children 
+export function PermissionGate({
+  permission,
+  requireAll = false,
+  fallback = null,
+  children
 }: PermissionGateProps) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+  const { isAdmin, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
 
   if (loading) {
     return null;
   }
 
+  // Admin bypass
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
   const permissions = Array.isArray(permission) ? permission : [permission];
-  
-  const hasAccess = requireAll 
+
+  const hasAccess = requireAll
     ? hasAllPermissions(permissions)
     : hasAnyPermission(permissions);
 

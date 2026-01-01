@@ -75,32 +75,59 @@ export function usePermissions() {
 
     setLoading(true);
     try {
-      // Get user's role
-      const { data: roleData } = await supabase
+      // A user can have multiple roles (e.g. default 'user' + 'admin').
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', user.id)
-        .single();
+        .eq('user_id', user.id);
 
-      const userRole = roleData?.role as AppRole | null;
-      setRole(userRole);
-      setIsAdmin(userRole === 'admin');
+      if (rolesError) throw rolesError;
 
-      if (userRole) {
-        // Get permissions for this role
-        const { data: permData } = await supabase
-          .from('role_permissions')
-          .select('permission')
-          .eq('role', userRole);
+      const roles = (rolesData ?? []).map(r => r.role as AppRole);
+      const userIsAdmin = roles.includes('admin');
 
-        const userPerms = (permData || []).map(p => p.permission as AppPermission);
-        setPermissions(userPerms);
-      } else {
-        setPermissions([]);
+      // Choose a primary role for display/UX.
+      const primaryRole: AppRole | null = userIsAdmin
+        ? 'admin'
+        : (roles[0] ?? null);
+
+      setRole(primaryRole);
+      setIsAdmin(userIsAdmin);
+
+      // Admin sees everything.
+      if (userIsAdmin) {
+        setPermissions(ALL_PERMISSIONS.map(p => p.value));
+        return;
       }
+
+      // Role-based permissions
+      const rolePerms: AppPermission[] = primaryRole
+        ? (
+            (
+              await supabase
+                .from('role_permissions')
+                .select('permission')
+                .eq('role', primaryRole)
+            ).data ?? []
+          ).map(p => p.permission as AppPermission)
+        : [];
+
+      // Individual user overrides
+      const userPerms: AppPermission[] = (
+        (
+          await supabase
+            .from('user_permissions')
+            .select('permission')
+            .eq('user_id', user.id)
+        ).data ?? []
+      ).map(p => p.permission as AppPermission);
+
+      setPermissions(Array.from(new Set([...rolePerms, ...userPerms])));
     } catch (error) {
       console.error('Error fetching permissions:', error);
       setPermissions([]);
+      setRole(null);
+      setIsAdmin(false);
     } finally {
       setLoading(false);
     }
