@@ -4,8 +4,6 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { 
   Sparkles, 
-  Package, 
-  Wallet, 
   Moon,
   Sun,
   Menu,
@@ -20,29 +18,46 @@ import {
   Workflow,
   FolderOpen,
   BarChart3,
-  Upload
+  Upload,
+  LayoutDashboard,
+  MessageSquare,
+  Megaphone,
+  CalendarDays,
+  CreditCard,
+  Landmark,
+  Settings,
+  Globe,
+  Table2,
+  UserCog
 } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'AI', icon: Sparkles },
-  { path: '/messages', label: 'Messages', icon: Users },
-  { path: '/schedule', label: 'Schedule', icon: Calendar },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/messages', label: 'Messages', icon: MessageSquare },
+  { path: '/calendar', label: 'Calendar', icon: Calendar },
 ];
 
 const moreItems = [
-  { path: '/announcements', label: 'Announcements', icon: FileText },
-  { path: '/calendar', label: 'Calendar', icon: Calendar },
+  { path: '/tasks', label: 'Tasks', icon: ListTodo },
+  { path: '/announcements', label: 'Announcements', icon: Megaphone },
+  { path: '/schedule', label: 'Schedule', icon: CalendarDays },
   { path: '/invoices', label: 'Invoices', icon: FileText },
   { path: '/file-costing', label: 'File Costing', icon: Calculator },
-  { path: '/tasks', label: 'Tasks', icon: ListTodo },
-  { path: '/suppliers', label: 'Suppliers', icon: Building2 },
-  { path: '/clients', label: 'Clients', icon: Users },
+  { path: '/files', label: 'Files', icon: FolderOpen },
+  { path: '/workspace', label: 'Workspace', icon: Table2 },
+  { path: '/orders', label: 'Orders', icon: Globe },
+  { path: '/financials', label: 'Financials', icon: BarChart3 },
+  { path: '/suppliers', label: 'Suppliers', icon: Users },
+  { path: '/clients', label: 'Clients', icon: Building2 },
+  { path: '/payments', label: 'Payments', icon: CreditCard },
+  { path: '/creditors', label: 'Creditors', icon: Landmark },
+  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings },
+  { path: '/import', label: 'Bulk Import', icon: Upload },
+  { path: '/team', label: 'Team', icon: UserCog },
+  { path: '/security', label: 'Security', icon: Shield },
   { path: '/documents', label: 'Documents', icon: FileText },
   { path: '/document-workflow', label: 'Workflow', icon: Workflow },
-  { path: '/files', label: 'Files', icon: FolderOpen },
-  { path: '/financials', label: 'Financials', icon: BarChart3 },
-  { path: '/import', label: 'Import', icon: Upload },
-  { path: '/team', label: 'Team', icon: Shield },
 ];
 
 export function BottomNavigation() {
@@ -114,7 +129,7 @@ export function BottomNavigation() {
             key={item.path}
             onClick={() => handleNavigate(item.path)}
             className={cn(
-              'relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-colors touch-manipulation',
+              'relative flex flex-col items-center justify-center p-2 min-w-[56px] min-h-[44px] transition-colors touch-manipulation',
               isActive(item.path) 
                 ? 'text-primary' 
                 : 'text-muted-foreground active:text-foreground'
@@ -134,7 +149,7 @@ export function BottomNavigation() {
         <button 
           onClick={() => setShowMore(!showMore)}
           className={cn(
-            'relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-all touch-manipulation',
+            'relative flex flex-col items-center justify-center p-2 min-w-[56px] min-h-[44px] transition-all touch-manipulation',
             showMore ? 'text-primary' : 'text-muted-foreground'
           )}
         >
@@ -149,7 +164,7 @@ export function BottomNavigation() {
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="relative flex flex-col items-center justify-center p-2 min-w-[60px] min-h-[44px] transition-colors text-muted-foreground touch-manipulation active:text-foreground"
+          className="relative flex flex-col items-center justify-center p-2 min-w-[56px] min-h-[44px] transition-colors text-muted-foreground touch-manipulation active:text-foreground"
         >
           {theme === 'dark' ? (
             <Sun className="h-5 w-5" />
