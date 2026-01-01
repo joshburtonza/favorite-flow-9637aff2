@@ -178,6 +178,39 @@ export function useCreateInvoice() {
   });
 }
 
+export function useUpdateInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<CreateInvoiceData> & { id: string }) => {
+      const updates: Record<string, unknown> = {};
+      if (data.client_id !== undefined) updates.client_id = data.client_id;
+      if (data.shipment_id !== undefined) updates.shipment_id = data.shipment_id || null;
+      if (data.amount_zar !== undefined) updates.amount_zar = data.amount_zar;
+      if (data.vat_amount !== undefined) updates.vat_amount = data.vat_amount;
+      if (data.line_items !== undefined) updates.line_items = JSON.stringify(data.line_items);
+      if (data.invoice_date !== undefined) updates.invoice_date = data.invoice_date;
+      if (data.due_date !== undefined) updates.due_date = data.due_date || null;
+      if (data.notes !== undefined) updates.notes = data.notes || null;
+      if (data.lot_number !== undefined) updates.lot_number = data.lot_number || null;
+
+      const { error } = await supabase
+        .from('client_invoices')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-invoices'] });
+      toast.success('Invoice updated successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to update invoice: ' + error.message);
+    },
+  });
+}
+
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
 
