@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, KeyboardEvent } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useConversations, useMessages, Conversation } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
@@ -11,8 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MentionInput } from '@/components/messages/MentionInput';
+import { MessageContent } from '@/components/messages/MessageContent';
 import { MessageSquare, Plus, Send, ArrowLeft, Users, Search, Paperclip, X, FileIcon } from 'lucide-react';
-import { format, isToday, isYesterday, formatDistanceToNow } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,19 +36,21 @@ export default function Messages() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch all team members for new conversation
-  const { data: teamMembers = [] } = useQuery({
-    queryKey: ['team-members'],
+  // Fetch all team members for new conversation and mentions
+  const { data: allTeamMembers = [] } = useQuery({
+    queryKey: ['all-team-members'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email')
-        .neq('id', user?.id || '');
+        .select('id, full_name, email');
       if (error) throw error;
       return data;
     },
     enabled: !!user
   });
+
+  // Team members excluding current user (for new conversations)
+  const teamMembers = allTeamMembers.filter(m => m.id !== user?.id);
 
   // Mark messages as read when conversation is opened
   useEffect(() => {
@@ -100,18 +104,19 @@ export default function Messages() {
     stopTyping();
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewMessage(e.target.value);
+  const handleMentionChange = (value: string) => {
+    setNewMessage(value);
     const userName = user?.user_metadata?.full_name || user?.email || 'Someone';
     sendTyping(userName);
   };
+
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -323,7 +328,7 @@ export default function Messages() {
                                   {message.sender?.full_name || message.sender?.email}
                                 </p>
                               )}
-                              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                              <MessageContent content={message.content} />
                               
                               {/* Attachments */}
                               {message.attachments && message.attachments.length > 0 && (
@@ -408,13 +413,13 @@ export default function Messages() {
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
-                    <Input
-                      placeholder="Type a message..."
+                    <MentionInput
                       value={newMessage}
-                      onChange={handleInputChange}
+                      onChange={handleMentionChange}
                       onKeyPress={handleKeyPress}
                       onBlur={stopTyping}
-                      className="flex-1"
+                      teamMembers={allTeamMembers}
+                      placeholder="Type a message... Use @ to mention"
                     />
                     <Button 
                       onClick={handleSendMessage} 
