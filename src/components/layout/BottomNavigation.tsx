@@ -25,11 +25,13 @@ import {
 
 const navItems = [
   { path: '/', label: 'AI', icon: Sparkles },
+  { path: '/messages', label: 'Messages', icon: Users },
   { path: '/schedule', label: 'Schedule', icon: Calendar },
-  { path: '/payments', label: 'Payments', icon: Wallet },
 ];
 
 const moreItems = [
+  { path: '/announcements', label: 'Announcements', icon: FileText },
+  { path: '/calendar', label: 'Calendar', icon: Calendar },
   { path: '/invoices', label: 'Invoices', icon: FileText },
   { path: '/file-costing', label: 'File Costing', icon: Calculator },
   { path: '/tasks', label: 'Tasks', icon: ListTodo },

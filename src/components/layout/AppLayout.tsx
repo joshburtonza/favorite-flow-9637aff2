@@ -31,7 +31,10 @@ import {
   CalendarDays,
   Calculator,
   Workflow,
-  ListTodo
+  ListTodo,
+  Megaphone,
+  MessageSquare,
+  Calendar
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -49,6 +52,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: 'AI Hub', icon: Sparkles },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
+  { path: '/messages', label: 'Messages', icon: MessageSquare },
+  { path: '/announcements', label: 'Announcements', icon: Megaphone },
+  { path: '/calendar', label: 'Calendar', icon: Calendar },
   { path: '/schedule', label: 'Schedule', icon: CalendarDays, permission: 'view_shipments' },
   { path: '/invoices', label: 'Invoices', icon: FileText, permission: 'view_payments' },
   { path: '/file-costing', label: 'File Costing', icon: Calculator, permission: 'view_financials' },
