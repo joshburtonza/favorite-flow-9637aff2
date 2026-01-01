@@ -10,7 +10,6 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { FloatingAIChat } from '@/components/ai/FloatingAIChat';
 import { OfflineBanner } from '@/components/ui/offline-banner';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { 
   Package, 
   Users, 
@@ -78,7 +77,6 @@ const navItems: NavItem[] = [
   { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
 ];
 
-// Primary nav items shown in the floating dock
 const primaryNavPaths = ['/', '/dashboard', '/messages', '/calendar', '/tasks', '/files'];
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -108,12 +106,89 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const filteredNavItems = navItems.filter(canAccessNavItem);
   const primaryNavItems = filteredNavItems.filter(item => primaryNavPaths.includes(item.path));
-  const secondaryNavItems = filteredNavItems.filter(item => !primaryNavPaths.includes(item.path));
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   };
+
+  // Slide-out menu panel
+  const SlideMenu = () => (
+    <>
+      {/* Backdrop */}
+      {menuOpen && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+      
+      {/* Menu panel */}
+      <div 
+        className={cn(
+          "fixed top-0 left-0 h-full w-72 z-[70] transform transition-transform duration-300 ease-in-out",
+          "bg-card/95 backdrop-blur-xl border-r border-border shadow-xl",
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+              style={{
+                background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(187 94% 43%))',
+              }}
+            >
+              <Package className="w-4 h-4" />
+            </div>
+            <span className="text-lg font-semibold">Navigation</span>
+          </div>
+          <button 
+            onClick={() => setMenuOpen(false)}
+            className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Nav items */}
+        <ScrollArea className="h-[calc(100vh-140px)]">
+          <div className="p-3">
+            <nav className="flex flex-col gap-1">
+              {filteredNavItems.map((item) => (
+                <button
+                  key={item.path}
+                  onClick={() => handleNavClick(item.path)}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left',
+                    'hover:bg-muted/50',
+                    isActive(item.path) 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border bg-card/95">
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   const FloatingDock = () => (
     <aside 
@@ -134,69 +209,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Package className="w-5 h-5" />
       </div>
 
-      {/* Hamburger Menu */}
-      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetTrigger asChild>
-          <button
-            className={cn(
-              'nav-item mb-4',
-              menuOpen && 'active'
-            )}
-            title="Menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card/95 backdrop-blur-xl">
-          <SheetHeader className="p-4 border-b border-border">
-            <SheetTitle className="flex items-center gap-3">
-              <div 
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
-                style={{
-                  background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(187 94% 43%))',
-                }}
-              >
-                <Package className="w-4 h-4" />
-              </div>
-              <span className="text-lg font-semibold">Navigation</span>
-            </SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-80px)]">
-            <div className="p-3">
-              {/* All nav items in the menu */}
-              <nav className="flex flex-col gap-1">
-                {filteredNavItems.map((item) => (
-                  <button
-                    key={item.path}
-                    onClick={() => handleNavClick(item.path)}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left',
-                      'hover:bg-muted/50',
-                      isActive(item.path) 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <item.icon className="h-4 w-4 flex-shrink-0" />
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </nav>
-              
-              {/* Bottom actions in menu */}
-              <div className="border-t border-border mt-4 pt-4">
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left text-destructive hover:bg-destructive/10"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      {/* Hamburger Menu Button */}
+      <button
+        onClick={() => setMenuOpen(true)}
+        className={cn(
+          'nav-item mb-4',
+          menuOpen && 'active'
+        )}
+        title="Menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
 
       {/* Primary Navigation Items */}
       <nav className="flex flex-col items-center gap-1.5">
@@ -225,23 +248,18 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      {/* Offline Banner */}
       <OfflineBanner />
       
-      {/* Desktop floating dock */}
       {!isMobile && <FloatingDock />}
+      {!isMobile && <SlideMenu />}
       
-      {/* Main content */}
       <div className={cn('min-h-screen', !isMobile && 'ml-24', !isOnline && 'pt-10')}>
         <main className={cn('p-6 md:p-10', isMobile && 'pb-28')}>
           {children}
         </main>
       </div>
       
-      {/* Mobile bottom navigation */}
       {isMobile && <BottomNavigation />}
-      
-      {/* Floating AI Chat Button */}
       <FloatingAIChat />
     </div>
   );
