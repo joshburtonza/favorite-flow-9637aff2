@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -29,8 +30,10 @@ import { useDocumentFolders } from '@/hooks/useDocumentFolders';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Workspace() {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const newTableFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [newTableDialog, setNewTableDialog] = useState(false);
   const [newTableName, setNewTableName] = useState('');
@@ -53,6 +56,11 @@ export default function Workspace() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [expandedSaveFolders, setExpandedSaveFolders] = useState<Set<string>>(new Set());
+  // New table from CSV import
+  const [importAsNewTableDialog, setImportAsNewTableDialog] = useState(false);
+  const [newTableImportData, setNewTableImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string } | null>(null);
+  const [newTableFromImportName, setNewTableFromImportName] = useState('');
+  const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
 
@@ -243,6 +251,108 @@ export default function Workspace() {
     setImportData(null);
   };
 
+  // Handle importing CSV as a new table
+  const handleNewTableFileClick = () => {
+    newTableFileInputRef.current?.click();
+  };
+
+  const handleNewTableFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      setNewTableImportData({ ...parsed, fileName });
+      setNewTableFromImportName(fileName);
+      setImportAsNewTableDialog(true);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleCreateTableFromImport = async () => {
+    if (!newTableImportData || !newTableFromImportName.trim()) return;
+    
+    setIsCreatingTableFromImport(true);
+    try {
+      // Create the table
+      const { data: user } = await supabase.auth.getUser();
+      const { data: newTable, error: tableError } = await supabase
+        .from('custom_tables')
+        .insert({
+          name: newTableFromImportName.trim(),
+          description: `Imported from ${newTableImportData.fileName}`,
+          icon: 'table',
+          created_by: user.user?.id,
+        })
+        .select()
+        .single();
+      
+      if (tableError) throw tableError;
+
+      // Create columns from headers
+      const columnInserts = newTableImportData.headers.map((header, index) => ({
+        table_id: newTable.id,
+        name: header.trim() || `Column ${index + 1}`,
+        column_type: 'text' as const,
+        order_position: index,
+      }));
+
+      const { data: createdColumns, error: colError } = await supabase
+        .from('custom_columns')
+        .insert(columnInserts)
+        .select();
+      
+      if (colError) throw colError;
+
+      // Create rows with data mapped to column IDs
+      if (newTableImportData.rows.length > 0 && createdColumns) {
+        const rowInserts = newTableImportData.rows.map(rowData => {
+          const data: Record<string, any> = {};
+          createdColumns.forEach((col, i) => {
+            data[col.id] = rowData[i] ?? '';
+          });
+          return {
+            table_id: newTable.id,
+            data,
+            created_by: user.user?.id,
+          };
+        });
+
+        const { error: rowError } = await supabase
+          .from('custom_rows')
+          .insert(rowInserts);
+        
+        if (rowError) throw rowError;
+      }
+
+      toast({ 
+        title: 'Table created from import', 
+        description: `${newTableFromImportName} created with ${newTableImportData.headers.length} columns and ${newTableImportData.rows.length} rows` 
+      });
+
+      // Invalidate queries to refresh the table list
+      await queryClient.invalidateQueries({ queryKey: ['custom-tables'] });
+      
+      setSelectedTableId(newTable.id);
+      setImportAsNewTableDialog(false);
+      setNewTableImportData(null);
+      setNewTableFromImportName('');
+    } catch (error: any) {
+      toast({ 
+        title: 'Error creating table', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsCreatingTableFromImport(false);
+    }
+  };
+
   // Load documents for a folder when browsing
   const loadFolderDocuments = async (folderId: string | null) => {
     setIsLoadingDocs(true);
@@ -394,15 +504,35 @@ export default function Workspace() {
         <div className="w-64 border-r bg-card/50 flex flex-col">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold">Tables</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setNewTableDialog(true)}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Import CSV as new table"
+                onClick={handleNewTableFileClick}
+              >
+                <Upload className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Create new table"
+                onClick={() => setNewTableDialog(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
+          {/* Hidden file inputs */}
+          <input
+            ref={newTableFileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls,.tsv"
+            className="hidden"
+            onChange={handleNewTableFileSelect}
+          />
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1">
               {Object.entries(groupedTables).map(([group, groupTables]) => (
@@ -988,6 +1118,88 @@ export default function Workspace() {
                 Cancel
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import as New Table Dialog */}
+      <Dialog open={importAsNewTableDialog} onOpenChange={setImportAsNewTableDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Create Table from Import</DialogTitle>
+            <DialogDescription>
+              Create a new table with the imported data
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Table Name</Label>
+              <Input
+                placeholder="e.g., Imported Data"
+                value={newTableFromImportName}
+                onChange={(e) => setNewTableFromImportName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            
+            {newTableImportData && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>{newTableImportData.headers.length} columns, {newTableImportData.rows.length} rows</span>
+                </div>
+                
+                <div className="max-h-[300px] overflow-auto border rounded-md">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        {newTableImportData.headers.map((header, i) => (
+                          <th key={i} className="px-3 py-2 text-left font-medium border-b">
+                            {header || `Column ${i + 1}`}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {newTableImportData.rows.slice(0, 5).map((row, i) => (
+                        <tr key={i} className="border-b">
+                          {row.map((cell, j) => (
+                            <td key={j} className="px-3 py-2 truncate max-w-[200px]">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {newTableImportData.rows.length > 5 && (
+                    <div className="p-2 text-center text-muted-foreground text-sm bg-muted/50">
+                      ... and {newTableImportData.rows.length - 5} more rows
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setImportAsNewTableDialog(false);
+                setNewTableImportData(null);
+                setNewTableFromImportName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateTableFromImport} 
+              disabled={isCreatingTableFromImport || !newTableFromImportName.trim()}
+            >
+              {isCreatingTableFromImport ? 'Creating...' : `Create Table with ${newTableImportData?.rows.length || 0} Rows`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
