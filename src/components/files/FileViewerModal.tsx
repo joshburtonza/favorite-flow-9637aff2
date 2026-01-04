@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Loader2, FileText, Image, FileSpreadsheet, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -45,7 +45,13 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
   // PDF state
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.0);
+  const [pdfScale, setPdfScale] = useState<number>(1.0);
+
+  // Spreadsheet zoom and column resize state
+  const [spreadsheetZoom, setSpreadsheetZoom] = useState<number>(100);
+  const [columnWidths, setColumnWidths] = useState<number[]>([]);
+  const [resizing, setResizing] = useState<{ colIndex: number; startX: number; startWidth: number } | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
 
   const isSpreadsheet = document?.file_name?.match(/\.(xlsx|xls|csv)$/i);
   const isImage = document?.file_type?.startsWith('image/');
@@ -60,9 +66,54 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
       setSpreadsheetData(null);
       setPageNumber(1);
       setNumPages(0);
-      setScale(1.0);
+      setPdfScale(1.0);
+      setSpreadsheetZoom(100);
+      setColumnWidths([]);
     }
   }, [open, document]);
+
+  // Initialize column widths when spreadsheet data loads
+  useEffect(() => {
+    if (spreadsheetData) {
+      setColumnWidths(spreadsheetData.headers.map(() => 150));
+    }
+  }, [spreadsheetData]);
+
+  // Column resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent, colIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      colIndex,
+      startX: e.clientX,
+      startWidth: columnWidths[colIndex] || 150,
+    });
+  }, [columnWidths]);
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = e.clientX - resizing.startX;
+      const newWidth = Math.max(60, Math.min(500, resizing.startWidth + diff));
+      setColumnWidths(prev => {
+        const updated = [...prev];
+        updated[resizing.colIndex] = newWidth;
+        return updated;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setResizing(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizing]);
 
   const loadFile = async () => {
     if (!document) return;
@@ -164,8 +215,13 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
 
   const goToPrevPage = () => setPageNumber(prev => Math.max(prev - 1, 1));
   const goToNextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages));
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.25, 3));
-  const zoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
+  const pdfZoomIn = () => setPdfScale(prev => Math.min(prev + 0.25, 3));
+  const pdfZoomOut = () => setPdfScale(prev => Math.max(prev - 0.25, 0.5));
+
+  // Spreadsheet zoom controls
+  const spreadsheetZoomIn = () => setSpreadsheetZoom(prev => Math.min(prev + 10, 200));
+  const spreadsheetZoomOut = () => setSpreadsheetZoom(prev => Math.max(prev - 10, 50));
+  const resetSpreadsheetZoom = () => setSpreadsheetZoom(100);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -207,61 +263,103 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : isSpreadsheet && spreadsheetData ? (
-            // Spreadsheet view with full scroll
-            <div className="h-full overflow-auto">
-              <table className="border-collapse w-full table-fixed">
-                <thead className="sticky top-0 z-10 bg-muted">
-                  <tr>
-                    <th className="w-10 min-w-[40px] border-b border-r p-2 text-center text-xs font-medium text-muted-foreground sticky left-0 bg-muted z-20">
-                      #
-                    </th>
-                    {spreadsheetData.headers.map((header, i) => (
-                      <th
-                        key={i}
-                        className="border-b border-r p-2 text-left text-sm font-medium w-32 min-w-[80px] max-w-[200px]"
+            // Spreadsheet view with zoom controls and resizable columns
+            <div className="h-full flex flex-col">
+              {/* Spreadsheet zoom controls */}
+              <div className="flex items-center justify-center gap-4 py-2 border-b bg-muted/30 flex-shrink-0">
+                <Button variant="outline" size="sm" onClick={spreadsheetZoomOut} disabled={spreadsheetZoom <= 50}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <button 
+                  onClick={resetSpreadsheetZoom}
+                  className="text-sm w-16 text-center hover:text-primary transition-colors"
+                >
+                  {spreadsheetZoom}%
+                </button>
+                <Button variant="outline" size="sm" onClick={spreadsheetZoomIn} disabled={spreadsheetZoom >= 200}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground ml-4">Drag column borders to resize</span>
+              </div>
+              {/* Scrollable table container */}
+              <div className="flex-1 overflow-auto">
+                <table 
+                  ref={tableRef}
+                  className="border-collapse"
+                  style={{ 
+                    fontSize: `${spreadsheetZoom}%`,
+                    minWidth: 'max-content'
+                  }}
+                >
+                  <thead className="sticky top-0 z-10 bg-muted">
+                    <tr>
+                      <th 
+                        className="border-b border-r p-2 text-center text-xs font-medium text-muted-foreground sticky left-0 bg-muted z-20"
+                        style={{ width: 40, minWidth: 40 }}
                       >
-                        <div className="break-words whitespace-normal">{header}</div>
+                        #
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {spreadsheetData.rows.map((row, rowIndex) => (
-                    <tr key={rowIndex} className="hover:bg-muted/30">
-                      <td className="border-b border-r p-2 text-center text-xs text-muted-foreground sticky left-0 bg-background z-10 w-10">
-                        {rowIndex + 1}
-                      </td>
-                      {row.map((cell, colIndex) => (
-                        <td
-                          key={colIndex}
-                          className={cn(
-                            "border-b border-r p-0 min-h-[40px] w-32 min-w-[80px] max-w-[200px] align-top",
-                            editingCell?.row === rowIndex && editingCell?.col === colIndex && "ring-2 ring-primary ring-inset"
-                          )}
-                          onClick={() => handleCellClick(rowIndex, colIndex, cell)}
+                      {spreadsheetData.headers.map((header, i) => (
+                        <th
+                          key={i}
+                          className="border-b border-r text-left text-sm font-medium relative group"
+                          style={{ width: columnWidths[i] || 150, minWidth: 60 }}
                         >
-                          {editingCell?.row === rowIndex && editingCell?.col === colIndex ? (
-                            <textarea
-                              autoFocus
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={handleCellBlur}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') setEditingCell(null);
-                              }}
-                              className="w-full min-h-[40px] px-2 py-1 bg-background outline-none resize-none text-sm"
-                            />
-                          ) : (
-                            <div className="px-2 py-1 text-sm break-words whitespace-normal cursor-pointer min-h-[32px]">
-                              {cell}
-                            </div>
-                          )}
-                        </td>
+                          <div className="p-2 break-words whitespace-normal pr-3">{header}</div>
+                          {/* Resize handle */}
+                          <div
+                            className={cn(
+                              "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors",
+                              resizing?.colIndex === i && "bg-primary"
+                            )}
+                            onMouseDown={(e) => handleResizeStart(e, i)}
+                          />
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {spreadsheetData.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex} className="hover:bg-muted/30">
+                        <td 
+                          className="border-b border-r p-2 text-center text-xs text-muted-foreground sticky left-0 bg-background z-10"
+                          style={{ width: 40, minWidth: 40 }}
+                        >
+                          {rowIndex + 1}
+                        </td>
+                        {row.map((cell, colIndex) => (
+                          <td
+                            key={colIndex}
+                            className={cn(
+                              "border-b border-r p-0 align-top",
+                              editingCell?.row === rowIndex && editingCell?.col === colIndex && "ring-2 ring-primary ring-inset"
+                            )}
+                            style={{ width: columnWidths[colIndex] || 150, minWidth: 60 }}
+                            onClick={() => handleCellClick(rowIndex, colIndex, cell)}
+                          >
+                            {editingCell?.row === rowIndex && editingCell?.col === colIndex ? (
+                              <textarea
+                                autoFocus
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={handleCellBlur}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') setEditingCell(null);
+                                }}
+                                className="w-full min-h-[40px] px-2 py-1 bg-background outline-none resize-none text-sm"
+                              />
+                            ) : (
+                              <div className="px-2 py-1 text-sm break-words whitespace-normal cursor-pointer min-h-[32px]">
+                                {cell}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : isImage && fileUrl ? (
             // Image preview with scroll
@@ -288,11 +386,11 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <div className="w-px h-6 bg-border mx-2" />
-                <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
+                <Button variant="outline" size="sm" onClick={pdfZoomOut} disabled={pdfScale <= 0.5}>
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
-                <Button variant="outline" size="sm" onClick={zoomIn} disabled={scale >= 3}>
+                <span className="text-sm w-16 text-center">{Math.round(pdfScale * 100)}%</span>
+                <Button variant="outline" size="sm" onClick={pdfZoomIn} disabled={pdfScale >= 3}>
                   <ZoomIn className="h-4 w-4" />
                 </Button>
               </div>
@@ -306,7 +404,7 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
                 >
                   <Page
                     pageNumber={pageNumber}
-                    scale={scale}
+                    scale={pdfScale}
                     renderTextLayer={true}
                     renderAnnotationLayer={true}
                   />
