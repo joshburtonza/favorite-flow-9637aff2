@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Loader2, FileText, Image, FileSpreadsheet, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { Download, Loader2, FileText, Image, FileSpreadsheet, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
@@ -223,6 +223,57 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
   const spreadsheetZoomOut = () => setSpreadsheetZoom(prev => Math.max(prev - 10, 50));
   const resetSpreadsheetZoom = () => setSpreadsheetZoom(100);
 
+  // Export spreadsheet functions
+  const exportToCSV = () => {
+    if (!spreadsheetData || !document) return;
+    
+    const csvContent = [
+      spreadsheetData.headers.join(','),
+      ...spreadsheetData.rows.map(row => 
+        row.map(cell => {
+          // Escape quotes and wrap in quotes if contains comma or newline
+          const escaped = cell.replace(/"/g, '""');
+          return escaped.includes(',') || escaped.includes('\n') || escaped.includes('"') 
+            ? `"${escaped}"` 
+            : escaped;
+        }).join(',')
+      )
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    const baseName = document.file_name.replace(/\.(xlsx|xls|csv)$/i, '');
+    a.href = url;
+    a.download = `${baseName}_edited.csv`;
+    window.document.body.appendChild(a);
+    a.click();
+    window.document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: 'Exported to CSV' });
+  };
+
+  const exportToXLSX = () => {
+    if (!spreadsheetData || !document) return;
+    
+    // Create worksheet data with headers
+    const wsData = [spreadsheetData.headers, ...spreadsheetData.rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    
+    // Generate filename
+    const baseName = document.file_name.replace(/\.(xlsx|xls|csv)$/i, '');
+    
+    // Write and download
+    XLSX.writeFile(wb, `${baseName}_edited.xlsx`);
+    
+    toast({ title: 'Exported to XLSX' });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col">
@@ -249,9 +300,21 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
               )}
             </div>
             <div className="flex items-center gap-2">
+              {isSpreadsheet && spreadsheetData && (
+                <>
+                  <Button variant="outline" size="sm" onClick={exportToCSV}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    CSV
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportToXLSX}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    XLSX
+                  </Button>
+                </>
+              )}
               <Button variant="outline" size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
-                Download
+                Original
               </Button>
             </div>
           </div>
