@@ -723,12 +723,12 @@ export function SpreadsheetGrid({
 
       {/* Table with scrolling */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Scrollable container */}
-        <div className="overflow-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-          <table className="w-full border-collapse min-w-max">
-            <thead className="sticky top-0 z-10 bg-background">
+        {/* Scrollable container - both horizontal and vertical */}
+        <div className="overflow-auto h-full max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
+          <table className="border-collapse min-w-max table-fixed">
+            <thead className="sticky top-0 z-20 bg-background">
               <tr className="bg-muted/50">
-                <th className="w-10 min-w-10 border-b border-r p-0 sticky left-0 bg-muted/50 z-20" />
+                <th className="w-10 min-w-[40px] border-b border-r p-0 sticky left-0 bg-muted/50 z-30" />
             {columns.map((column) => (
               <th
                 key={column.id}
@@ -804,7 +804,7 @@ export function SpreadsheetGrid({
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id} className="group hover:bg-muted/30">
-                  <td className="border-b border-r text-center text-xs text-muted-foreground p-0 sticky left-0 bg-background z-10">
+                  <td className="border-b border-r text-center text-xs text-muted-foreground p-0 sticky left-0 bg-background z-10 min-w-[40px]">
                 <div className="flex items-center justify-center h-10">
                   <span className="group-hover:hidden">{index + 1}</span>
                   <Button
