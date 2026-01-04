@@ -8,17 +8,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useDuplicateDetection } from '@/hooks/useDuplicateDetection';
+import { DuplicateDetectionModal } from './DuplicateDetectionModal';
 import {
   Upload, FileText, CheckCircle2, XCircle, Loader2, 
   Link2, Package, AlertTriangle, Trash2, FolderUp,
-  Sparkles, Brain, Zap, ArrowRight
+  Sparkles, Brain, Zap, ArrowRight, Copy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface UploadFile {
   id: string;
   file: File;
-  status: 'pending' | 'uploading' | 'classifying' | 'linking' | 'completed' | 'failed';
+  status: 'pending' | 'checking_duplicates' | 'uploading' | 'classifying' | 'linking' | 'completed' | 'failed' | 'skipped';
   progress: number;
   error?: string;
   classification?: {
@@ -33,6 +35,10 @@ interface UploadFile {
     lot_number: string;
   };
   documentId?: string;
+  duplicateInfo?: {
+    count: number;
+    highestConfidence: number;
+  };
 }
 
 interface BulkDocumentUploadProps {
@@ -46,8 +52,14 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
   const [isProcessing, setIsProcessing] = useState(false);
   const [autoLink, setAutoLink] = useState(true);
   const [autoClassify, setAutoClassify] = useState(true);
+  const [checkDuplicates, setCheckDuplicates] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  // Duplicate detection state
+  const { checkForDuplicates, duplicates, clearDuplicates, loading: duplicateLoading, replaceExisting, uploadAsNewVersion } = useDuplicateDetection();
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [currentDuplicateFile, setCurrentDuplicateFile] = useState<UploadFile | null>(null);
 
   const updateFile = useCallback((id: string, updates: Partial<UploadFile>) => {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
@@ -123,6 +135,34 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
     const { id, file } = uploadFile;
     
     try {
+      // Step 0: Check for duplicates
+      if (checkDuplicates) {
+        updateFile(id, { status: 'checking_duplicates', progress: 5 });
+        
+        const foundDuplicates = await checkForDuplicates(file);
+        
+        if (foundDuplicates.length > 0) {
+          const highestConfidence = Math.max(...foundDuplicates.map(d => d.confidence));
+          
+          // If exact match (100% confidence), skip automatically
+          if (highestConfidence === 1.0) {
+            updateFile(id, { 
+              status: 'skipped', 
+              progress: 0, 
+              error: `Duplicate detected: ${foundDuplicates[0].reason}`,
+              duplicateInfo: { count: foundDuplicates.length, highestConfidence }
+            });
+            toast.warning(`Skipped ${file.name}: Duplicate file detected`);
+            return { ...uploadFile, status: 'skipped', error: 'Duplicate file' };
+          }
+          
+          // For lower confidence matches, flag but continue
+          updateFile(id, { 
+            duplicateInfo: { count: foundDuplicates.length, highestConfidence } 
+          });
+        }
+      }
+      
       // Step 1: Upload to storage
       updateFile(id, { status: 'uploading', progress: 10 });
       
@@ -273,11 +313,13 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
   const getStatusIcon = (status: UploadFile['status']) => {
     switch (status) {
       case 'pending': return <FileText className="h-4 w-4 text-muted-foreground" />;
+      case 'checking_duplicates': return <Copy className="h-4 w-4 text-yellow-500 animate-pulse" />;
       case 'uploading': return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case 'classifying': return <Brain className="h-4 w-4 text-accent animate-pulse" />;
       case 'linking': return <Link2 className="h-4 w-4 text-primary animate-pulse" />;
       case 'completed': return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case 'failed': return <XCircle className="h-4 w-4 text-destructive" />;
+      case 'skipped': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
     }
   };
 
@@ -285,17 +327,20 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
   const getStatusLabel = (status: UploadFile['status']) => {
     switch (status) {
       case 'pending': return 'Pending';
+      case 'checking_duplicates': return 'Checking duplicates...';
       case 'uploading': return 'Uploading...';
       case 'classifying': return 'AI Classifying...';
       case 'linking': return 'Linking to Shipment...';
       case 'completed': return 'Completed';
       case 'failed': return 'Failed';
+      case 'skipped': return 'Skipped (Duplicate)';
     }
   };
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const completedCount = files.filter(f => f.status === 'completed').length;
   const failedCount = files.filter(f => f.status === 'failed').length;
+  const skippedCount = files.filter(f => f.status === 'skipped').length;
   const linkedCount = files.filter(f => f.linkedShipment).length;
 
   return (
@@ -381,6 +426,19 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
                 Auto-link Shipments
               </Label>
             </div>
+            
+            <div className="flex items-center gap-2">
+              <Switch
+                id="check-duplicates"
+                checked={checkDuplicates}
+                onCheckedChange={setCheckDuplicates}
+                disabled={isProcessing}
+              />
+              <Label htmlFor="check-duplicates" className="text-sm flex items-center gap-2">
+                <Copy className="h-4 w-4 text-yellow-500" />
+                Block Duplicates
+              </Label>
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
@@ -434,6 +492,12 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
             <div className="text-xs text-destructive">Failed</div>
             <div className="text-2xl font-bold text-destructive">{failedCount}</div>
           </div>
+          {skippedCount > 0 && (
+            <div className="p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+              <div className="text-xs text-yellow-500">Skipped</div>
+              <div className="text-2xl font-bold text-yellow-500">{skippedCount}</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -450,6 +514,8 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
                     ? "bg-green-500/5 border-green-500/20" 
                     : uploadFile.status === 'failed'
                     ? "bg-destructive/5 border-destructive/20"
+                    : uploadFile.status === 'skipped'
+                    ? "bg-yellow-500/5 border-yellow-500/20"
                     : "bg-glass-surface border-glass-border"
                 )}
               >
@@ -466,7 +532,7 @@ export function BulkDocumentUpload({ onComplete, folderId }: BulkDocumentUploadP
                       </div>
                       
                       {/* Progress bar */}
-                      {['uploading', 'classifying', 'linking'].includes(uploadFile.status) && (
+                      {['checking_duplicates', 'uploading', 'classifying', 'linking'].includes(uploadFile.status) && (
                         <div className="mt-2">
                           <Progress value={uploadFile.progress} className="h-1" />
                           <span className="text-xs text-muted-foreground mt-1">
