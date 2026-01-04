@@ -64,7 +64,7 @@ export default function Workspace() {
   
   // PDF import
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
-  const { extractMultiplePDFs, isExtracting } = usePDFExtraction();
+  const { extractMultipleFiles, isExtracting } = usePDFExtraction();
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
 
@@ -287,7 +287,7 @@ export default function Workspace() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const extractedData = await extractMultiplePDFs(Array.from(files));
+    const extractedData = await extractMultipleFiles(Array.from(files));
     
     if (extractedData.length > 0) {
       setBatchImportData(extractedData);
@@ -572,7 +572,7 @@ export default function Workspace() {
           <input
             ref={pdfFileInputRef}
             type="file"
-            accept=".pdf,.PDF"
+            accept=".pdf,.PDF,.xlsx,.xls"
             multiple
             className="hidden"
             onChange={handlePDFFileSelect}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 interface ExtractedTableData {
   headers: string[];
@@ -21,12 +22,19 @@ export function usePDFExtraction() {
   const { toast } = useToast();
   const [isExtracting, setIsExtracting] = useState(false);
 
-  const extractPDFToTable = async (file: File): Promise<PDFExtractionResult> => {
+  const extractFileToTable = async (file: File): Promise<PDFExtractionResult> => {
     try {
-      // Read file content
+      const isExcel = file.name.match(/\.(xlsx|xls)$/i);
+      
+      if (isExcel) {
+        // Parse Excel directly
+        const tableData = await parseExcelFile(file);
+        return { success: true, data: tableData };
+      }
+      
+      // For PDFs, use AI extraction
       const content = await readFileContent(file);
       
-      // Call AI to extract structured data
       const { data, error } = await supabase.functions.invoke('analyze-document', {
         body: {
           documentContent: content,
@@ -39,30 +47,22 @@ export function usePDFExtraction() {
       if (!data.success) throw new Error(data.error || 'Extraction failed');
 
       const result = data.result;
-      
-      // Convert extracted data to table format
       const tableData = convertToTableFormat(result, file.name);
       
-      return {
-        success: true,
-        data: tableData
-      };
+      return { success: true, data: tableData };
     } catch (error: any) {
-      console.error('PDF extraction error:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      console.error('File extraction error:', error);
+      return { success: false, error: error.message };
     }
   };
 
-  const extractMultiplePDFs = async (files: File[]): Promise<ExtractedTableData[]> => {
+  const extractMultipleFiles = async (files: File[]): Promise<ExtractedTableData[]> => {
     setIsExtracting(true);
     const results: ExtractedTableData[] = [];
     
     try {
       for (const file of files) {
-        const result = await extractPDFToTable(file);
+        const result = await extractFileToTable(file);
         if (result.success && result.data) {
           results.push(result.data);
         } else {
@@ -76,7 +76,7 @@ export function usePDFExtraction() {
       
       if (results.length > 0) {
         toast({
-          title: 'PDF Extraction Complete',
+          title: 'Extraction Complete',
           description: `Extracted data from ${results.length} file(s)`
         });
       }
@@ -88,9 +88,36 @@ export function usePDFExtraction() {
   };
 
   return {
-    extractPDFToTable,
-    extractMultiplePDFs,
+    extractFileToTable,
+    extractMultipleFiles,
     isExtracting
+  };
+}
+
+async function parseExcelFile(file: File): Promise<ExtractedTableData> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, { header: 1 });
+  
+  if (jsonData.length === 0) {
+    throw new Error('Excel file is empty');
+  }
+  
+  const headers = (jsonData[0] as string[]).map(h => String(h || 'Column'));
+  const rows = jsonData.slice(1).map(row => 
+    headers.map((_, i) => String((row as any)[i] ?? ''))
+  );
+  
+  const cleanFileName = file.name.replace(/\.(xlsx|xls)$/i, '');
+  
+  return {
+    headers,
+    rows,
+    fileName: cleanFileName,
+    documentType: 'Spreadsheet',
+    summary: `Imported from ${file.name} - ${rows.length} rows`
   };
 }
 
@@ -115,7 +142,7 @@ async function readFileContent(file: File): Promise<string> {
 }
 
 function convertToTableFormat(result: any, fileName: string): ExtractedTableData {
-  const cleanFileName = fileName.replace(/\.(pdf|PDF)$/i, '');
+  const cleanFileName = fileName.replace(/\.(pdf|xlsx|xls)$/i, '');
   
   // Check if we have bulk data (multiple rows)
   if (result.bulkData && Array.isArray(result.bulkData) && result.bulkData.length > 0) {
