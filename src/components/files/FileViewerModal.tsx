@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Download, Loader2, FileText, Image, FileSpreadsheet, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
 import {
   Dialog,
   DialogContent,
