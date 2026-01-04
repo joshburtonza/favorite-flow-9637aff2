@@ -342,7 +342,16 @@ serve(async (req) => {
   }
 
   try {
-    const { documentContent, documentName, sendToTelegram = false, autoImport = false, isChatMode = false } = await req.json();
+    const { documentContent, documentName, sendToTelegram = false, autoImport = false, isChatMode = false, extractAsTable = false } = await req.json();
+
+    // Handle PDF base64 content - extract text description for AI
+    let processedContent = documentContent;
+    let isPDF = false;
+    if (documentContent.startsWith('[PDF_BASE64]')) {
+      isPDF = true;
+      // For PDFs, we'll inform the AI that this is a PDF and ask for structured extraction
+      processedContent = `[This is a PDF document named "${documentName || 'unknown.pdf'}". Please extract any tabular data, key-value pairs, or structured information you can identify from the document structure. If this appears to be an invoice, extract invoice details. If it's a shipping document, extract shipping information. Format the response as structured data that can be converted to a spreadsheet table.]`;
+    }
 
     if (!documentContent) {
       return new Response(
@@ -392,10 +401,18 @@ serve(async (req) => {
 
     if (isQuestion && databaseContext) {
       systemPrompt = getQueryAssistantPrompt();
-      userPrompt = `## CURRENT DATABASE DATA\n${databaseContext}\n\n## USER QUESTION\n${documentContent}`;
+      userPrompt = `## CURRENT DATABASE DATA\n${databaseContext}\n\n## USER QUESTION\n${processedContent}`;
+    } else if (extractAsTable) {
+      systemPrompt = SYSTEM_PROMPT + `\n\n## ADDITIONAL INSTRUCTION FOR TABLE EXTRACTION
+When extracting data for table/spreadsheet import:
+- If the document contains tabular data, extract it into the bulkData array with consistent column headers
+- If it's a single record document (like an invoice), extract key fields into extractedData
+- Make sure all values are properly formatted (dates as YYYY-MM-DD, numbers without currency symbols)
+- The extracted data will be converted into a spreadsheet table, so structure it accordingly`;
+      userPrompt = `Analyze this document and extract structured data suitable for a spreadsheet:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${processedContent}`;
     } else {
       systemPrompt = SYSTEM_PROMPT;
-      userPrompt = `Analyze this document and extract structured data:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${documentContent}`;
+      userPrompt = `Analyze this document and extract structured data:\n\nDocument Name: ${documentName || 'Unknown'}\n\nContent:\n${processedContent}`;
     }
 
     // Call Lovable AI Gateway for analysis
