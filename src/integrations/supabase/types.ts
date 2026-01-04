@@ -2099,6 +2099,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_event_participant: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       announcement_priority: "urgent" | "high" | "normal" | "low"
