@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, Loader2, FileText, Image, FileSpreadsheet } from 'lucide-react';
+import { Download, Loader2, FileText, Image, FileSpreadsheet, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +15,9 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
   open: boolean;
@@ -33,9 +39,15 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [editValue, setEditValue] = useState('');
+  
+  // PDF state
+  const [numPages, setNumPages] = useState<number>(0);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [scale, setScale] = useState<number>(1.0);
 
   const isSpreadsheet = document?.file_name?.match(/\.(xlsx|xls|csv)$/i);
   const isImage = document?.file_type?.startsWith('image/');
@@ -46,7 +58,11 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
       loadFile();
     } else {
       setFileUrl(null);
+      setPdfData(null);
       setSpreadsheetData(null);
+      setPageNumber(1);
+      setNumPages(0);
+      setScale(1.0);
     }
   }, [open, document]);
 
@@ -77,10 +93,9 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
           setSpreadsheetData({ headers, rows });
         }
       } else if (isPDF) {
-        // Create blob URL with proper PDF MIME type for iframe
-        const pdfBlob = new Blob([data], { type: 'application/pdf' });
-        const url = URL.createObjectURL(pdfBlob);
-        setFileUrl(url + '#toolbar=1&navpanes=0');
+        // Store PDF as ArrayBuffer for react-pdf
+        const buffer = await data.arrayBuffer();
+        setPdfData(buffer);
       } else {
         // Create blob URL for preview
         const url = URL.createObjectURL(data);
@@ -145,6 +160,15 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
     }
   };
 
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+  };
+
+  const goToPrevPage = () => setPageNumber(prev => Math.max(prev - 1, 1));
+  const goToNextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages));
+  const zoomIn = () => setScale(prev => Math.min(prev + 0.25, 3));
+  const zoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col">
@@ -162,6 +186,11 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
               {isSpreadsheet && (
                 <Badge variant="secondary" className="text-xs">
                   {spreadsheetData?.rows.length || 0} rows × {spreadsheetData?.headers.length || 0} cols
+                </Badge>
+              )}
+              {isPDF && numPages > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {numPages} pages
                 </Badge>
               )}
             </div>
@@ -244,13 +273,46 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
                 style={{ maxHeight: 'none' }}
               />
             </div>
-          ) : isPDF && fileUrl ? (
-            // PDF preview
-            <iframe
-              src={fileUrl}
-              className="w-full h-full"
-              title={document?.file_name}
-            />
+          ) : isPDF && pdfData ? (
+            // PDF preview using react-pdf (canvas-based, no iframe)
+            <div className="h-full flex flex-col">
+              {/* PDF controls */}
+              <div className="flex items-center justify-center gap-4 py-2 border-b bg-muted/30">
+                <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={pageNumber <= 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm">
+                  Page {pageNumber} of {numPages}
+                </span>
+                <Button variant="outline" size="sm" onClick={goToNextPage} disabled={pageNumber >= numPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <div className="w-px h-6 bg-border mx-2" />
+                <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
+                <Button variant="outline" size="sm" onClick={zoomIn} disabled={scale >= 3}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* PDF pages with scroll */}
+              <div className="flex-1 overflow-auto flex justify-center p-4 bg-muted/20">
+                <Document
+                  file={pdfData}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  loading={<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />}
+                  error={<p className="text-destructive">Failed to load PDF</p>}
+                >
+                  <Page
+                    pageNumber={pageNumber}
+                    scale={scale}
+                    renderTextLayer={true}
+                    renderAnnotationLayer={true}
+                  />
+                </Document>
+              </div>
+            </div>
           ) : fileUrl ? (
             // Generic file preview
             <div className="flex flex-col items-center justify-center h-full gap-4">
