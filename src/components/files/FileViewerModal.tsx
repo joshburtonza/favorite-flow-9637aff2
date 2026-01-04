@@ -76,6 +76,11 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
           );
           setSpreadsheetData({ headers, rows });
         }
+      } else if (isPDF) {
+        // Create blob URL with proper PDF MIME type for iframe
+        const pdfBlob = new Blob([data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(pdfBlob);
+        setFileUrl(url + '#toolbar=1&navpanes=0');
       } else {
         // Create blob URL for preview
         const url = URL.createObjectURL(data);
