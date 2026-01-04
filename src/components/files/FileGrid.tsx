@@ -40,6 +40,7 @@ interface FileGridProps {
   onMoveDocument: (documentId: string, folderId: string | null) => void;
   onUpdateStatus: (documentId: string, status: 'new' | 'in_progress' | 'finalized') => void;
   onDeleteDocument?: (documentId: string) => void;
+  onOpenFile?: (document: Document) => void;
 }
 
 export function FileGrid({
@@ -49,6 +50,7 @@ export function FileGrid({
   onMoveDocument,
   onUpdateStatus,
   onDeleteDocument,
+  onOpenFile,
 }: FileGridProps) {
   const { toast } = useToast();
   const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
@@ -130,8 +132,9 @@ export function FileGrid({
             draggable
             onDragStart={(e) => handleDragStart(e, doc.id)}
             onDragEnd={handleDragEnd}
+            onClick={() => onOpenFile?.(doc)}
             className={cn(
-              "group relative p-4 rounded-lg border bg-card hover:shadow-md transition-all cursor-grab active:cursor-grabbing",
+              "group relative p-4 rounded-lg border bg-card hover:shadow-md transition-all cursor-pointer",
               draggedDocId === doc.id && "opacity-50 ring-2 ring-primary"
             )}
           >
@@ -231,8 +234,9 @@ export function FileGrid({
           draggable
           onDragStart={(e) => handleDragStart(e, doc.id)}
           onDragEnd={handleDragEnd}
+          onClick={() => onOpenFile?.(doc)}
           className={cn(
-            "flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 group cursor-grab active:cursor-grabbing",
+            "flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 group cursor-pointer",
             draggedDocId === doc.id && "opacity-50 ring-2 ring-primary"
           )}
         >
