@@ -209,18 +209,18 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
           ) : isSpreadsheet && spreadsheetData ? (
             // Spreadsheet view with full scroll
             <div className="h-full overflow-auto">
-              <table className="border-collapse min-w-max">
+              <table className="border-collapse w-full table-fixed">
                 <thead className="sticky top-0 z-10 bg-muted">
                   <tr>
-                    <th className="w-12 min-w-[48px] border-b border-r p-2 text-center text-xs font-medium text-muted-foreground sticky left-0 bg-muted z-20">
+                    <th className="w-10 min-w-[40px] border-b border-r p-2 text-center text-xs font-medium text-muted-foreground sticky left-0 bg-muted z-20">
                       #
                     </th>
                     {spreadsheetData.headers.map((header, i) => (
                       <th
                         key={i}
-                        className="border-b border-r p-2 text-left text-sm font-medium min-w-[120px]"
+                        className="border-b border-r p-2 text-left text-sm font-medium w-32 min-w-[80px] max-w-[200px]"
                       >
-                        {header}
+                        <div className="break-words whitespace-normal">{header}</div>
                       </th>
                     ))}
                   </tr>
@@ -228,29 +228,31 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
                 <tbody>
                   {spreadsheetData.rows.map((row, rowIndex) => (
                     <tr key={rowIndex} className="hover:bg-muted/30">
-                      <td className="border-b border-r p-2 text-center text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                      <td className="border-b border-r p-2 text-center text-xs text-muted-foreground sticky left-0 bg-background z-10 w-10">
                         {rowIndex + 1}
                       </td>
                       {row.map((cell, colIndex) => (
                         <td
                           key={colIndex}
                           className={cn(
-                            "border-b border-r p-0 h-10 min-w-[120px]",
+                            "border-b border-r p-0 min-h-[40px] w-32 min-w-[80px] max-w-[200px] align-top",
                             editingCell?.row === rowIndex && editingCell?.col === colIndex && "ring-2 ring-primary ring-inset"
                           )}
                           onClick={() => handleCellClick(rowIndex, colIndex, cell)}
                         >
                           {editingCell?.row === rowIndex && editingCell?.col === colIndex ? (
-                            <input
+                            <textarea
                               autoFocus
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onBlur={handleCellBlur}
-                              onKeyDown={handleKeyDown}
-                              className="w-full h-full px-2 bg-background outline-none"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              className="w-full min-h-[40px] px-2 py-1 bg-background outline-none resize-none text-sm"
                             />
                           ) : (
-                            <div className="px-2 py-2 text-sm truncate cursor-pointer">
+                            <div className="px-2 py-1 text-sm break-words whitespace-normal cursor-pointer min-h-[32px]">
                               {cell}
                             </div>
                           )}
