@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useDocumentFolders, useFolderDocuments } from '@/hooks/useDocumentFolders';
 import { FolderTree } from '@/components/files/FolderTree';
 import { FileGrid } from '@/components/files/FileGrid';
+import { FileViewerModal } from '@/components/files/FileViewerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,6 +19,12 @@ export default function FileBrowser() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<{
+    id: string;
+    file_name: string;
+    file_path: string;
+    file_type: string | null;
+  } | null>(null);
 
   const {
     folders,
@@ -242,11 +249,19 @@ export default function FileBrowser() {
                 viewMode={viewMode}
                 onMoveDocument={(docId, folderId) => moveDocument.mutate({ documentId: docId, folderId })}
                 onUpdateStatus={(docId, status) => updateDocumentStatus.mutate({ documentId: docId, status })}
+                onOpenFile={(doc) => setSelectedDocument(doc)}
               />
             )}
           </ScrollArea>
         </div>
       </div>
+
+      {/* File Viewer Modal */}
+      <FileViewerModal
+        open={!!selectedDocument}
+        onOpenChange={(open) => !open && setSelectedDocument(null)}
+        document={selectedDocument}
+      />
     </AppLayout>
   );
 }
