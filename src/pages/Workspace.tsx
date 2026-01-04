@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useDocumentFolders } from '@/hooks/useDocumentFolders';
 import { supabase } from '@/integrations/supabase/client';
+import { usePDFExtraction } from '@/hooks/usePDFExtraction';
 
 export default function Workspace() {
   const queryClient = useQueryClient();
@@ -58,8 +59,12 @@ export default function Workspace() {
   const [expandedSaveFolders, setExpandedSaveFolders] = useState<Set<string>>(new Set());
   // New table from CSV import (batch support)
   const [importAsNewTableDialog, setImportAsNewTableDialog] = useState(false);
-  const [batchImportData, setBatchImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string }[]>([]);
+  const [batchImportData, setBatchImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string; confidence?: string; documentType?: string; summary?: string }[]>([]);
   const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
+  
+  // PDF import
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+  const { extractMultiplePDFs, isExtracting } = usePDFExtraction();
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
 
@@ -270,6 +275,25 @@ export default function Workspace() {
     
     setBatchImportData(parsedFiles);
     setImportAsNewTableDialog(true);
+    e.target.value = '';
+  };
+
+  // Handle PDF file upload with AI extraction
+  const handlePDFFileClick = () => {
+    pdfFileInputRef.current?.click();
+  };
+
+  const handlePDFFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const extractedData = await extractMultiplePDFs(Array.from(files));
+    
+    if (extractedData.length > 0) {
+      setBatchImportData(extractedData);
+      setImportAsNewTableDialog(true);
+    }
+    
     e.target.value = '';
   };
 
@@ -518,6 +542,16 @@ export default function Workspace() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
+                title="Import PDF with AI extraction"
+                onClick={handlePDFFileClick}
+                disabled={isExtracting}
+              >
+                {isExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
                 title="Import CSV as new table"
                 onClick={handleNewTableFileClick}
               >
@@ -534,6 +568,15 @@ export default function Workspace() {
               </Button>
             </div>
           </div>
+          {/* Hidden file inputs */}
+          <input
+            ref={pdfFileInputRef}
+            type="file"
+            accept=".pdf,.PDF"
+            multiple
+            className="hidden"
+            onChange={handlePDFFileSelect}
+          />
           {/* Hidden file input - now supports multiple files */}
           <input
             ref={newTableFileInputRef}
@@ -1132,11 +1175,11 @@ export default function Workspace() {
         </DialogContent>
       </Dialog>
 
-      {/* Import as New Table(s) Dialog - Batch Support */}
+      {/* Import as New Table(s) Dialog - Batch Support for CSV and PDF */}
       <Dialog open={importAsNewTableDialog} onOpenChange={setImportAsNewTableDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Import CSV as New Table{batchImportData.length > 1 ? 's' : ''}</DialogTitle>
+            <DialogTitle>Import as New Table{batchImportData.length > 1 ? 's' : ''}</DialogTitle>
             <DialogDescription>
               {batchImportData.length > 1 
                 ? `Create ${batchImportData.length} new tables from the imported files`
@@ -1153,10 +1196,29 @@ export default function Workspace() {
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     <span className="font-medium">{importData.fileName}</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {importData.headers.length} columns, {importData.rows.length} rows
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {importData.confidence && (
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full",
+                        importData.confidence === 'high' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        importData.confidence === 'medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      )}>
+                        {importData.confidence} confidence
+                      </span>
+                    )}
+                    <span className="text-sm text-muted-foreground">
+                      {importData.headers.length} columns, {importData.rows.length} rows
+                    </span>
+                  </div>
                 </div>
+                
+                {importData.documentType && (
+                  <p className="text-xs text-muted-foreground">
+                    Document type: <span className="font-medium">{importData.documentType}</span>
+                    {importData.summary && ` — ${importData.summary.substring(0, 100)}${importData.summary.length > 100 ? '...' : ''}`}
+                  </p>
+                )}
                 
                 <div className="max-h-[150px] overflow-auto border rounded-md">
                   <table className="w-full text-sm">
