@@ -56,10 +56,9 @@ export default function Workspace() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [expandedSaveFolders, setExpandedSaveFolders] = useState<Set<string>>(new Set());
-  // New table from CSV import
+  // New table from CSV import (batch support)
   const [importAsNewTableDialog, setImportAsNewTableDialog] = useState(false);
-  const [newTableImportData, setNewTableImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string } | null>(null);
-  const [newTableFromImportName, setNewTableFromImportName] = useState('');
+  const [batchImportData, setBatchImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string }[]>([]);
   const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
@@ -251,100 +250,110 @@ export default function Workspace() {
     setImportData(null);
   };
 
-  // Handle importing CSV as a new table
+  // Handle importing CSV as new table(s) - supports batch upload
   const handleNewTableFileClick = () => {
     newTableFileInputRef.current?.click();
   };
 
-  const handleNewTableFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleNewTableFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
+    const parsedFiles: { headers: string[]; rows: string[][]; fileName: string }[] = [];
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
+    for (const file of Array.from(files)) {
+      const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
+      const text = await file.text();
       const parsed = parseCSV(text);
-      setNewTableImportData({ ...parsed, fileName });
-      setNewTableFromImportName(fileName);
-      setImportAsNewTableDialog(true);
-    };
-    reader.readAsText(file);
+      parsedFiles.push({ ...parsed, fileName });
+    }
+    
+    setBatchImportData(parsedFiles);
+    setImportAsNewTableDialog(true);
     e.target.value = '';
   };
 
   const handleCreateTableFromImport = async () => {
-    if (!newTableImportData || !newTableFromImportName.trim()) return;
+    if (batchImportData.length === 0) return;
     
     setIsCreatingTableFromImport(true);
+    let createdCount = 0;
+    let lastTableId: string | null = null;
+    
     try {
-      // Create the table
       const { data: user } = await supabase.auth.getUser();
-      const { data: newTable, error: tableError } = await supabase
-        .from('custom_tables')
-        .insert({
-          name: newTableFromImportName.trim(),
-          description: `Imported from ${newTableImportData.fileName}`,
-          icon: 'table',
-          created_by: user.user?.id,
-        })
-        .select()
-        .single();
       
-      if (tableError) throw tableError;
-
-      // Create columns from headers
-      const columnInserts = newTableImportData.headers.map((header, index) => ({
-        table_id: newTable.id,
-        name: header.trim() || `Column ${index + 1}`,
-        column_type: 'text' as const,
-        order_position: index,
-      }));
-
-      const { data: createdColumns, error: colError } = await supabase
-        .from('custom_columns')
-        .insert(columnInserts)
-        .select();
-      
-      if (colError) throw colError;
-
-      // Create rows with data mapped to column IDs
-      if (newTableImportData.rows.length > 0 && createdColumns) {
-        const rowInserts = newTableImportData.rows.map(rowData => {
-          const data: Record<string, any> = {};
-          createdColumns.forEach((col, i) => {
-            data[col.id] = rowData[i] ?? '';
-          });
-          return {
-            table_id: newTable.id,
-            data,
+      for (const importData of batchImportData) {
+        // Create the table using the file name
+        const { data: newTable, error: tableError } = await supabase
+          .from('custom_tables')
+          .insert({
+            name: importData.fileName.trim(),
+            description: `Imported from ${importData.fileName}`,
+            icon: 'table',
             created_by: user.user?.id,
-          };
-        });
-
-        const { error: rowError } = await supabase
-          .from('custom_rows')
-          .insert(rowInserts);
+          })
+          .select()
+          .single();
         
-        if (rowError) throw rowError;
+        if (tableError) throw tableError;
+
+        // Create columns from headers
+        const columnInserts = importData.headers.map((header, index) => ({
+          table_id: newTable.id,
+          name: header.trim() || `Column ${index + 1}`,
+          column_type: 'text' as const,
+          order_position: index,
+        }));
+
+        const { data: createdColumns, error: colError } = await supabase
+          .from('custom_columns')
+          .insert(columnInserts)
+          .select();
+        
+        if (colError) throw colError;
+
+        // Create rows with data mapped to column IDs
+        if (importData.rows.length > 0 && createdColumns) {
+          const rowInserts = importData.rows.map(rowData => {
+            const data: Record<string, any> = {};
+            createdColumns.forEach((col, i) => {
+              data[col.id] = rowData[i] ?? '';
+            });
+            return {
+              table_id: newTable.id,
+              data,
+              created_by: user.user?.id,
+            };
+          });
+
+          const { error: rowError } = await supabase
+            .from('custom_rows')
+            .insert(rowInserts);
+          
+          if (rowError) throw rowError;
+        }
+        
+        createdCount++;
+        lastTableId = newTable.id;
       }
 
       toast({ 
-        title: 'Table created from import', 
-        description: `${newTableFromImportName} created with ${newTableImportData.headers.length} columns and ${newTableImportData.rows.length} rows` 
+        title: 'Import complete', 
+        description: `Created ${createdCount} table${createdCount > 1 ? 's' : ''} from CSV files` 
       });
 
       // Invalidate queries to refresh the table list
       await queryClient.invalidateQueries({ queryKey: ['custom-tables'] });
       
-      setSelectedTableId(newTable.id);
+      if (lastTableId) {
+        setSelectedTableId(lastTableId);
+      }
       setImportAsNewTableDialog(false);
-      setNewTableImportData(null);
-      setNewTableFromImportName('');
+      setBatchImportData([]);
     } catch (error: any) {
       toast({ 
-        title: 'Error creating table', 
+        title: 'Error creating tables', 
         description: error.message, 
         variant: 'destructive' 
       });
@@ -525,11 +534,12 @@ export default function Workspace() {
               </Button>
             </div>
           </div>
-          {/* Hidden file inputs */}
+          {/* Hidden file input - now supports multiple files */}
           <input
             ref={newTableFileInputRef}
             type="file"
             accept=".csv,.xlsx,.xls,.tsv"
+            multiple
             className="hidden"
             onChange={handleNewTableFileSelect}
           />
@@ -1122,65 +1132,71 @@ export default function Workspace() {
         </DialogContent>
       </Dialog>
 
-      {/* Import as New Table Dialog */}
+      {/* Import as New Table(s) Dialog - Batch Support */}
       <Dialog open={importAsNewTableDialog} onOpenChange={setImportAsNewTableDialog}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create Table from Import</DialogTitle>
+            <DialogTitle>Import CSV as New Table{batchImportData.length > 1 ? 's' : ''}</DialogTitle>
             <DialogDescription>
-              Create a new table with the imported data
+              {batchImportData.length > 1 
+                ? `Create ${batchImportData.length} new tables from the imported files`
+                : 'Create a new table with the imported data'
+              }
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div>
-              <Label>Table Name</Label>
-              <Input
-                placeholder="e.g., Imported Data"
-                value={newTableFromImportName}
-                onChange={(e) => setNewTableFromImportName(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            
-            {newTableImportData && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span>{newTableImportData.headers.length} columns, {newTableImportData.rows.length} rows</span>
+          <div className="space-y-4 max-h-[60vh] overflow-auto">
+            {batchImportData.map((importData, index) => (
+              <div key={index} className="space-y-2 p-3 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-primary" />
+                    <span className="font-medium">{importData.fileName}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {importData.headers.length} columns, {importData.rows.length} rows
+                  </span>
                 </div>
                 
-                <div className="max-h-[300px] overflow-auto border rounded-md">
+                <div className="max-h-[150px] overflow-auto border rounded-md">
                   <table className="w-full text-sm">
                     <thead className="bg-muted sticky top-0">
                       <tr>
-                        {newTableImportData.headers.map((header, i) => (
-                          <th key={i} className="px-3 py-2 text-left font-medium border-b">
-                            {header || `Column ${i + 1}`}
+                        {importData.headers.slice(0, 5).map((header, i) => (
+                          <th key={i} className="px-2 py-1 text-left font-medium border-b text-xs">
+                            {header || `Col ${i + 1}`}
                           </th>
                         ))}
+                        {importData.headers.length > 5 && (
+                          <th className="px-2 py-1 text-left font-medium border-b text-xs text-muted-foreground">
+                            +{importData.headers.length - 5} more
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
-                      {newTableImportData.rows.slice(0, 5).map((row, i) => (
+                      {importData.rows.slice(0, 3).map((row, i) => (
                         <tr key={i} className="border-b">
-                          {row.map((cell, j) => (
-                            <td key={j} className="px-3 py-2 truncate max-w-[200px]">
+                          {row.slice(0, 5).map((cell, j) => (
+                            <td key={j} className="px-2 py-1 truncate max-w-[100px] text-xs">
                               {cell}
                             </td>
                           ))}
+                          {row.length > 5 && (
+                            <td className="px-2 py-1 text-xs text-muted-foreground">...</td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {newTableImportData.rows.length > 5 && (
-                    <div className="p-2 text-center text-muted-foreground text-sm bg-muted/50">
-                      ... and {newTableImportData.rows.length - 5} more rows
+                  {importData.rows.length > 3 && (
+                    <div className="p-1 text-center text-muted-foreground text-xs bg-muted/50">
+                      ... +{importData.rows.length - 3} more rows
                     </div>
                   )}
                 </div>
               </div>
-            )}
+            ))}
           </div>
           
           <DialogFooter>
@@ -1188,17 +1204,19 @@ export default function Workspace() {
               variant="outline" 
               onClick={() => {
                 setImportAsNewTableDialog(false);
-                setNewTableImportData(null);
-                setNewTableFromImportName('');
+                setBatchImportData([]);
               }}
             >
               Cancel
             </Button>
             <Button 
               onClick={handleCreateTableFromImport} 
-              disabled={isCreatingTableFromImport || !newTableFromImportName.trim()}
+              disabled={isCreatingTableFromImport || batchImportData.length === 0}
             >
-              {isCreatingTableFromImport ? 'Creating...' : `Create Table with ${newTableImportData?.rows.length || 0} Rows`}
+              {isCreatingTableFromImport 
+                ? 'Creating...' 
+                : `Create ${batchImportData.length} Table${batchImportData.length > 1 ? 's' : ''}`
+              }
             </Button>
           </DialogFooter>
         </DialogContent>
