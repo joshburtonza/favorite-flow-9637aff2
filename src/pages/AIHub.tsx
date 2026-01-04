@@ -1063,10 +1063,6 @@ const AIHub = () => {
         )}
       </div>
 
-      {/* Floating AI Button */}
-      <div className="ai-fab" onClick={() => setActiveTab('query')}>
-        <Wand2 className="h-6 w-6" />
-      </div>
     </AppLayout>
   );
 };
