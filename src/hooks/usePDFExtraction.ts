@@ -99,16 +99,45 @@ async function parseExcelFile(file: File): Promise<ExtractedTableData> {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  const jsonData = XLSX.utils.sheet_to_json<string[]>(worksheet, { header: 1 });
+  const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
   
-  if (jsonData.length === 0) {
+  if (!jsonData || jsonData.length === 0) {
     throw new Error('Excel file is empty');
   }
   
-  const headers = (jsonData[0] as string[]).map(h => String(h || 'Column'));
-  const rows = jsonData.slice(1).map(row => 
-    headers.map((_, i) => String((row as any)[i] ?? ''))
-  );
+  // Find first non-empty row as headers
+  let headerRowIndex = 0;
+  for (let i = 0; i < jsonData.length; i++) {
+    const row = jsonData[i];
+    if (Array.isArray(row) && row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+  
+  const headerRow = jsonData[headerRowIndex] || [];
+  const headers = headerRow.map((h: any, idx: number) => {
+    const val = h !== null && h !== undefined ? String(h).trim() : '';
+    return val || `Column ${idx + 1}`;
+  });
+  
+  // Filter out completely empty rows and ensure all rows have proper length
+  const rows: string[][] = [];
+  for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+    const row = jsonData[i];
+    if (!Array.isArray(row)) continue;
+    
+    // Check if row has any non-empty values
+    const hasContent = row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '');
+    if (!hasContent) continue;
+    
+    // Map row to headers length
+    const mappedRow = headers.map((_, colIdx) => {
+      const cell = row[colIdx];
+      return cell !== null && cell !== undefined ? String(cell) : '';
+    });
+    rows.push(mappedRow);
+  }
   
   const cleanFileName = file.name.replace(/\.(xlsx|xls)$/i, '');
   
