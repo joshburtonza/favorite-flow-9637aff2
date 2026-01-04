@@ -346,14 +346,17 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
               </div>
               {/* Scrollable table container */}
               <div className="flex-1 overflow-auto">
-                <table 
-                  ref={tableRef}
-                  className="border-collapse"
-                  style={{ 
-                    fontSize: `${spreadsheetZoom}%`,
-                    minWidth: 'max-content'
-                  }}
-                >
+                <div style={{ 
+                  width: `${100 * (spreadsheetZoom / 100)}%`,
+                  transformOrigin: 'top left'
+                }}>
+                  <table 
+                    ref={tableRef}
+                    className="border-collapse w-full"
+                    style={{ 
+                      fontSize: `${14 * (spreadsheetZoom / 100)}px`,
+                    }}
+                  >
                   <thead className="sticky top-0 z-10 bg-muted">
                     <tr>
                       <th 
@@ -424,6 +427,7 @@ export function FileViewerModal({ open, onOpenChange, document }: FileViewerModa
                 </table>
               </div>
             </div>
+          </div>
           ) : isImage && fileUrl ? (
             // Image preview with scroll
             <div className="h-full overflow-auto flex items-center justify-center p-4 bg-muted/20">

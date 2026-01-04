@@ -281,9 +281,11 @@ export default function Messages() {
                   </Avatar>
                   <div>
                     <h2 className="font-semibold">{getConversationName(selectedConversation)}</h2>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedConversation.participants?.length || 0} participant(s)
-                    </p>
+                    {selectedConversation.type === 'group' && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedConversation.participants?.length || 0} members
+                      </p>
+                    )}
                   </div>
                 </div>
 
