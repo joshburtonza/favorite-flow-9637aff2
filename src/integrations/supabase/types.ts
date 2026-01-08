@@ -677,6 +677,44 @@ export type Database = {
         }
         Relationships: []
       }
+      document_chunks: {
+        Row: {
+          chunk_index: number | null
+          content: string
+          created_at: string | null
+          document_id: string | null
+          embedding: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          chunk_index?: number | null
+          content: string
+          created_at?: string | null
+          document_id?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          chunk_index?: number | null
+          content?: string
+          created_at?: string | null
+          document_id?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_folders: {
         Row: {
           assigned_staff_id: string | null
@@ -2122,6 +2160,21 @@ export type Database = {
       is_event_participant: {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
+      }
+      match_documents: {
+        Args: {
+          filter_department_id?: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
       }
     }
     Enums: {
