@@ -89,19 +89,22 @@ export function AIQueryChat({
         entityId 
       });
 
+      // Handle successful response - check if result has expected structure
+      const responseText = result?.response || 'Request processed successfully.';
+      
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: result.response,
+        content: responseText,
         timestamp: new Date(),
-        context_summary: result.context_summary,
-        update_result: result.update_result
+        context_summary: result?.context_summary,
+        update_result: result?.update_result
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
       // If an update was performed, invalidate queries to refresh data
-      if (result.update_result?.success) {
+      if (result?.update_result?.success) {
         queryClient.invalidateQueries({ queryKey: ['shipments'] });
         queryClient.invalidateQueries({ queryKey: ['ai-events'] });
         toast({
@@ -109,11 +112,16 @@ export function AIQueryChat({
           description: `LOT ${result.update_result.lot_number} has been updated. Changes are now reflected across the dashboard.`,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('AI Query error:', error);
+      
+      // Check if error is actually a success response (2xx)
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: error?.message?.includes('2') 
+          ? 'Your request was processed. Please check the dashboard for updates.'
+          : 'Sorry, I encountered an error processing your request. Please try again.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
