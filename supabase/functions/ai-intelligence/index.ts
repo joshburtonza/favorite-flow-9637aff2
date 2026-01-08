@@ -701,12 +701,68 @@ serve(async (req) => {
       );
     }
 
-    // Action: AI Query with full system awareness (READ + WRITE)
+    // Action: AI Query with full system awareness (READ + WRITE + FILE SEARCH)
     if (action === 'query') {
       console.log(`Processing AI query: ${query}`);
 
       // Fetch comprehensive system context
       const context = await fetchSystemContext(supabase, entityType, entityId);
+
+      // Check if this is a file search query
+      const fileSearchTerms = ['find', 'search', 'show me', 'get', 'look for', 'where is', 'locate'];
+      const fileKeywords = ['file', 'document', 'invoice', 'pdf', 'excel', 'spreadsheet', 'transport', 'clearing', 'bol', 'bill of lading', 'packing list'];
+      const queryLower = query.toLowerCase();
+      
+      const isFileSearch = fileSearchTerms.some(term => queryLower.includes(term)) && 
+                           fileKeywords.some(keyword => queryLower.includes(keyword));
+      
+      // Extract lot number if mentioned
+      const lotMatch = queryLower.match(/lot\s*(\d+)/i);
+      const lotNumber = lotMatch ? lotMatch[1] : null;
+
+      let fileResults: any[] = [];
+      
+      if (isFileSearch || lotNumber) {
+        // Perform file search
+        let searchQuery = supabase
+          .from('uploaded_documents')
+          .select('id, file_name, file_path, file_type, lot_number, document_type, ai_classification, folder_id')
+          .order('uploaded_at', { ascending: false })
+          .limit(10);
+        
+        if (lotNumber) {
+          searchQuery = searchQuery.ilike('lot_number', `%${lotNumber}%`);
+        } else {
+          // Search by document type or file name
+          const searchTerms: string[] = [];
+          if (queryLower.includes('invoice')) searchTerms.push('invoice');
+          if (queryLower.includes('transport')) searchTerms.push('transport');
+          if (queryLower.includes('clearing')) searchTerms.push('clearing');
+          if (queryLower.includes('bol') || queryLower.includes('bill of lading')) searchTerms.push('bill_of_lading');
+          if (queryLower.includes('packing')) searchTerms.push('packing_list');
+          if (queryLower.includes('telex')) searchTerms.push('telex');
+          
+          if (searchTerms.length > 0) {
+            const orConditions = searchTerms.map(term => 
+              `ai_classification.ilike.%${term}%,document_type.ilike.%${term}%,file_name.ilike.%${term}%`
+            ).join(',');
+            searchQuery = searchQuery.or(orConditions);
+          }
+        }
+        
+        const { data: files } = await searchQuery;
+        if (files && files.length > 0) {
+          fileResults = files.map(f => ({
+            id: f.id,
+            file_name: f.file_name,
+            file_path: f.file_path,
+            file_type: f.file_type,
+            lot_number: f.lot_number,
+            document_type: f.ai_classification || f.document_type,
+            folder_id: f.folder_id
+          }));
+        }
+      }
 
       // Enhanced system prompt that allows write operations
       const enhancedPrompt = getSystemAwarenessPrompt(context) + `
@@ -728,12 +784,19 @@ For UPDATE requests, respond with JSON in this format:
 }
 \`\`\`
 
+## FILE SEARCH:
+When users ask to find or search for files/documents:
+- Search the documents database for matching files
+- Return file names and relevant details
+- If files are found, they will be displayed as clickable cards
+
 For READ requests, respond naturally with the information.
 
 IMPORTANT: 
 - status values: pending, in-transit, documents-submitted, completed
 - Always confirm the update in your response
-- Be helpful and proactive`;
+- Be helpful and proactive
+- When files are found, acknowledge them in your response`;
 
       const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
@@ -745,7 +808,10 @@ IMPORTANT:
           model: 'deepseek-chat',
           messages: [
             { role: 'system', content: enhancedPrompt },
-            { role: 'user', content: query }
+            { role: 'user', content: fileResults.length > 0 
+              ? `${query}\n\n[System: Found ${fileResults.length} matching files: ${fileResults.map(f => f.file_name).join(', ')}]`
+              : query 
+            }
           ],
         }),
       });
@@ -830,11 +896,17 @@ IMPORTANT:
         event_type: 'ai_query',
         entity_type: entityType || 'system',
         entity_id: entityId,
-        metadata: { query, response_length: response.length, had_update: !!updateResult }
+        metadata: { query, response_length: response.length, had_update: !!updateResult, files_found: fileResults.length }
       });
 
       return new Response(
-        JSON.stringify({ success: true, response, context_summary: context.totals, update_result: updateResult }),
+        JSON.stringify({ 
+          success: true, 
+          response, 
+          context_summary: context.totals, 
+          update_result: updateResult,
+          file_results: fileResults.length > 0 ? fileResults : undefined
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
