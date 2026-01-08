@@ -682,6 +682,7 @@ export type Database = {
           assigned_staff_id: string | null
           created_at: string
           created_by: string | null
+          department_id: string | null
           folder_type: Database["public"]["Enums"]["folder_type"]
           id: string
           name: string
@@ -693,6 +694,7 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
           folder_type?: Database["public"]["Enums"]["folder_type"]
           id?: string
           name: string
@@ -704,6 +706,7 @@ export type Database = {
           assigned_staff_id?: string | null
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
           folder_type?: Database["public"]["Enums"]["folder_type"]
           id?: string
           name?: string
@@ -712,6 +715,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "document_folders_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_folders_parent_id_fkey"
             columns: ["parent_id"]
@@ -1803,6 +1813,7 @@ export type Database = {
           auto_route_enabled: boolean | null
           client_name: string | null
           corrected_fields: string[] | null
+          department_id: string | null
           destination_folder: string | null
           document_type: string | null
           extracted_data: Json | null
@@ -1847,6 +1858,7 @@ export type Database = {
           auto_route_enabled?: boolean | null
           client_name?: string | null
           corrected_fields?: string[] | null
+          department_id?: string | null
           destination_folder?: string | null
           document_type?: string | null
           extracted_data?: Json | null
@@ -1893,6 +1905,7 @@ export type Database = {
           auto_route_enabled?: boolean | null
           client_name?: string | null
           corrected_fields?: string[] | null
+          department_id?: string | null
           destination_folder?: string | null
           document_type?: string | null
           extracted_data?: Json | null
@@ -1930,6 +1943,13 @@ export type Database = {
             | null
         }
         Relationships: [
+          {
+            foreignKeyName: "uploaded_documents_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "uploaded_documents_folder_id_fkey"
             columns: ["folder_id"]
