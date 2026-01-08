@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type, Bold, Italic, Underline, Link2, Palette } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type, Bold, Italic, Underline, Link2, Palette, ZoomIn, ZoomOut, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
+
+// Cell selection interface
+interface CellSelection {
+  start: { row: number; col: number };
+  end: { row: number; col: number };
+}
+
+// Sort state interface
+interface SortState {
+  columnId: string;
+  direction: 'asc' | 'desc';
+}
 
 interface SpreadsheetGridProps {
   columns: CustomColumn[];
@@ -53,6 +66,9 @@ const FONT_SIZE_CLASSES: Record<FontSize, string> = {
   lg: 'text-lg',
 };
 
+// Zoom steps from 50% to 200%
+const ZOOM_LEVELS = [50, 75, 100, 125, 150, 175, 200];
+
 export function SpreadsheetGrid({
   columns,
   rows,
@@ -77,6 +93,165 @@ export function SpreadsheetGrid({
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
   const [resizeStartX, setResizeStartX] = useState(0);
   const [resizeStartWidth, setResizeStartWidth] = useState(0);
+
+  // Zoom state - persist to localStorage
+  const [zoom, setZoom] = useState(() => {
+    const saved = localStorage.getItem('spreadsheet-zoom');
+    return saved ? parseInt(saved) : 100;
+  });
+
+  // Multi-cell selection state
+  const [selection, setSelection] = useState<CellSelection | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+
+  // Sorting state
+  const [sortState, setSortState] = useState<SortState | null>(null);
+
+  // Highlighted cells (from AI or conditional)
+  const [highlightedCells, setHighlightedCells] = useState<Set<string>>(new Set());
+
+  // Persist zoom
+  useEffect(() => {
+    localStorage.setItem('spreadsheet-zoom', zoom.toString());
+  }, [zoom]);
+
+  // Get sorted rows
+  const sortedRows = React.useMemo(() => {
+    if (!sortState) return rows;
+    
+    const column = columns.find(c => c.id === sortState.columnId);
+    if (!column) return rows;
+
+    return [...rows].sort((a, b) => {
+      const aVal = a.data[sortState.columnId];
+      const bVal = b.data[sortState.columnId];
+
+      // Handle numeric types
+      if (column.column_type === 'number' || column.column_type === 'currency') {
+        const aNum = parseFloat(aVal) || 0;
+        const bNum = parseFloat(bVal) || 0;
+        return sortState.direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      // Handle date types
+      if (column.column_type === 'date') {
+        const aDate = new Date(aVal || 0).getTime();
+        const bDate = new Date(bVal || 0).getTime();
+        return sortState.direction === 'asc' ? aDate - bDate : bDate - aDate;
+      }
+
+      // Default string comparison
+      const aStr = String(aVal || '').toLowerCase();
+      const bStr = String(bVal || '').toLowerCase();
+      if (sortState.direction === 'asc') {
+        return aStr.localeCompare(bStr);
+      }
+      return bStr.localeCompare(aStr);
+    });
+  }, [rows, sortState, columns]);
+
+  // Calculate selection stats
+  const selectionStats = React.useMemo(() => {
+    if (!selection) return null;
+
+    const minRow = Math.min(selection.start.row, selection.end.row);
+    const maxRow = Math.max(selection.start.row, selection.end.row);
+    const minCol = Math.min(selection.start.col, selection.end.col);
+    const maxCol = Math.max(selection.start.col, selection.end.col);
+
+    let count = 0;
+    let sum = 0;
+    let hasNumbers = false;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        count++;
+        const row = sortedRows[r];
+        const col = columns[c];
+        if (row && col) {
+          const val = parseFloat(row.data[col.id]);
+          if (!isNaN(val)) {
+            sum += val;
+            hasNumbers = true;
+          }
+        }
+      }
+    }
+
+    return { count, sum: hasNumbers ? sum : undefined, avg: hasNumbers ? sum / count : undefined };
+  }, [selection, sortedRows, columns]);
+
+  // Handle zoom
+  const handleZoomIn = () => {
+    const currentIndex = ZOOM_LEVELS.indexOf(zoom);
+    if (currentIndex < ZOOM_LEVELS.length - 1) {
+      setZoom(ZOOM_LEVELS[currentIndex + 1]);
+    }
+  };
+
+  const handleZoomOut = () => {
+    const currentIndex = ZOOM_LEVELS.indexOf(zoom);
+    if (currentIndex > 0) {
+      setZoom(ZOOM_LEVELS[currentIndex - 1]);
+    }
+  };
+
+  const handleZoomReset = () => setZoom(100);
+
+  // Handle column header click for sorting
+  const handleColumnHeaderClick = (columnId: string) => {
+    setSortState(prev => {
+      if (prev?.columnId !== columnId) {
+        return { columnId, direction: 'asc' };
+      }
+      if (prev.direction === 'asc') {
+        return { columnId, direction: 'desc' };
+      }
+      return null; // Third click removes sort
+    });
+  };
+
+  // Cell selection helpers
+  const isCellSelected = (rowIndex: number, colIndex: number): boolean => {
+    if (!selection) return false;
+    const minRow = Math.min(selection.start.row, selection.end.row);
+    const maxRow = Math.max(selection.start.row, selection.end.row);
+    const minCol = Math.min(selection.start.col, selection.end.col);
+    const maxCol = Math.max(selection.start.col, selection.end.col);
+    return rowIndex >= minRow && rowIndex <= maxRow && colIndex >= minCol && colIndex <= maxCol;
+  };
+
+  const isActiveCell = (rowIndex: number, colIndex: number): boolean => {
+    return activeCell?.row === rowIndex && activeCell?.col === colIndex;
+  };
+
+  const handleCellMouseDown = (rowIndex: number, colIndex: number, e: React.MouseEvent) => {
+    if (e.shiftKey && activeCell) {
+      // Extend selection from active cell
+      setSelection({ start: activeCell, end: { row: rowIndex, col: colIndex } });
+    } else {
+      // Start new selection
+      setSelection({ start: { row: rowIndex, col: colIndex }, end: { row: rowIndex, col: colIndex } });
+      setActiveCell({ row: rowIndex, col: colIndex });
+      setIsSelecting(true);
+    }
+  };
+
+  const handleCellMouseEnter = (rowIndex: number, colIndex: number) => {
+    if (isSelecting && selection) {
+      setSelection(prev => prev ? { ...prev, end: { row: rowIndex, col: colIndex } } : null);
+    }
+  };
+
+  const handleMouseUp = useCallback(() => {
+    setIsSelecting(false);
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [handleMouseUp]);
 
   const handleResizeStart = (e: React.MouseEvent, columnId: string, currentWidth: number) => {
     e.preventDefault();
@@ -731,13 +906,54 @@ export function SpreadsheetGrid({
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Formula reference hint */}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
-          <Link2 className="h-3 w-3" />
-          <span>=A1+B1 | SUM(A1:A10) | =Table.A1</span>
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} disabled={zoom <= 50}>
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Zoom Out</TooltipContent>
+          </Tooltip>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 px-2 font-mono text-xs min-w-[50px]"
+            onClick={handleZoomReset}
+          >
+            {zoom}%
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} disabled={zoom >= 200}>
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Zoom In</TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="flex-1" />
+
+        {/* Selection Stats */}
+        {selectionStats && selectionStats.count > 1 && (
+          <div className="flex items-center gap-2 mr-2">
+            <Badge variant="secondary" className="text-xs">
+              {selectionStats.count} cells
+            </Badge>
+            {selectionStats.sum !== undefined && (
+              <Badge variant="outline" className="text-xs font-mono">
+                Σ {selectionStats.sum.toLocaleString()}
+              </Badge>
+            )}
+            {selectionStats.avg !== undefined && (
+              <Badge variant="outline" className="text-xs font-mono">
+                Avg {selectionStats.avg.toFixed(2)}
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* Formula Bar */}
         {editingCell && (
@@ -771,129 +987,161 @@ export function SpreadsheetGrid({
             overscrollBehavior: 'contain',
           }}
         >
-          <table className="border-collapse w-max table-fixed" style={{ minWidth: '100%' }}>
+          <table 
+            className="border-collapse w-max table-fixed" 
+            style={{ 
+              minWidth: '100%',
+              fontSize: `${14 * (zoom / 100)}px`,
+            }}
+          >
             <thead className="sticky top-0 z-20 bg-background">
               <tr className="bg-muted/50">
                 <th className="w-10 min-w-[40px] border-b border-r p-0 sticky left-0 bg-muted/50 z-30" />
-            {columns.map((column) => (
-              <th
-                key={column.id}
-                className="border-b border-r text-left font-medium text-sm relative group/header"
-                style={{ width: column.width, minWidth: column.width }}
-              >
-                <div className="flex items-center px-3 py-2 group gap-2">
-                  {getColumnIcon(column)}
-                  <span className="flex-1 truncate">{column.name}</span>
-                  <ColumnSettingsPopover column={column} />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                    onClick={() => onDeleteColumn(column.id)}
+                {columns.map((column, colIndex) => (
+                  <th
+                    key={column.id}
+                    className="border-b border-r text-left font-medium text-sm relative group/header cursor-pointer select-none"
+                    style={{ width: column.width * (zoom / 100), minWidth: column.width * (zoom / 100) }}
+                    onClick={() => handleColumnHeaderClick(column.id)}
                   >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                </div>
-                {/* Resize handle */}
-                <div
-                  className={cn(
-                    "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
-                    resizingColumn === column.id && "bg-primary"
+                    <div className="flex items-center px-3 py-2 group gap-2">
+                      {getColumnIcon(column)}
+                      <span className="flex-1 truncate">{column.name}</span>
+                      {/* Sort indicator */}
+                      {sortState?.columnId === column.id && (
+                        <span className="text-primary">
+                          {sortState.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                        </span>
+                      )}
+                      {sortState?.columnId !== column.id && (
+                        <ArrowUpDown className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover/header:opacity-100" />
+                      )}
+                      <ColumnSettingsPopover column={column} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); onDeleteColumn(column.id); }}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                    {/* Resize handle */}
+                    <div
+                      className={cn(
+                        "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
+                        resizingColumn === column.id && "bg-primary"
+                      )}
+                      onMouseDown={(e) => { e.stopPropagation(); handleResizeStart(e, column.id, column.width); }}
+                    />
+                  </th>
+                ))}
+                <th className="border-b w-40 p-0">
+                  {showNewColumn ? (
+                    <div className="flex flex-col gap-1 p-1">
+                      <Input
+                        autoFocus
+                        placeholder="Column name"
+                        value={newColumnName}
+                        onChange={(e) => setNewColumnName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddColumn();
+                          if (e.key === 'Escape') setShowNewColumn(false);
+                        }}
+                        className="h-7 text-sm"
+                      />
+                      <Select value={newColumnType} onValueChange={(v) => setNewColumnType(v as ColumnType)}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="currency">Currency</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                          <SelectItem value="checkbox">Checkbox</SelectItem>
+                          <SelectItem value="select">Select</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" className="h-7" onClick={handleAddColumn}>Add</Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full h-full justify-start text-muted-foreground"
+                      onClick={() => setShowNewColumn(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Column
+                    </Button>
                   )}
-                  onMouseDown={(e) => handleResizeStart(e, column.id, column.width)}
-                />
-              </th>
-            ))}
-            <th className="border-b w-40 p-0">
-              {showNewColumn ? (
-                <div className="flex flex-col gap-1 p-1">
-                  <Input
-                    autoFocus
-                    placeholder="Column name"
-                    value={newColumnName}
-                    onChange={(e) => setNewColumnName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddColumn();
-                      if (e.key === 'Escape') setShowNewColumn(false);
-                    }}
-                    className="h-7 text-sm"
-                  />
-                  <Select value={newColumnType} onValueChange={(v) => setNewColumnType(v as ColumnType)}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="currency">Currency</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="checkbox">Checkbox</SelectItem>
-                      <SelectItem value="select">Select</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" className="h-7" onClick={handleAddColumn}>Add</Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-full justify-start text-muted-foreground"
-                  onClick={() => setShowNewColumn(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Column
-                </Button>
-              )}
-            </th>
-          </tr>
+                </th>
+              </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {sortedRows.map((row, rowIndex) => (
                 <tr key={row.id} className="group hover:bg-muted/30">
                   <td className="border-b border-r text-center text-xs text-muted-foreground p-0 sticky left-0 bg-background z-10 min-w-[40px]">
-                <div className="flex items-center justify-center h-10">
-                  <span className="group-hover:hidden">{index + 1}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 hidden group-hover:flex"
-                    onClick={() => onDeleteRow(row.id)}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                </div>
-              </td>
-              {columns.map((column) => (
-                <td
-                  key={column.id}
-                  className={cn(
-                    'border-b border-r p-0 h-10',
-                    editingCell?.rowId === row.id && editingCell?.columnId === column.id && 'ring-2 ring-primary ring-inset'
-                  )}
-                >
-                  {renderCell(row, column, index)}
-                </td>
+                    <div 
+                      className="flex items-center justify-center"
+                      style={{ height: `${32 * (zoom / 100)}px` }}
+                    >
+                      <span className="group-hover:hidden">{rowIndex + 1}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 hidden group-hover:flex"
+                        onClick={() => onDeleteRow(row.id)}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  </td>
+                  {columns.map((column, colIndex) => {
+                    const cellSelected = isCellSelected(rowIndex, colIndex);
+                    const cellActive = isActiveCell(rowIndex, colIndex);
+                    const cellKey = `${rowIndex}-${colIndex}`;
+                    const isHighlighted = highlightedCells.has(cellKey);
+                    
+                    return (
+                      <td
+                        key={column.id}
+                        className={cn(
+                          'border-b border-r p-0',
+                          editingCell?.rowId === row.id && editingCell?.columnId === column.id && 'ring-2 ring-primary ring-inset',
+                          cellSelected && !cellActive && 'bg-primary/10',
+                          cellActive && 'ring-2 ring-primary ring-inset bg-primary/5',
+                          isHighlighted && 'bg-yellow-100 dark:bg-yellow-900/30'
+                        )}
+                        style={{ height: `${32 * (zoom / 100)}px` }}
+                        onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                        onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                      >
+                        {renderCell(row, column, rowIndex)}
+                      </td>
+                    );
+                  })}
+                  <td className="border-b" />
+                </tr>
               ))}
-              <td className="border-b" />
-            </tr>
-          ))}
-        </tbody>
-        {/* Totals row */}
-        {rows.length > 0 && columns.some(c => c.column_type === 'number' || c.column_type === 'currency') && (
-          <tfoot>
-            <tr className="bg-muted/30 font-medium">
-              <td className="border-t border-r p-2 text-center text-xs text-muted-foreground">Σ</td>
-              {columns.map((column) => (
-                <td key={column.id} className="border-t border-r p-2 text-sm">
-                  <div className={getAlignClass(column.options?.textAlign)}>
-                    {getColumnTotal(column) || ''}
-                  </div>
-                </td>
-              ))}
-              <td className="border-t" />
-            </tr>
-          </tfoot>
-        )}
+            </tbody>
+            {/* Totals row */}
+            {sortedRows.length > 0 && columns.some(c => c.column_type === 'number' || c.column_type === 'currency') && (
+              <tfoot>
+                <tr className="bg-muted/30 font-medium">
+                  <td className="border-t border-r p-2 text-center text-xs text-muted-foreground">Σ</td>
+                  {columns.map((column) => (
+                    <td key={column.id} className="border-t border-r p-2 text-sm">
+                      <div className={getAlignClass(column.options?.textAlign)}>
+                        {getColumnTotal(column) || ''}
+                      </div>
+                    </td>
+                  ))}
+                  <td className="border-t" />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         
