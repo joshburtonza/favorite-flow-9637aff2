@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2 } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { useCustomTables, useTableColumns, useTableRows, ColumnType, ColumnOptions, exportTableToCSV, parseCSV, generateCSVContent } from '@/hooks/useCustomTables';
 import { SpreadsheetGrid } from '@/components/workspace/SpreadsheetGrid';
+import { WorkspaceAIPanel, WorkspaceAction } from '@/components/workspace/WorkspaceAIPanel';
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,10 @@ export default function Workspace() {
   // PDF import
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
   const { extractMultipleFiles, isExtracting } = usePDFExtraction();
+  
+  // AI Panel state
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPanelExpanded, setAIPanelExpanded] = useState(false);
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
 
@@ -1283,6 +1288,33 @@ export default function Workspace() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating AI Button */}
+      {selectedTable && !showAIPanel && (
+        <Button
+          onClick={() => setShowAIPanel(true)}
+          className="fixed bottom-6 right-6 h-12 w-12 rounded-full shadow-lg z-40"
+          size="icon"
+        >
+          <Sparkles className="h-5 w-5" />
+        </Button>
+      )}
+
+      {/* AI Panel */}
+      <WorkspaceAIPanel
+        isOpen={showAIPanel}
+        onClose={() => setShowAIPanel(false)}
+        isExpanded={aiPanelExpanded}
+        onToggleExpand={() => setAIPanelExpanded(!aiPanelExpanded)}
+        context={{
+          tableName: selectedTable?.name,
+          columns: columns.map(c => ({ id: c.id, name: c.name, type: c.column_type })),
+          rowCount: rows.length,
+        }}
+        onAction={(action) => {
+          toast({ title: 'AI Action', description: `${action.type} applied to workspace` });
+        }}
+      />
     </AppLayout>
   );
 }
