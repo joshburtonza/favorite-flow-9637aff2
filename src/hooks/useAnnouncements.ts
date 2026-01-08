@@ -75,11 +75,37 @@ export function useAnnouncements() {
     enabled: !!user
   });
 
-  // Real-time subscription
+  // Real-time subscription with notifications for new announcements
   useEffect(() => {
+    if (!user) return;
+    
     const channel = supabase
       .channel('announcements-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, (payload) => {
+        refetch();
+        // Show notification for new announcement
+        const newAnnouncement = payload.new as any;
+        if (newAnnouncement.created_by !== user.id) {
+          const priorityEmoji = {
+            urgent: '🚨',
+            high: '❗',
+            normal: '📢',
+            low: 'ℹ️'
+          }[newAnnouncement.priority as string] || '📢';
+          
+          toast.message(`${priorityEmoji} New Announcement`, {
+            description: newAnnouncement.title,
+            action: {
+              label: 'View',
+              onClick: () => window.location.href = '/announcements'
+            }
+          });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'announcements' }, () => {
+        refetch();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'announcements' }, () => {
         refetch();
       })
       .subscribe();
@@ -87,7 +113,7 @@ export function useAnnouncements() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refetch]);
+  }, [refetch, user]);
 
   const createAnnouncement = useMutation({
     mutationFn: async (input: CreateAnnouncementInput) => {

@@ -87,14 +87,39 @@ export function useConversations() {
     enabled: !!user
   });
 
-  // Real-time subscription
+  // Real-time subscription with notifications
   useEffect(() => {
+    if (!user) return;
+    
     const channel = supabase
       .channel('conversations-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_conversations' }, () => {
         refetch();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_messages' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload) => {
+        refetch();
+        // Show notification for new messages from others
+        const newMessage = payload.new as any;
+        if (newMessage.sender_id && newMessage.sender_id !== user.id) {
+          // Get sender name
+          supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', newMessage.sender_id)
+            .single()
+            .then(({ data: sender }) => {
+              const senderName = sender?.full_name || sender?.email || 'Someone';
+              toast.message(`New message from ${senderName}`, {
+                description: newMessage.content?.substring(0, 50) + (newMessage.content?.length > 50 ? '...' : ''),
+                action: {
+                  label: 'View',
+                  onClick: () => window.location.href = '/messages'
+                }
+              });
+            });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'team_messages' }, () => {
         refetch();
       })
       .subscribe();
@@ -102,7 +127,7 @@ export function useConversations() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refetch]);
+  }, [refetch, user]);
 
   const createConversation = useMutation({
     mutationFn: async ({ participantIds, name, type = 'direct' }: { 

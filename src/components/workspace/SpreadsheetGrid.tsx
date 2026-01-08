@@ -511,6 +511,46 @@ export function SpreadsheetGrid({
     }
 
     if (isEditing) {
+      // Use textarea for multi-line editing like Excel
+      if (column.column_type === 'text') {
+        return (
+          <textarea
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleCellBlur(row.id, column.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleCellBlur(row.id, column.id);
+              } else if (e.key === 'Escape') {
+                setEditingCell(null);
+              } else if (e.key === 'Tab') {
+                e.preventDefault();
+                handleCellBlur(row.id, column.id);
+                // Move to next cell
+                const colIndex = columns.findIndex(c => c.id === column.id);
+                const rowIdx = rows.findIndex(r => r.id === row.id);
+                if (colIndex < columns.length - 1) {
+                  const nextCol = columns[colIndex + 1];
+                  handleCellClick(row.id, nextCol.id, rows[rowIdx]?.data[nextCol.id]);
+                } else if (rowIdx < rows.length - 1) {
+                  const nextRow = rows[rowIdx + 1];
+                  handleCellClick(nextRow.id, columns[0].id, nextRow.data[columns[0].id]);
+                }
+              }
+            }}
+            className={cn(
+              'w-full h-full min-h-[40px] px-3 py-2 border-0 rounded-none resize-none',
+              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset',
+              'bg-background',
+              fontClass
+            )}
+            style={{ lineHeight: '1.4' }}
+          />
+        );
+      }
+      
       return (
         <Input
           autoFocus
@@ -721,11 +761,17 @@ export function SpreadsheetGrid({
         )}
       </div>
 
-      {/* Table with scrolling */}
-      <div className="relative flex-1 overflow-hidden">
-        {/* Scrollable container - both horizontal and vertical */}
-        <div className="overflow-auto h-full max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-          <table className="border-collapse min-w-max table-fixed">
+      {/* Table with Excel-like scrolling */}
+      <div className="relative flex-1 overflow-hidden border rounded-md">
+        {/* Scrollable container - Excel-like horizontal and vertical scrolling */}
+        <div 
+          className="overflow-auto h-full max-h-[calc(100vh-280px)]"
+          style={{
+            scrollBehavior: 'auto',
+            overscrollBehavior: 'contain',
+          }}
+        >
+          <table className="border-collapse w-max table-fixed" style={{ minWidth: '100%' }}>
             <thead className="sticky top-0 z-20 bg-background">
               <tr className="bg-muted/50">
                 <th className="w-10 min-w-[40px] border-b border-r p-0 sticky left-0 bg-muted/50 z-30" />
