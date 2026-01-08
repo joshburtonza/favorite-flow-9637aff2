@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Grid, List, Search, ChevronRight, Home } from 'lucide-react';
+import { Upload, Grid, List, Search, ChevronRight, Home, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -217,6 +217,20 @@ export default function FileBrowser() {
                 <List className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* New Folder Button - creates subfolder in current folder */}
+            <Button
+              variant="outline"
+              onClick={() => {
+                const folderName = prompt('Enter folder name:');
+                if (folderName?.trim()) {
+                  createFolder.mutate({ name: folderName.trim(), parent_id: selectedFolderId || undefined });
+                }
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Folder
+            </Button>
 
             {/* Upload Button */}
             <label>

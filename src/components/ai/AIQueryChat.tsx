@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, RefreshCw, CheckCircle2, FileText, ExternalLink, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,17 @@ import { Badge } from '@/components/ui/badge';
 import { useAIQuery } from '@/hooks/useAIIntelligence';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
+
+interface FileResult {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  lot_number?: string;
+  document_type?: string;
+  folder_id?: string;
+}
 
 interface Message {
   id: string;
@@ -26,14 +37,14 @@ interface Message {
     lot_number: string;
     updates: Record<string, any>;
   };
+  file_results?: FileResult[];
 }
 
 const EXAMPLE_QUERIES = [
   "What's the total profit this month?",
   "Show me all pending shipments",
-  "LOT 881 is in transit",
-  "Freight paid for LOT 118",
-  "Mark LOT 882 documents submitted",
+  "Find invoice for LOT 881",
+  "Search for transport documents",
   "Show me the most profitable shipments",
 ];
 
@@ -41,18 +52,20 @@ const UPDATE_EXAMPLES = [
   "LOT 192 is in transit",
   "Freight paid for LOT 118",
   "Update LOT 883 ETA to March 20",
-  "Mark LOT 881 completed",
 ];
 
 export function AIQueryChat({ 
   className,
   entityType,
-  entityId
+  entityId,
+  onFileClick
 }: { 
   className?: string;
   entityType?: string;
   entityId?: string;
+  onFileClick?: (file: FileResult) => void;
 }) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -98,7 +111,8 @@ export function AIQueryChat({
         content: responseText,
         timestamp: new Date(),
         context_summary: result?.context_summary,
-        update_result: result?.update_result
+        update_result: result?.update_result,
+        file_results: result?.file_results
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -237,6 +251,46 @@ export function AIQueryChat({
                     )}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    
+                    {/* File Results - Clickable Cards */}
+                    {message.file_results && message.file_results.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-border/50 space-y-2">
+                        <p className="text-xs text-muted-foreground mb-2">📁 Found {message.file_results.length} file(s):</p>
+                        {message.file_results.map((file) => (
+                          <div
+                            key={file.id}
+                            onClick={() => {
+                              if (onFileClick) {
+                                onFileClick(file);
+                              } else {
+                                navigate(`/files?doc=${file.id}`);
+                              }
+                            }}
+                            className="flex items-center gap-2 p-2 rounded-md bg-background hover:bg-accent cursor-pointer transition-colors border"
+                          >
+                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{file.file_name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                {file.lot_number && <span>LOT {file.lot_number}</span>}
+                                {file.document_type && <Badge variant="outline" className="text-[10px] py-0">{file.document_type}</Badge>}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                          </div>
+                        ))}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          onClick={() => navigate('/files')}
+                        >
+                          <FolderOpen className="h-3 w-3 mr-1" />
+                          Open File Browser
+                        </Button>
+                      </div>
+                    )}
+                    
                     {message.update_result?.success && (
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-green-600 dark:text-green-400">
                         <CheckCircle2 className="h-4 w-4" />
@@ -245,7 +299,7 @@ export function AIQueryChat({
                         </span>
                       </div>
                     )}
-                    {message.context_summary && !message.update_result && (
+                    {message.context_summary && !message.update_result && !message.file_results?.length && (
                       <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
                         <Badge variant="secondary" className="text-xs">
                           {message.context_summary.total_shipments} shipments

@@ -27,6 +27,16 @@ interface AIClassificationResult {
   };
 }
 
+interface FileResult {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  lot_number?: string;
+  document_type?: string;
+  folder_id?: string;
+}
+
 interface AIQueryResult {
   response: string;
   context_summary?: {
@@ -40,6 +50,7 @@ interface AIQueryResult {
     lot_number: string;
     updates: Record<string, any>;
   };
+  file_results?: FileResult[];
 }
 
 interface AIEvent {
