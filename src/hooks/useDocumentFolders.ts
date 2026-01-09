@@ -107,6 +107,37 @@ export function useDocumentFolders() {
     },
   });
 
+  const moveFolder = useMutation({
+    mutationFn: async ({ folderId, newParentId }: { folderId: string; newParentId: string | null }) => {
+      // Prevent moving folder to itself
+      if (folderId === newParentId) {
+        throw new Error('Cannot move folder into itself');
+      }
+      
+      // Check if new parent is a descendant of the folder being moved
+      if (newParentId) {
+        const isDescendant = checkIsDescendant(folders, folderId, newParentId);
+        if (isDescendant) {
+          throw new Error('Cannot move folder into its own subfolder');
+        }
+      }
+      
+      const { error } = await supabase
+        .from('document_folders')
+        .update({ parent_id: newParentId })
+        .eq('id', folderId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['document-folders'] });
+      toast({ title: 'Folder moved successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error moving folder', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const updateDocumentStatus = useMutation({
     mutationFn: async ({ documentId, status }: { documentId: string; status: 'new' | 'in_progress' | 'finalized' }) => {
       const { error } = await supabase
@@ -132,8 +163,20 @@ export function useDocumentFolders() {
     renameFolder,
     deleteFolder,
     moveDocument,
+    moveFolder,
     updateDocumentStatus,
   };
+}
+
+// Check if targetId is a descendant of folderId
+function checkIsDescendant(folders: DocumentFolder[], folderId: string, targetId: string): boolean {
+  const folder = folders.find(f => f.id === targetId);
+  if (!folder) return false;
+  if (folder.parent_id === folderId) return true;
+  if (folder.parent_id) {
+    return checkIsDescendant(folders, folderId, folder.parent_id);
+  }
+  return false;
 }
 
 function buildFolderTree(folders: DocumentFolder[]): DocumentFolder[] {

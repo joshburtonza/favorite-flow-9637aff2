@@ -129,7 +129,7 @@ async function fetchSystemContext(supabase: any, entityType?: string, entityId?:
     clients: [],
     pending_payments: [],
     recent_activity: [],
-    recent_changes: [], // NEW: Human-readable recent changes
+    recent_changes: [],
     documents: [],
     current_entity: null
   };
@@ -508,6 +508,42 @@ async function autoUpdateShipment(
   return null;
 }
 
+// Call Lovable AI Gateway
+async function callLovableAI(messages: { role: string; content: string }[]): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY is not configured');
+  }
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error('RATE_LIMITED');
+    }
+    if (response.status === 402) {
+      throw new Error('PAYMENT_REQUIRED');
+    }
+    const errorText = await response.text();
+    console.error('Lovable AI error:', response.status, errorText);
+    throw new Error('AI query failed');
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -524,16 +560,8 @@ serve(async (req) => {
       entityId 
     } = await req.json();
 
-    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!DEEPSEEK_API_KEY) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Deepseek API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -541,90 +569,80 @@ serve(async (req) => {
     if (action === 'classify_document') {
       console.log(`Classifying document: ${documentName}`);
 
-      const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: CLASSIFICATION_PROMPT },
-            { role: 'user', content: `Classify this document:\n\nFilename: ${documentName}\n\nContent:\n${documentContent}` }
-          ],
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        const error = await aiResponse.text();
-        console.error('AI classification error:', error);
+      try {
+        const content = await callLovableAI([
+          { role: 'system', content: CLASSIFICATION_PROMPT },
+          { role: 'user', content: `Classify this document:\n\nFilename: ${documentName}\n\nContent:\n${documentContent}` }
+        ]);
         
-        if (aiResponse.status === 429) {
+        // Parse AI response
+        let result;
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          result = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        } catch (e) {
+          console.error('Failed to parse AI response:', content);
+          result = null;
+        }
+
+        if (result && documentId) {
+          // Update document with classification
+          await supabase
+            .from('uploaded_documents')
+            .update({
+              ai_classification: result.document_type,
+              ai_confidence: result.confidence,
+              document_type: result.document_type,
+              extracted_data: result.extracted_data,
+              lot_number: result.extracted_data?.lot_number,
+              supplier_name: result.extracted_data?.supplier_name,
+              client_name: result.extracted_data?.client_name,
+              summary: result.reasoning
+            })
+            .eq('id', documentId);
+
+          // Auto-link to shipment if lot number found
+          if (result.extracted_data?.lot_number) {
+            const linkedShipment = await autoLinkDocument(
+              supabase, 
+              documentId, 
+              result.extracted_data.lot_number
+            );
+
+            if (linkedShipment) {
+              // Auto-update shipment based on document type
+              await autoUpdateShipment(
+                supabase,
+                linkedShipment.id,
+                result.document_type,
+                result.extracted_data
+              );
+
+              result.linked_shipment = linkedShipment;
+            }
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, result }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage === 'RATE_LIMITED') {
           return new Response(
-            JSON.stringify({ success: false, error: 'Rate limited. Please try again.' }),
+            JSON.stringify({ success: false, error: 'Rate limited. Please try again later.' }),
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        
-        throw new Error('AI classification failed');
-      }
-
-      const data = await aiResponse.json();
-      const content = data.choices?.[0]?.message?.content || '';
-      
-      // Parse AI response
-      let result;
-      try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        result = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-      } catch (e) {
-        console.error('Failed to parse AI response:', content);
-        result = null;
-      }
-
-      if (result && documentId) {
-        // Update document with classification
-        await supabase
-          .from('uploaded_documents')
-          .update({
-            ai_classification: result.document_type,
-            ai_confidence: result.confidence,
-            document_type: result.document_type,
-            extracted_data: result.extracted_data,
-            lot_number: result.extracted_data?.lot_number,
-            supplier_name: result.extracted_data?.supplier_name,
-            client_name: result.extracted_data?.client_name,
-            summary: result.reasoning
-          })
-          .eq('id', documentId);
-
-        // Auto-link to shipment if lot number found
-        if (result.extracted_data?.lot_number) {
-          const linkedShipment = await autoLinkDocument(
-            supabase, 
-            documentId, 
-            result.extracted_data.lot_number
+        if (errorMessage === 'PAYMENT_REQUIRED') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'AI credits exhausted. Please add more credits.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
-
-          if (linkedShipment) {
-            // Auto-update shipment based on document type
-            await autoUpdateShipment(
-              supabase,
-              linkedShipment.id,
-              result.document_type,
-              result.extracted_data
-            );
-
-            result.linked_shipment = linkedShipment;
-          }
         }
+        throw error;
       }
-
-      return new Response(
-        JSON.stringify({ success: true, result }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     // Action: Update shipment via natural language
@@ -709,7 +727,7 @@ serve(async (req) => {
       const context = await fetchSystemContext(supabase, entityType, entityId);
 
       // Check if this is a file search query
-      const fileSearchTerms = ['find', 'search', 'show me', 'get', 'look for', 'where is', 'locate'];
+      const fileSearchTerms = ['find', 'search', 'show me', 'get', 'look for', 'where is', 'locate', 'fetch', 'retrieve'];
       const fileKeywords = ['file', 'document', 'invoice', 'pdf', 'excel', 'spreadsheet', 'transport', 'clearing', 'bol', 'bill of lading', 'packing list'];
       const queryLower = query.toLowerCase();
       
@@ -717,7 +735,7 @@ serve(async (req) => {
                            fileKeywords.some(keyword => queryLower.includes(keyword));
       
       // Extract lot number if mentioned
-      const lotMatch = queryLower.match(/lot\s*(\d+)/i);
+      const lotMatch = queryLower.match(/lot\s*(\d+[\w-]*)/i);
       const lotNumber = lotMatch ? lotMatch[1] : null;
 
       let fileResults: any[] = [];
@@ -798,117 +816,112 @@ IMPORTANT:
 - Be helpful and proactive
 - When files are found, acknowledge them in your response`;
 
-      const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: enhancedPrompt },
-            { role: 'user', content: fileResults.length > 0 
-              ? `${query}\n\n[System: Found ${fileResults.length} matching files: ${fileResults.map(f => f.file_name).join(', ')}]`
-              : query 
-            }
-          ],
-        }),
-      });
+      try {
+        const response = await callLovableAI([
+          { role: 'system', content: enhancedPrompt },
+          { role: 'user', content: fileResults.length > 0 
+            ? `${query}\n\n[System: Found ${fileResults.length} matching files: ${fileResults.map(f => f.file_name).join(', ')}]`
+            : query 
+          }
+        ]);
 
-      if (!aiResponse.ok) {
-        if (aiResponse.status === 429) {
+        // Check if AI wants to perform an update
+        let updateResult = null;
+        let finalResponse = response;
+        try {
+          const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+          if (jsonMatch) {
+            const actionData = JSON.parse(jsonMatch[1]);
+            if (actionData.action === 'update' && actionData.lot_number && actionData.updates) {
+              // Perform the update
+              const { data: shipments } = await supabase
+                .from('shipments')
+                .select('id, status')
+                .ilike('lot_number', `%${actionData.lot_number}%`)
+                .limit(1);
+
+              if (shipments?.length) {
+                const shipment = shipments[0];
+                const oldStatus = shipment.status;
+
+                await supabase
+                  .from('shipments')
+                  .update({ ...actionData.updates, updated_at: new Date().toISOString(), last_updated_by: 'ai_chat' })
+                  .eq('id', shipment.id);
+
+                // Handle cost updates
+                if (actionData.updates.freight_cost || actionData.updates.supplier_cost || 
+                    actionData.updates.clearing_cost || actionData.updates.transport_cost) {
+                  const costUpdates: any = {};
+                  ['freight_cost', 'supplier_cost', 'clearing_cost', 'transport_cost'].forEach(field => {
+                    if (actionData.updates[field]) costUpdates[field] = actionData.updates[field];
+                  });
+
+                  const { data: existingCosts } = await supabase
+                    .from('shipment_costs')
+                    .select('id')
+                    .eq('shipment_id', shipment.id)
+                    .limit(1);
+
+                  if (existingCosts?.length) {
+                    await supabase.from('shipment_costs').update(costUpdates).eq('shipment_id', shipment.id);
+                  } else {
+                    await supabase.from('shipment_costs').insert({ shipment_id: shipment.id, ...costUpdates });
+                  }
+                }
+
+                // Log the event
+                await logEvent(supabase, {
+                  event_type: actionData.updates.status && actionData.updates.status !== oldStatus ? 'shipment_status_changed' : 'shipment_updated',
+                  entity_type: 'shipment',
+                  entity_id: shipment.id,
+                  changes: actionData.updates,
+                  metadata: { lot_number: actionData.lot_number, source: 'ai_chat' }
+                });
+
+                updateResult = { success: true, lot_number: actionData.lot_number, updates: actionData.updates };
+                finalResponse = actionData.message || `✅ Updated LOT ${actionData.lot_number}`;
+              }
+            }
+          }
+        } catch (e) {
+          // Not a JSON response, continue with normal response
+        }
+
+        // Log the query
+        await logEvent(supabase, {
+          event_type: 'ai_query',
+          entity_type: entityType || 'system',
+          entity_id: entityId,
+          metadata: { query, response_length: finalResponse.length, had_update: !!updateResult, files_found: fileResults.length }
+        });
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            response: finalResponse, 
+            context_summary: context.totals, 
+            update_result: updateResult,
+            file_results: fileResults.length > 0 ? fileResults : undefined
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage === 'RATE_LIMITED') {
           return new Response(
-            JSON.stringify({ success: false, error: 'Rate limited. Please try again.' }),
+            JSON.stringify({ success: false, error: 'Rate limited. Please try again later.' }),
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        throw new Error('AI query failed');
-      }
-
-      const data = await aiResponse.json();
-      let response = data.choices?.[0]?.message?.content || 'No response';
-
-      // Check if AI wants to perform an update
-      let updateResult = null;
-      try {
-        const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          const actionData = JSON.parse(jsonMatch[1]);
-          if (actionData.action === 'update' && actionData.lot_number && actionData.updates) {
-            // Perform the update
-            const { data: shipments } = await supabase
-              .from('shipments')
-              .select('id, status')
-              .ilike('lot_number', `%${actionData.lot_number}%`)
-              .limit(1);
-
-            if (shipments?.length) {
-              const shipment = shipments[0];
-              const oldStatus = shipment.status;
-
-              await supabase
-                .from('shipments')
-                .update({ ...actionData.updates, updated_at: new Date().toISOString(), last_updated_by: 'ai_chat' })
-                .eq('id', shipment.id);
-
-              // Handle cost updates
-              if (actionData.updates.freight_cost || actionData.updates.supplier_cost || 
-                  actionData.updates.clearing_cost || actionData.updates.transport_cost) {
-                const costUpdates: any = {};
-                ['freight_cost', 'supplier_cost', 'clearing_cost', 'transport_cost'].forEach(field => {
-                  if (actionData.updates[field]) costUpdates[field] = actionData.updates[field];
-                });
-
-                const { data: existingCosts } = await supabase
-                  .from('shipment_costs')
-                  .select('id')
-                  .eq('shipment_id', shipment.id)
-                  .limit(1);
-
-                if (existingCosts?.length) {
-                  await supabase.from('shipment_costs').update(costUpdates).eq('shipment_id', shipment.id);
-                } else {
-                  await supabase.from('shipment_costs').insert({ shipment_id: shipment.id, ...costUpdates });
-                }
-              }
-
-              // Log the event
-              await logEvent(supabase, {
-                event_type: actionData.updates.status && actionData.updates.status !== oldStatus ? 'shipment_status_changed' : 'shipment_updated',
-                entity_type: 'shipment',
-                entity_id: shipment.id,
-                changes: actionData.updates,
-                metadata: { lot_number: actionData.lot_number, source: 'ai_chat' }
-              });
-
-              updateResult = { success: true, lot_number: actionData.lot_number, updates: actionData.updates };
-              response = actionData.message || `✅ Updated LOT ${actionData.lot_number}`;
-            }
-          }
+        if (errorMessage === 'PAYMENT_REQUIRED') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'AI credits exhausted. Please add more credits.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-      } catch (e) {
-        // Not a JSON response, continue with normal response
+        throw error;
       }
-
-      // Log the query
-      await logEvent(supabase, {
-        event_type: 'ai_query',
-        entity_type: entityType || 'system',
-        entity_id: entityId,
-        metadata: { query, response_length: response.length, had_update: !!updateResult, files_found: fileResults.length }
-      });
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          response, 
-          context_summary: context.totals, 
-          update_result: updateResult,
-          file_results: fileResults.length > 0 ? fileResults : undefined
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     // Action: Get recent activity feed
