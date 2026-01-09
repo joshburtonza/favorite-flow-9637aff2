@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, MoreVertical, Pencil, Trash2, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DocumentFolder } from '@/hooks/useDocumentFolders';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ interface FolderTreeProps {
   onCreateFolder: (name: string, parentId?: string) => void;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
+  onMoveDocument?: (documentId: string, folderId: string | null) => void;
+  onMoveFolder?: (folderId: string, newParentId: string | null) => void;
 }
 
 export function FolderTree({
@@ -36,13 +38,15 @@ export function FolderTree({
   onRenameFolder,
   onDeleteFolder,
   onMoveDocument,
-}: FolderTreeProps & { onMoveDocument?: (documentId: string, folderId: string | null) => void }) {
+  onMoveFolder,
+}: FolderTreeProps) {
   const { isAdmin } = usePermissions();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [newFolderDialog, setNewFolderDialog] = useState<{ open: boolean; parentId?: string }>({ open: false });
   const [renameDialog, setRenameDialog] = useState<{ open: boolean; folder?: DocumentFolder }>({ open: false });
   const [newFolderName, setNewFolderName] = useState('');
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
 
   const toggleExpand = (folderId: string) => {
     setExpandedFolders(prev => {
@@ -56,9 +60,52 @@ export function FolderTree({
     });
   };
 
+  // Check if targetId is a descendant of folderId
+  const isDescendant = (folderId: string, targetId: string | null): boolean => {
+    if (!targetId) return false;
+    if (folderId === targetId) return true;
+    
+    const findDescendants = (folder: DocumentFolder): boolean => {
+      if (folder.id === targetId) return true;
+      return folder.children?.some(findDescendants) || false;
+    };
+    
+    const sourceFolder = findFolderById(folders, folderId);
+    if (!sourceFolder) return false;
+    return sourceFolder.children?.some(findDescendants) || false;
+  };
+
+  const findFolderById = (folderList: DocumentFolder[], id: string): DocumentFolder | undefined => {
+    for (const folder of folderList) {
+      if (folder.id === id) return folder;
+      if (folder.children) {
+        const found = findFolderById(folder.children, id);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  const handleDragStart = (e: React.DragEvent, type: 'folder' | 'document', id: string) => {
+    e.dataTransfer.setData(type === 'folder' ? 'folderId' : 'documentId', id);
+    e.dataTransfer.effectAllowed = 'move';
+    if (type === 'folder') {
+      setDraggingFolderId(id);
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    const draggingFolder = e.dataTransfer.types.includes('folderid');
+    
+    // Prevent dropping folder onto itself or its descendants
+    if (draggingFolder && draggingFolderId) {
+      if (folderId === draggingFolderId) return;
+      if (folderId && isDescendant(draggingFolderId, folderId)) return;
+    }
+    
     setDragOverFolderId(folderId);
   };
 
@@ -67,14 +114,28 @@ export function FolderTree({
     setDragOverFolderId(null);
   };
 
-  const handleDrop = (e: React.DragEvent, folderId: string | null) => {
+  const handleDragEnd = () => {
+    setDraggingFolderId(null);
+    setDragOverFolderId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetFolderId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverFolderId(null);
+    setDraggingFolderId(null);
     
     const documentId = e.dataTransfer.getData('documentId');
+    const folderId = e.dataTransfer.getData('folderId');
+    
     if (documentId && onMoveDocument) {
-      onMoveDocument(documentId, folderId);
+      onMoveDocument(documentId, targetFolderId);
+    } else if (folderId && onMoveFolder) {
+      // Prevent dropping folder onto itself
+      if (folderId === targetFolderId) return;
+      // Prevent dropping folder into its own descendant
+      if (targetFolderId && isDescendant(folderId, targetFolderId)) return;
+      onMoveFolder(folderId, targetFolderId);
     }
   };
 
@@ -99,14 +160,20 @@ export function FolderTree({
     const isExpanded = expandedFolders.has(folder.id);
     const isSelected = selectedFolderId === folder.id;
     const isSystemFolder = folder.folder_type === 'system';
+    const isDragging = draggingFolderId === folder.id;
+    const isDragOver = dragOverFolderId === folder.id;
 
     return (
       <div key={folder.id}>
         <div
+          draggable={isAdmin && !isSystemFolder}
+          onDragStart={(e) => handleDragStart(e, 'folder', folder.id)}
+          onDragEnd={handleDragEnd}
           className={cn(
             'flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer group transition-colors',
             isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
-            dragOverFolderId === folder.id && 'ring-2 ring-primary bg-primary/5',
+            isDragOver && 'ring-2 ring-primary bg-primary/5',
+            isDragging && 'opacity-50',
           )}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => onSelectFolder(folder.id)}
@@ -114,6 +181,10 @@ export function FolderTree({
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, folder.id)}
         >
+          {isAdmin && !isSystemFolder && (
+            <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50 cursor-grab" />
+          )}
+          
           {hasChildren ? (
             <button
               onClick={(e) => {
