@@ -718,11 +718,16 @@ export type Database = {
       document_folders: {
         Row: {
           assigned_staff_id: string | null
+          color: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           department_id: string | null
           folder_type: Database["public"]["Enums"]["folder_type"]
+          icon: string | null
           id: string
+          is_favorite: boolean | null
           name: string
           order_position: number | null
           parent_id: string | null
@@ -730,11 +735,16 @@ export type Database = {
         }
         Insert: {
           assigned_staff_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           department_id?: string | null
           folder_type?: Database["public"]["Enums"]["folder_type"]
+          icon?: string | null
           id?: string
+          is_favorite?: boolean | null
           name: string
           order_position?: number | null
           parent_id?: string | null
@@ -742,11 +752,16 @@ export type Database = {
         }
         Update: {
           assigned_staff_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           department_id?: string | null
           folder_type?: Database["public"]["Enums"]["folder_type"]
+          icon?: string | null
           id?: string
+          is_favorite?: boolean | null
           name?: string
           order_position?: number | null
           parent_id?: string | null
@@ -914,6 +929,71 @@ export type Database = {
         }
         Relationships: []
       }
+      file_access_log: {
+        Row: {
+          accessed_at: string | null
+          action_type: string | null
+          document_id: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          accessed_at?: string | null
+          action_type?: string | null
+          document_id?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          accessed_at?: string | null
+          action_type?: string | null
+          document_id?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_access_log_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_activity_log: {
+        Row: {
+          action_type: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          item_id: string | null
+          item_name: string | null
+          item_type: string
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_type: string
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       file_costings: {
         Row: {
           clearing_cost_zar: number | null
@@ -985,6 +1065,53 @@ export type Database = {
             columns: ["shipment_id"]
             isOneToOne: false
             referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_versions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          document_id: string
+          file_hash: string | null
+          file_path: string
+          file_size: number | null
+          id: string
+          is_current: boolean | null
+          notes: string | null
+          version_number: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          document_id: string
+          file_hash?: string | null
+          file_path: string
+          file_size?: number | null
+          id?: string
+          is_current?: boolean | null
+          notes?: string | null
+          version_number: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          document_id?: string
+          file_hash?: string | null
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          is_current?: boolean | null
+          notes?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1267,6 +1394,45 @@ export type Database = {
         }
         Relationships: []
       }
+      shares: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          expires_at: string | null
+          id: string
+          is_public: boolean | null
+          item_id: string
+          item_type: string
+          permission: string
+          share_token: string | null
+          shared_with_email: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          item_id: string
+          item_type: string
+          permission?: string
+          share_token?: string | null
+          shared_with_email?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          item_id?: string
+          item_type?: string
+          permission?: string
+          share_token?: string | null
+          shared_with_email?: string | null
+        }
+        Relationships: []
+      }
       shipment_costs: {
         Row: {
           bank_charges: number
@@ -1515,6 +1681,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      storage_plans: {
+        Row: {
+          id: string
+          is_default: boolean | null
+          name: string
+          storage_limit_bytes: number
+        }
+        Insert: {
+          id?: string
+          is_default?: boolean | null
+          name: string
+          storage_limit_bytes: number
+        }
+        Update: {
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          storage_limit_bytes?: number
+        }
+        Relationships: []
       }
       supplier_ledger: {
         Row: {
@@ -1842,6 +2029,7 @@ export type Database = {
       }
       uploaded_documents: {
         Row: {
+          access_count: number | null
           ai_classification: string | null
           ai_confidence: number | null
           approved_at: string | null
@@ -1852,7 +2040,9 @@ export type Database = {
           client_name: string | null
           corrected_fields: string[] | null
           department_id: string | null
+          description: string | null
           destination_folder: string | null
+          display_name: string | null
           document_type: string | null
           extracted_data: Json | null
           file_hash: string | null
@@ -1862,9 +2052,12 @@ export type Database = {
           file_type: string | null
           folder_id: string | null
           id: string
+          is_favorite: boolean | null
           is_latest_version: boolean | null
+          last_accessed_at: string | null
           lot_number: string | null
           original_folder: string | null
+          original_name: string | null
           parent_document: string | null
           rejected_at: string | null
           rejected_by: string | null
@@ -1878,6 +2071,8 @@ export type Database = {
           status: Database["public"]["Enums"]["document_status"] | null
           summary: string | null
           supplier_name: string | null
+          tags: string[] | null
+          thumbnail_path: string | null
           updated_at: string | null
           uploaded_at: string | null
           uploaded_by: string | null
@@ -1887,6 +2082,7 @@ export type Database = {
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
         }
         Insert: {
+          access_count?: number | null
           ai_classification?: string | null
           ai_confidence?: number | null
           approved_at?: string | null
@@ -1897,7 +2093,9 @@ export type Database = {
           client_name?: string | null
           corrected_fields?: string[] | null
           department_id?: string | null
+          description?: string | null
           destination_folder?: string | null
+          display_name?: string | null
           document_type?: string | null
           extracted_data?: Json | null
           file_hash?: string | null
@@ -1907,9 +2105,12 @@ export type Database = {
           file_type?: string | null
           folder_id?: string | null
           id?: string
+          is_favorite?: boolean | null
           is_latest_version?: boolean | null
+          last_accessed_at?: string | null
           lot_number?: string | null
           original_folder?: string | null
+          original_name?: string | null
           parent_document?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -1923,6 +2124,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
+          tags?: string[] | null
+          thumbnail_path?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -1934,6 +2137,7 @@ export type Database = {
             | null
         }
         Update: {
+          access_count?: number | null
           ai_classification?: string | null
           ai_confidence?: number | null
           approved_at?: string | null
@@ -1944,7 +2148,9 @@ export type Database = {
           client_name?: string | null
           corrected_fields?: string[] | null
           department_id?: string | null
+          description?: string | null
           destination_folder?: string | null
+          display_name?: string | null
           document_type?: string | null
           extracted_data?: Json | null
           file_hash?: string | null
@@ -1954,9 +2160,12 @@ export type Database = {
           file_type?: string | null
           folder_id?: string | null
           id?: string
+          is_favorite?: boolean | null
           is_latest_version?: boolean | null
+          last_accessed_at?: string | null
           lot_number?: string | null
           original_folder?: string | null
+          original_name?: string | null
           parent_document?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -1970,6 +2179,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["document_status"] | null
           summary?: string | null
           supplier_name?: string | null
+          tags?: string[] | null
+          thumbnail_path?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -2010,6 +2221,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_favorites: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          item_id: string
+          item_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          item_id: string
+          item_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          item_id?: string
+          item_type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_permissions: {
         Row: {
@@ -2052,6 +2290,30 @@ export type Database = {
           created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_storage: {
+        Row: {
+          file_count: number | null
+          id: string
+          updated_at: string | null
+          used_bytes: number | null
+          user_id: string
+        }
+        Insert: {
+          file_count?: number | null
+          id?: string
+          updated_at?: string | null
+          used_bytes?: number | null
+          user_id: string
+        }
+        Update: {
+          file_count?: number | null
+          id?: string
+          updated_at?: string | null
+          used_bytes?: number | null
           user_id?: string
         }
         Relationships: []
@@ -2223,7 +2485,7 @@ export type Database = {
         | "phone"
       conversation_type: "direct" | "group"
       currency_type: "USD" | "EUR" | "ZAR"
-      document_status: "new" | "in_progress" | "finalized"
+      document_status: "new" | "in_progress" | "finalized" | "deleted"
       event_type:
         | "meeting"
         | "reminder"
@@ -2435,7 +2697,7 @@ export const Constants = {
       ],
       conversation_type: ["direct", "group"],
       currency_type: ["USD", "EUR", "ZAR"],
-      document_status: ["new", "in_progress", "finalized"],
+      document_status: ["new", "in_progress", "finalized", "deleted"],
       event_type: [
         "meeting",
         "reminder",
