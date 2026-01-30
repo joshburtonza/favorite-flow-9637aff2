@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, RefreshCw, CheckCircle2, FileText, ExternalLink, FolderOpen } from 'lucide-react';
+import { Send, Sparkles, User, Loader2, RefreshCw, CheckCircle2, FileText, ExternalLink, FolderOpen, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { useAIQuery } from '@/hooks/useAIIntelligence';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { FLAIR_EXAMPLE_QUERIES, FLAIR_UPDATE_EXAMPLES } from '@/lib/flair-prompts';
 
 interface FileResult {
   id: string;
@@ -39,20 +40,6 @@ interface Message {
   };
   file_results?: FileResult[];
 }
-
-const EXAMPLE_QUERIES = [
-  "What's the total profit this month?",
-  "Show me all pending shipments",
-  "Find invoice for LOT 881",
-  "Search for transport documents",
-  "Show me the most profitable shipments",
-];
-
-const UPDATE_EXAMPLES = [
-  "LOT 192 is in transit",
-  "Freight paid for LOT 118",
-  "Update LOT 883 ETA to March 20",
-];
 
 export function AIQueryChat({ 
   className,
@@ -102,7 +89,6 @@ export function AIQueryChat({
         entityId 
       });
 
-      // Handle successful response - check if result has expected structure
       const responseText = result?.response || 'Request processed successfully.';
       
       const assistantMessage: Message = {
@@ -117,25 +103,21 @@ export function AIQueryChat({
 
       setMessages(prev => [...prev, assistantMessage]);
 
-      // If an update was performed, invalidate queries to refresh data
       if (result?.update_result?.success) {
         queryClient.invalidateQueries({ queryKey: ['shipments'] });
         queryClient.invalidateQueries({ queryKey: ['ai-events'] });
         toast({
           title: '✅ Update Applied',
-          description: `LOT ${result.update_result.lot_number} has been updated. Changes are now reflected across the dashboard.`,
+          description: `LOT ${result.update_result.lot_number} updated successfully.`,
         });
       }
     } catch (error: any) {
-      console.error('AI Query error:', error);
+      console.error('FLAIR error:', error);
       
-      // Check if error is actually a success response (2xx)
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: error?.message?.includes('2') 
-          ? 'Your request was processed. Please check the dashboard for updates.'
-          : 'Sorry, I encountered an error processing your request. Please try again.',
+        content: 'I encountered an error processing your request. Please try again.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -162,8 +144,13 @@ export function AIQueryChat({
       <CardHeader className="pb-3 border-b">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI Assistant
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold">FLAIR</span>
+              <span className="text-xs text-muted-foreground font-normal">Favorite Logistics AI Resource</span>
+            </div>
           </CardTitle>
           {messages.length > 0 && (
             <Button 
@@ -176,9 +163,6 @@ export function AIQueryChat({
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Ask questions about shipments, documents, finances, and more
-        </p>
       </CardHeader>
       
       <CardContent className="flex-1 p-0 flex flex-col min-h-0">
@@ -186,17 +170,22 @@ export function AIQueryChat({
           {messages.length === 0 ? (
             <div className="space-y-4">
               <div className="text-center py-6">
-                <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <h3 className="font-medium mb-1">How can I help you?</h3>
+                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center mb-3">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="font-semibold mb-1">Hello! I'm FLAIR</h3>
                 <p className="text-sm text-muted-foreground">
-                  I can answer questions AND update shipments
+                  Your operations manager. I can query data AND update shipments.
                 </p>
               </div>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-muted-foreground px-1 mb-2">📊 Ask questions:</p>
+                  <p className="text-xs text-muted-foreground px-1 mb-2 flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    Ask questions:
+                  </p>
                   <div className="flex flex-wrap gap-2">
-                    {EXAMPLE_QUERIES.slice(0, 3).map((query, i) => (
+                    {FLAIR_EXAMPLE_QUERIES.slice(0, 3).map((query, i) => (
                       <Button
                         key={i}
                         variant="outline"
@@ -210,9 +199,12 @@ export function AIQueryChat({
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground px-1 mb-2">✏️ Send updates:</p>
+                  <p className="text-xs text-muted-foreground px-1 mb-2 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Send updates:
+                  </p>
                   <div className="flex flex-wrap gap-2">
-                    {UPDATE_EXAMPLES.slice(0, 3).map((query, i) => (
+                    {FLAIR_UPDATE_EXAMPLES.slice(0, 3).map((query, i) => (
                       <Button
                         key={i}
                         variant="secondary"
@@ -238,8 +230,8 @@ export function AIQueryChat({
                   )}
                 >
                   {message.role === 'assistant' && (
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary" />
+                    <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-white" />
                     </div>
                   )}
                   <div
@@ -252,7 +244,7 @@ export function AIQueryChat({
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     
-                    {/* File Results - Clickable Cards */}
+                    {/* File Results */}
                     {message.file_results && message.file_results.length > 0 && (
                       <div className="mt-3 pt-2 border-t border-border/50 space-y-2">
                         <p className="text-xs text-muted-foreground mb-2">📁 Found {message.file_results.length} file(s):</p>
@@ -291,6 +283,7 @@ export function AIQueryChat({
                       </div>
                     )}
                     
+                    {/* Update Success */}
                     {message.update_result?.success && (
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50 text-green-600 dark:text-green-400">
                         <CheckCircle2 className="h-4 w-4" />
@@ -299,6 +292,8 @@ export function AIQueryChat({
                         </span>
                       </div>
                     )}
+                    
+                    {/* Context Summary */}
                     {message.context_summary && !message.update_result && !message.file_results?.length && (
                       <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
                         <Badge variant="secondary" className="text-xs">
@@ -322,8 +317,8 @@ export function AIQueryChat({
               ))}
               {aiQuery.isPending && (
                 <div className="flex gap-3">
-                  <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-primary" />
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-white" />
                   </div>
                   <div className="bg-muted rounded-lg px-4 py-3">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -341,7 +336,7 @@ export function AIQueryChat({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about shipments, documents, finances..."
+              placeholder="Ask FLAIR about shipments, costs, suppliers..."
               disabled={aiQuery.isPending}
               className="flex-1"
             />

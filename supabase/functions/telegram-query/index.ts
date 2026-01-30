@@ -6,77 +6,87 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// System prompt for the AI assistant
-const SYSTEM_PROMPT = `You are an AI assistant for Favorite Logistics, a freight forwarding company. You have FULL access to read AND write to the database.
+// ============================================
+// FLAIR (Favorite Logistics AI Resource) v2.0
+// Telegram/WhatsApp Interface
+// ============================================
 
-## Your Capabilities:
-1. **QUERY** - Fetch and display data about shipments, clients, suppliers, payments, documents
-2. **UPDATE** - Modify existing records (shipments, costs, payments, supplier ledger)
-3. **CREATE** - Add new shipments, suppliers, clients, payments, ledger entries
-4. **RETRIEVE** - Get document files and information
+const FLAIR_TELEGRAM_PROMPT = `You are **FLAIR** (Favorite Logistics AI Resource) - the intelligent operations manager for Favorite Logistics, a South African import freight forwarding company owned by Mo Irshad.
 
-## Response Format:
-You MUST respond with valid JSON in this exact format:
+You are NOT a chatbot. You ARE the primary interface to the entire business operations system via Telegram. You have complete authority to query, create, update, and manage all business data.
+
+## YOUR PERSONALITY:
+- Professional but conversational
+- Proactive - anticipate what Mo needs next
+- Precise with numbers - margins matter
+- Use emojis for clarity in Telegram
+- Keep responses concise but complete
+
+## THE BUSINESS:
+- Import freight forwarding: overseas suppliers → SA clients
+- Suppliers paid in USD/EUR, clients invoiced in ZAR
+- Each shipment has a unique LOT number
+- Profit = Client Invoice - (Supplier + Freight + Clearing + Transport costs) + FX Commission
+
+## KNOWN ENTITIES:
+**Suppliers:** WINTEX, HUBEI PUFANG, HAMZA TOWELS, NINGBO CROSSLEAP, AMAGGI, COFCO
+**Clients:** ADNAN JOOSAB, MJ OILS, MOTALA, CHEVAL SHOES, FOOT FOCUS, FOOTWORKS
+**Clearing Agents:** Sanjith (primary), Shane, Kara, Mojo
+**FX Providers:** Financiere Suisse (primary), FNB, Obeid
+
+## PROFIT CALCULATION:
+1. Total Foreign = supplier + freight + clearing + transport
+2. Total ZAR = Total Foreign × FX Rate
+3. Gross Profit = Client Invoice - Total ZAR
+4. FX Commission = Total ZAR × 1.4%
+5. Net Profit = Gross + FX Commission - Bank Charges
+6. Margin = (Net Profit / Client Invoice) × 100%
+
+## TELEGRAM FORMATTING:
+Use simple text with emojis:
+
+📦 LOT 881 DETAILS
+├─ Status: IN-TRANSIT
+├─ Route: WINTEX → ADNAN
+├─ ETA: Jan 25, 2026
+└─ Margin: 19.03% ✅
+
+💰 COSTS (USD)
+├─ Supplier: $105,000
+├─ Freight: $1,200
+└─ Total: $106,383
+
+## RESPONSE FORMAT:
+You MUST respond with valid JSON:
 {
   "action": "query" | "update" | "create" | "retrieve" | "help",
   "entity": "shipment" | "shipment_costs" | "supplier" | "client" | "payment" | "supplier_ledger" | "document",
-  "identifier": { "lot_number": "881" } or { "id": "uuid" } or { "name": "WINTEX" },
-  "data": { /* fields to update or create */ },
-  "query": { /* query parameters for fetching data */ },
-  "message": "Human readable confirmation/result message with emojis"
+  "identifier": { "lot_number": "881" } or { "name": "WINTEX" },
+  "data": { /* fields to update/create */ },
+  "query": { /* query parameters */ },
+  "message": "📦 Formatted Telegram message with emojis"
 }
 
-## Example Commands and Responses:
+## NATURAL LANGUAGE PATTERNS:
+| User Says | Action |
+|-----------|--------|
+| "Show LOT 881" | Query shipment |
+| "What's WINTEX balance?" | Query supplier |
+| "881 docs are in" | Update document_submitted = true |
+| "LOT 192 is in transit" | Update status = in-transit |
+| "Mark 883 telex released" | Update telex_released = true |
+| "Pay Wintex 50k" | Create payment |
 
-### Query Examples:
-User: "Show me LOT 881"
-Response: { "action": "query", "entity": "shipment", "identifier": { "lot_number": "881" }, "message": "Fetching details for LOT 881..." }
+## FIELD REFERENCE:
+- **shipments**: lot_number, status (pending/in-transit/documents-submitted/completed), eta, commodity, document_submitted, telex_released
+- **shipment_costs**: supplier_cost, freight_cost, clearing_cost, transport_cost, client_invoice_zar, fx_applied_rate
+- **suppliers**: name, currency, current_balance
+- **supplier_ledger**: amount, ledger_type (debit/credit), description
 
-User: "What's WINTEX balance?"
-Response: { "action": "query", "entity": "supplier", "identifier": { "name": "WINTEX" }, "message": "Checking WINTEX balance..." }
-
-User: "List pending shipments"
-Response: { "action": "query", "entity": "shipment", "query": { "status": "pending" }, "message": "Fetching pending shipments..." }
-
-### Update Examples:
-User: "Update freight cost for LOT 881 to $5000"
-Response: { "action": "update", "entity": "shipment_costs", "identifier": { "lot_number": "881" }, "data": { "freight_cost": 5000 }, "message": "✅ Updated freight cost for LOT 881 to $5,000" }
-
-User: "Mark LOT 882 as in-transit"
-Response: { "action": "update", "entity": "shipment", "identifier": { "lot_number": "882" }, "data": { "status": "in-transit" }, "message": "✅ LOT 882 status updated to in-transit" }
-
-User: "Set client invoice for LOT 883 to R250000"
-Response: { "action": "update", "entity": "shipment_costs", "identifier": { "lot_number": "883" }, "data": { "client_invoice_zar": 250000 }, "message": "✅ Client invoice for LOT 883 set to R250,000" }
-
-### Create Examples:
-User: "Create new shipment LOT 885 from WINTEX to MJ Oils"
-Response: { "action": "create", "entity": "shipment", "data": { "lot_number": "885", "supplier_name": "WINTEX", "client_name": "MJ Oils" }, "message": "✅ Created shipment LOT 885" }
-
-User: "Add payment of $10000 for WINTEX for LOT 881"
-Response: { "action": "create", "entity": "supplier_ledger", "data": { "supplier_name": "WINTEX", "lot_number": "881", "amount": 10000, "ledger_type": "credit", "description": "Payment" }, "message": "✅ Recorded $10,000 payment to WINTEX for LOT 881" }
-
-### Document Examples:
-User: "Get documents for LOT 881"
-Response: { "action": "retrieve", "entity": "document", "identifier": { "lot_number": "881" }, "message": "📄 Fetching documents for LOT 881..." }
-
-## Field Reference:
-- **shipments**: lot_number, status (pending/in-transit/documents-submitted/completed), eta, commodity, notes, document_submitted, telex_released
-- **shipment_costs**: supplier_cost, freight_cost, clearing_cost, transport_cost, client_invoice_zar, fx_spot_rate, fx_applied_rate, bank_charges, source_currency (USD/EUR/ZAR)
-- **suppliers**: name, currency, current_balance, contact_person, email, phone
-- **clients**: name, contact_person, email, phone, address
-- **supplier_ledger**: amount, ledger_type (debit/credit), description, transaction_date, invoice_number
-- **payment_schedule**: amount_foreign, currency, fx_rate, payment_date, status (pending/completed)
-
-## Important Rules:
-1. ALWAYS respond with valid JSON
-2. Use appropriate emojis in messages
-3. For currency, maintain proper formatting ($ for USD, R for ZAR, € for EUR)
-4. When updating costs, the profit calculations are automatic (database trigger)
-5. When creating ledger entries, supplier balance updates automatically
-6. If user intent is unclear, ask for clarification with action: "help"
-
-## Current Database Context:
-You have access to: shipments, shipment_costs, suppliers, clients, supplier_ledger, payment_schedule, uploaded_documents, bank_accounts tables.
+## PROACTIVE ALERTS (mention if relevant):
+- Supplier balance > $50,000 → ⚠️ Warning
+- ETA < 3 days, no telex → 🚨 Urgent
+- Profit margin < 10% → ⚠️ Low margin
 `;
 
 serve(async (req) => {
@@ -86,17 +96,17 @@ serve(async (req) => {
 
   try {
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
-    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!TELEGRAM_BOT_TOKEN || !DEEPSEEK_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!TELEGRAM_BOT_TOKEN || !LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('Missing required environment variables');
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const body = await req.json();
-    console.log('Received Telegram webhook:', JSON.stringify(body));
+    console.log('FLAIR Telegram received:', JSON.stringify(body));
 
     const message = body.message;
     if (!message || !message.text) {
@@ -108,42 +118,42 @@ serve(async (req) => {
     const chatId = message.chat.id;
     const userMessage = message.text;
 
-    // Send "typing" indicator
+    // Send typing indicator
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
     });
 
-    // Fetch current database context for AI
+    // Fetch database context
     const dbContext = await fetchDatabaseContext(supabase);
 
-    // Call AI to interpret the command
-    const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    // Call FLAIR via Lovable AI
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Current database state:\n${JSON.stringify(dbContext, null, 2)}\n\nUser command: "${userMessage}"` }
+          { role: 'system', content: FLAIR_TELEGRAM_PROMPT },
+          { role: 'user', content: `Current database:\n${JSON.stringify(dbContext, null, 2)}\n\nUser: "${userMessage}"` }
         ],
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('AI Gateway error:', errorText);
+      console.error('FLAIR AI error:', errorText);
       
       if (aiResponse.status === 429) {
-        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "⚠️ Rate limit exceeded. Please try again in a moment.");
+        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "⚠️ Rate limit. Try again in a moment.");
       } else if (aiResponse.status === 402) {
-        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "⚠️ AI usage limit reached. Please contact support.");
+        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "⚠️ AI credits exhausted.");
       } else {
-        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "❌ AI service temporarily unavailable. Please try again.");
+        await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, "❌ FLAIR temporarily unavailable.");
       }
       
       return new Response(JSON.stringify({ ok: true }), {
@@ -153,34 +163,31 @@ serve(async (req) => {
 
     const aiData = await aiResponse.json();
     const aiContent = aiData.choices?.[0]?.message?.content;
-    
-    console.log('AI response:', aiContent);
+    console.log('FLAIR response:', aiContent);
 
-    // Parse AI response
+    // Parse response
     let actionPlan;
     try {
-      // Extract JSON from response (handle markdown code blocks)
       const jsonMatch = aiContent.match(/```json\s*([\s\S]*?)\s*```/) || 
                         aiContent.match(/```\s*([\s\S]*?)\s*```/) ||
                         [null, aiContent];
       const jsonStr = jsonMatch[1] || aiContent;
       actionPlan = JSON.parse(jsonStr.trim());
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      // AI gave a natural response, send it directly
-      await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, aiContent || "I couldn't understand that request. Please try again.");
+      console.error('Parse error:', parseError);
+      await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, aiContent || "I couldn't process that request.");
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Execute the action plan
+    // Execute action
     const result = await executeAction(supabase, actionPlan, dbContext, chatId, TELEGRAM_BOT_TOKEN);
     
-    // Log the action
+    // Log action
     await logAction(supabase, userMessage, actionPlan, result);
 
-    // Send response to user
+    // Send response
     await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, result.message);
 
     return new Response(JSON.stringify({ ok: true, result }), {
@@ -188,7 +195,7 @@ serve(async (req) => {
     });
 
   } catch (error: unknown) {
-    console.error('Error in telegram-query:', error);
+    console.error('FLAIR Telegram error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
@@ -197,13 +204,12 @@ serve(async (req) => {
   }
 });
 
-// Fetch database context for AI
 async function fetchDatabaseContext(supabase: any) {
   const [shipments, suppliers, clients, pendingPayments] = await Promise.all([
-    supabase.from('v_shipments_full').select('*').order('created_at', { ascending: false }).limit(20),
+    supabase.from('v_shipments_full').select('*').order('created_at', { ascending: false }).limit(30),
     supabase.from('suppliers').select('*').order('name'),
     supabase.from('clients').select('*').order('name'),
-    supabase.from('v_pending_payments').select('*').order('payment_date'),
+    supabase.from('v_pending_payments').select('*').order('payment_date').limit(10),
   ]);
 
   return {
@@ -214,6 +220,9 @@ async function fetchDatabaseContext(supabase: any) {
       client: s.client_name,
       eta: s.eta,
       profit: s.net_profit_zar,
+      margin: s.profit_margin,
+      document_submitted: s.document_submitted,
+      telex_released: s.telex_released,
     })) || [],
     suppliers: suppliers.data?.map((s: any) => ({
       name: s.name,
@@ -224,11 +233,10 @@ async function fetchDatabaseContext(supabase: any) {
       name: c.name,
       contact: c.contact_person,
     })) || [],
-    pendingPayments: pendingPayments.data?.slice(0, 10) || [],
+    pendingPayments: pendingPayments.data || [],
   };
 }
 
-// Execute the action plan from AI
 async function executeAction(supabase: any, plan: any, dbContext: any, chatId?: number, telegramToken?: string) {
   const { action, entity, identifier, data, query } = plan;
 
@@ -236,48 +244,38 @@ async function executeAction(supabase: any, plan: any, dbContext: any, chatId?: 
     switch (action) {
       case 'query':
         return await handleQuery(supabase, entity, identifier, query, dbContext);
-      
       case 'update':
         return await handleUpdate(supabase, entity, identifier, data);
-      
       case 'create':
         return await handleCreate(supabase, entity, data, dbContext);
-      
       case 'retrieve':
         return await handleRetrieve(supabase, entity, identifier, chatId, telegramToken);
-      
       case 'help':
       default:
         return {
           success: true,
-          message: plan.message || `👋 <b>Favorite Logistics Assistant</b>
+          message: plan.message || `👋 <b>FLAIR - Operations Manager</b>
 
 I can help you with:
 
 📦 <b>Shipments</b>
 • "Show LOT 881"
 • "List pending shipments"
-• "Update LOT 882 status to in-transit"
+• "881 docs are in"
+• "Mark LOT 882 in transit"
 
-💰 <b>Costs & Invoices</b>
-• "Set freight cost for LOT 881 to $5000"
-• "Update client invoice for LOT 883 to R250000"
-
-🏭 <b>Suppliers</b>
+💰 <b>Financials</b>
 • "What's WINTEX balance?"
-• "Add payment of $10000 to WINTEX for LOT 881"
-
-👥 <b>Clients</b>
-• "Show MJ Oils shipments"
+• "Total profit this month"
 
 📄 <b>Documents</b>
-• "Get documents for LOT 881"
+• "Get docs for LOT 881"
 
-Just type your request naturally!`,
+Just type naturally!`,
         };
     }
   } catch (error) {
-    console.error('Action execution error:', error);
+    console.error('Action error:', error);
     return {
       success: false,
       message: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -285,7 +283,6 @@ Just type your request naturally!`,
   }
 }
 
-// Handle query actions
 async function handleQuery(supabase: any, entity: string, identifier: any, query: any, dbContext: any) {
   switch (entity) {
     case 'shipment': {
@@ -314,7 +311,7 @@ async function handleQuery(supabase: any, entity: string, identifier: any, query
         return { success: true, message: `❌ No shipments found.` };
       }
 
-      const formatted = result.data.map((s: any) => formatShipment(s)).join('\n\n');
+      const formatted = result.data.map((s: any) => formatShipmentTelegram(s)).join('\n\n');
       return { success: true, message: formatted, data: result.data };
     }
 
@@ -332,14 +329,11 @@ async function handleQuery(supabase: any, entity: string, identifier: any, query
       }
 
       const supplier = suppliers[0];
+      const balanceWarning = supplier.current_balance > 50000 ? ' ⚠️ HIGH' : '';
       
-      // Get recent ledger entries
-      const { data: ledger } = await supabase
-        .from('supplier_ledger')
-        .select('*, shipments(lot_number)')
-        .eq('supplier_id', supplier.id)
-        .order('transaction_date', { ascending: false })
-        .limit(5);
+      let message = `🏭 <b>${supplier.name}</b>\n`;
+      message += `💵 Currency: ${supplier.currency}\n`;
+      message += `💰 Balance: ${supplier.currency} ${Number(supplier.current_balance).toLocaleString()}${balanceWarning}\n`;
 
       // Get active shipments
       const { data: shipments } = await supabase
@@ -349,539 +343,267 @@ async function handleQuery(supabase: any, entity: string, identifier: any, query
         .neq('status', 'completed')
         .limit(5);
 
-      const balanceColor = supplier.current_balance > 0 ? '🔴' : supplier.current_balance < 0 ? '🟢' : '⚪';
-      
-      let message = `🏭 <b>${supplier.name}</b>\n`;
-      message += `💵 Currency: ${supplier.currency}\n`;
-      message += `${balanceColor} Balance: ${supplier.currency} ${Number(supplier.current_balance).toLocaleString()}\n`;
-      
       if (shipments && shipments.length > 0) {
         message += `\n📦 <b>Active Shipments:</b>\n`;
-        message += shipments.map((s: any) => `• LOT ${s.lot_number} - ${s.status}`).join('\n');
-      }
-      
-      if (ledger && ledger.length > 0) {
-        message += `\n\n📒 <b>Recent Transactions:</b>\n`;
-        message += ledger.map((l: any) => {
-          const type = l.ledger_type === 'debit' ? '📤' : '📥';
-          return `${type} ${supplier.currency} ${Number(l.amount).toLocaleString()} - ${l.description || 'N/A'}`;
-        }).join('\n');
+        message += shipments.map((s: any) => `├─ LOT ${s.lot_number}: ${getStatusEmoji(s.status)} ${s.status}`).join('\n');
       }
 
       return { success: true, message, data: supplier };
     }
 
-    case 'client': {
-      const clientName = identifier?.name || '';
-      const { data: clients, error } = await supabase
-        .from('clients')
-        .select('*')
-        .ilike('name', `%${clientName}%`)
-        .limit(1);
-
-      if (error) throw error;
-      if (!clients || clients.length === 0) {
-        return { success: true, message: `❌ Client "${clientName}" not found.` };
-      }
-
-      const client = clients[0];
-      
-      // Get shipments for this client
-      const { data: shipments } = await supabase
-        .from('v_shipments_full')
-        .select('*')
-        .ilike('client_name', `%${client.name}%`)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      const activeCount = shipments?.filter((s: any) => s.status !== 'completed').length || 0;
-      const totalRevenue = shipments?.reduce((sum: number, s: any) => sum + (Number(s.client_invoice_zar) || 0), 0) || 0;
-      const totalProfit = shipments?.reduce((sum: number, s: any) => sum + (Number(s.net_profit_zar) || 0), 0) || 0;
-
-      let message = `👤 <b>${client.name}</b>\n`;
-      if (client.contact_person) message += `📇 ${client.contact_person}\n`;
-      if (client.email) message += `📧 ${client.email}\n`;
-      if (client.phone) message += `📱 ${client.phone}\n`;
-      
-      message += `\n📊 <b>Summary:</b>\n`;
-      message += `• Active Shipments: ${activeCount}\n`;
-      message += `• Total Shipments: ${shipments?.length || 0}\n`;
-      message += `• Total Revenue: R${totalRevenue.toLocaleString()}\n`;
-      message += `• Total Profit: R${totalProfit.toLocaleString()}\n`;
-
-      if (shipments && shipments.length > 0) {
-        message += `\n📦 <b>Recent Shipments:</b>\n`;
-        message += shipments.slice(0, 5).map((s: any) => 
-          `• LOT ${s.lot_number} - ${getStatusEmoji(s.status)} ${s.status}`
-        ).join('\n');
-      }
-
-      return { success: true, message, data: client };
-    }
-
     default:
-      return { success: false, message: `❌ Unknown entity type: ${entity}` };
+      return { success: false, message: `❌ Unknown entity: ${entity}` };
   }
 }
 
-// Handle update actions
 async function handleUpdate(supabase: any, entity: string, identifier: any, data: any) {
   switch (entity) {
     case 'shipment': {
       const lotNumber = identifier?.lot_number;
-      if (!lotNumber) throw new Error('LOT number required for update');
+      if (!lotNumber) throw new Error('LOT number required');
 
-      // Find the shipment
       const { data: shipments, error: findError } = await supabase
         .from('shipments')
-        .select('id, lot_number')
+        .select('id, lot_number, status')
         .ilike('lot_number', `%${lotNumber}%`)
         .limit(1);
 
       if (findError) throw findError;
-      if (!shipments || shipments.length === 0) {
-        return { success: false, message: `❌ Shipment LOT ${lotNumber} not found.` };
+      if (!shipments?.length) {
+        return { success: false, message: `❌ LOT ${lotNumber} not found.` };
       }
 
       const shipment = shipments[0];
+      const oldStatus = shipment.status;
 
-      // Update shipment
       const { error: updateError } = await supabase
         .from('shipments')
-        .update({ ...data, updated_at: new Date().toISOString() })
+        .update({ ...data, updated_at: new Date().toISOString(), last_updated_by: 'flair_telegram' })
         .eq('id', shipment.id);
 
       if (updateError) throw updateError;
 
-      const updates = Object.entries(data).map(([k, v]) => `${k}: ${v}`).join(', ');
-      return { 
-        success: true, 
-        message: `✅ <b>LOT ${shipment.lot_number}</b> updated\n${updates}` 
-      };
+      let message = `✅ <b>LOT ${shipment.lot_number} Updated</b>\n`;
+      if (data.status) message += `📊 Status: ${oldStatus} → ${data.status}\n`;
+      if (data.document_submitted) message += `📄 Documents: Submitted ✅\n`;
+      if (data.telex_released) message += `📨 Telex: Released ✅\n`;
+      if (data.eta) message += `⏰ ETA: ${data.eta}\n`;
+
+      return { success: true, message, data: { shipment_id: shipment.id, updates: data } };
     }
 
     case 'shipment_costs': {
       const lotNumber = identifier?.lot_number;
-      if (!lotNumber) throw new Error('LOT number required for update');
+      if (!lotNumber) throw new Error('LOT number required');
 
-      // Find the shipment
-      const { data: shipments, error: findError } = await supabase
+      const { data: shipments } = await supabase
         .from('shipments')
         .select('id, lot_number')
         .ilike('lot_number', `%${lotNumber}%`)
         .limit(1);
 
-      if (findError) throw findError;
-      if (!shipments || shipments.length === 0) {
-        return { success: false, message: `❌ Shipment LOT ${lotNumber} not found.` };
+      if (!shipments?.length) {
+        return { success: false, message: `❌ LOT ${lotNumber} not found.` };
       }
 
-      const shipment = shipments[0];
+      const shipmentId = shipments[0].id;
 
-      // Check if costs record exists
       const { data: existingCosts } = await supabase
         .from('shipment_costs')
         .select('id')
-        .eq('shipment_id', shipment.id)
+        .eq('shipment_id', shipmentId)
         .limit(1);
 
-      if (existingCosts && existingCosts.length > 0) {
-        // Update existing
-        const { error: updateError } = await supabase
-          .from('shipment_costs')
-          .update({ ...data, updated_at: new Date().toISOString() })
-          .eq('shipment_id', shipment.id);
-
-        if (updateError) throw updateError;
+      if (existingCosts?.length) {
+        await supabase.from('shipment_costs').update(data).eq('shipment_id', shipmentId);
       } else {
-        // Create new
-        const { error: insertError } = await supabase
-          .from('shipment_costs')
-          .insert({ shipment_id: shipment.id, ...data });
-
-        if (insertError) throw insertError;
+        await supabase.from('shipment_costs').insert({ shipment_id: shipmentId, ...data });
       }
 
-      // Fetch updated data with calculated profits
-      const { data: updated } = await supabase
-        .from('v_shipments_full')
-        .select('*')
-        .eq('id', shipment.id)
-        .single();
-
-      let message = `✅ <b>LOT ${shipment.lot_number}</b> costs updated\n\n`;
-      
-      if (updated) {
-        if (data.supplier_cost) message += `💰 Supplier Cost: $${Number(data.supplier_cost).toLocaleString()}\n`;
-        if (data.freight_cost) message += `🚢 Freight: $${Number(data.freight_cost).toLocaleString()}\n`;
-        if (data.clearing_cost) message += `📋 Clearing: $${Number(data.clearing_cost).toLocaleString()}\n`;
-        if (data.transport_cost) message += `🚚 Transport: $${Number(data.transport_cost).toLocaleString()}\n`;
-        if (data.client_invoice_zar) message += `📄 Client Invoice: R${Number(data.client_invoice_zar).toLocaleString()}\n`;
-        if (data.fx_applied_rate) message += `💱 FX Rate: ${data.fx_applied_rate}\n`;
-        
-        if (updated.net_profit_zar) {
-          message += `\n📊 <b>Calculated Profit:</b> R${Number(updated.net_profit_zar).toLocaleString()}`;
-          if (updated.profit_margin) {
-            message += ` (${Number(updated.profit_margin).toFixed(1)}%)`;
-          }
-        }
-      }
+      let message = `✅ <b>LOT ${lotNumber} Costs Updated</b>\n`;
+      if (data.supplier_cost) message += `├─ Supplier: $${data.supplier_cost.toLocaleString()}\n`;
+      if (data.freight_cost) message += `├─ Freight: $${data.freight_cost.toLocaleString()}\n`;
+      if (data.clearing_cost) message += `├─ Clearing: $${data.clearing_cost.toLocaleString()}\n`;
+      if (data.transport_cost) message += `├─ Transport: $${data.transport_cost.toLocaleString()}\n`;
+      if (data.client_invoice_zar) message += `└─ Client Invoice: R${data.client_invoice_zar.toLocaleString()}\n`;
 
       return { success: true, message };
     }
 
     default:
-      return { success: false, message: `❌ Cannot update entity type: ${entity}` };
+      return { success: false, message: `❌ Cannot update: ${entity}` };
   }
 }
 
-// Handle create actions
 async function handleCreate(supabase: any, entity: string, data: any, dbContext: any) {
   switch (entity) {
     case 'shipment': {
-      // Find supplier ID by name
+      // Find supplier and client IDs
       let supplierId = null;
+      let clientId = null;
+
       if (data.supplier_name) {
         const { data: suppliers } = await supabase
           .from('suppliers')
           .select('id')
           .ilike('name', `%${data.supplier_name}%`)
           .limit(1);
-        supplierId = suppliers?.[0]?.id;
+        if (suppliers?.length) supplierId = suppliers[0].id;
       }
 
-      // Find client ID by name
-      let clientId = null;
       if (data.client_name) {
         const { data: clients } = await supabase
           .from('clients')
           .select('id')
           .ilike('name', `%${data.client_name}%`)
           .limit(1);
-        clientId = clients?.[0]?.id;
+        if (clients?.length) clientId = clients[0].id;
       }
 
-      const { error } = await supabase
-        .from('shipments')
-        .insert({
-          lot_number: data.lot_number,
-          supplier_id: supplierId,
-          client_id: clientId,
-          status: data.status || 'pending',
-          commodity: data.commodity,
-          eta: data.eta,
-          notes: data.notes,
-        });
+      const { error } = await supabase.from('shipments').insert({
+        lot_number: data.lot_number,
+        supplier_id: supplierId,
+        client_id: clientId,
+        commodity: data.commodity,
+        eta: data.eta,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
-      return { 
-        success: true, 
-        message: `✅ Created shipment <b>LOT ${data.lot_number}</b>\n🏭 Supplier: ${data.supplier_name || 'N/A'}\n👤 Client: ${data.client_name || 'N/A'}` 
+      return {
+        success: true,
+        message: `✅ <b>New Shipment Created</b>
+
+📦 LOT ${data.lot_number}
+├─ Supplier: ${data.supplier_name || 'TBD'}
+├─ Client: ${data.client_name || 'TBD'}
+├─ Commodity: ${data.commodity || 'TBD'}
+└─ ETA: ${data.eta || 'TBD'}`,
       };
     }
 
-    case 'supplier': {
-      const { error } = await supabase
-        .from('suppliers')
-        .insert({
-          name: data.name,
-          currency: data.currency || 'USD',
-          contact_person: data.contact_person,
-          email: data.email,
-          phone: data.phone,
-        });
-
-      if (error) throw error;
-
-      return { success: true, message: `✅ Created supplier <b>${data.name}</b>` };
-    }
-
-    case 'client': {
-      const { error } = await supabase
-        .from('clients')
-        .insert({
-          name: data.name,
-          contact_person: data.contact_person,
-          email: data.email,
-          phone: data.phone,
-          address: data.address,
-        });
-
-      if (error) throw error;
-
-      return { success: true, message: `✅ Created client <b>${data.name}</b>` };
-    }
-
     case 'supplier_ledger': {
-      // Find supplier
       const { data: suppliers } = await supabase
         .from('suppliers')
         .select('id, name, currency')
         .ilike('name', `%${data.supplier_name}%`)
         .limit(1);
 
-      if (!suppliers || suppliers.length === 0) {
+      if (!suppliers?.length) {
         return { success: false, message: `❌ Supplier "${data.supplier_name}" not found.` };
       }
 
       const supplier = suppliers[0];
-
-      // Find shipment if lot_number provided
       let shipmentId = null;
+
       if (data.lot_number) {
         const { data: shipments } = await supabase
           .from('shipments')
           .select('id')
           .ilike('lot_number', `%${data.lot_number}%`)
           .limit(1);
-        shipmentId = shipments?.[0]?.id;
+        if (shipments?.length) shipmentId = shipments[0].id;
       }
 
-      const { error } = await supabase
-        .from('supplier_ledger')
-        .insert({
-          supplier_id: supplier.id,
-          shipment_id: shipmentId,
-          ledger_type: data.ledger_type || 'credit',
-          amount: data.amount,
-          description: data.description || (data.ledger_type === 'credit' ? 'Payment' : 'Invoice'),
-          transaction_date: data.transaction_date || new Date().toISOString().split('T')[0],
-          invoice_number: data.invoice_number,
-        });
+      await supabase.from('supplier_ledger').insert({
+        supplier_id: supplier.id,
+        shipment_id: shipmentId,
+        ledger_type: data.ledger_type || 'credit',
+        amount: data.amount,
+        description: data.description || 'Payment',
+        transaction_date: new Date().toISOString().split('T')[0],
+      });
 
-      if (error) throw error;
+      const emoji = data.ledger_type === 'debit' ? '📤' : '📥';
+      return {
+        success: true,
+        message: `${emoji} <b>Ledger Entry Added</b>
 
-      const typeEmoji = data.ledger_type === 'credit' ? '📥' : '📤';
-      return { 
-        success: true, 
-        message: `${typeEmoji} Recorded ${supplier.currency} ${Number(data.amount).toLocaleString()} ${data.ledger_type || 'credit'} for <b>${supplier.name}</b>${data.lot_number ? ` (LOT ${data.lot_number})` : ''}` 
-      };
-    }
-
-    case 'payment': {
-      // Find supplier
-      const { data: suppliers } = await supabase
-        .from('suppliers')
-        .select('id, name')
-        .ilike('name', `%${data.supplier_name}%`)
-        .limit(1);
-
-      if (!suppliers || suppliers.length === 0) {
-        return { success: false, message: `❌ Supplier "${data.supplier_name}" not found.` };
-      }
-
-      const supplier = suppliers[0];
-
-      // Find shipment if lot_number provided
-      let shipmentId = null;
-      if (data.lot_number) {
-        const { data: shipments } = await supabase
-          .from('shipments')
-          .select('id')
-          .ilike('lot_number', `%${data.lot_number}%`)
-          .limit(1);
-        shipmentId = shipments?.[0]?.id;
-      }
-
-      const { error } = await supabase
-        .from('payment_schedule')
-        .insert({
-          supplier_id: supplier.id,
-          shipment_id: shipmentId,
-          amount_foreign: data.amount_foreign || data.amount,
-          currency: data.currency || 'USD',
-          fx_rate: data.fx_rate || 0,
-          payment_date: data.payment_date || new Date().toISOString().split('T')[0],
-          status: data.status || 'pending',
-          notes: data.notes,
-        });
-
-      if (error) throw error;
-
-      return { 
-        success: true, 
-        message: `✅ Scheduled payment of ${data.currency || 'USD'} ${Number(data.amount_foreign || data.amount).toLocaleString()} to <b>${supplier.name}</b>` 
+├─ Supplier: ${supplier.name}
+├─ Amount: ${supplier.currency} ${data.amount.toLocaleString()}
+├─ Type: ${data.ledger_type || 'credit'}
+└─ LOT: ${data.lot_number || 'N/A'}`,
       };
     }
 
     default:
-      return { success: false, message: `❌ Cannot create entity type: ${entity}` };
+      return { success: false, message: `❌ Cannot create: ${entity}` };
   }
 }
 
-// Handle document retrieval and sending
 async function handleRetrieve(supabase: any, entity: string, identifier: any, chatId?: number, telegramToken?: string) {
-  if (entity !== 'document') {
-    return { success: false, message: `❌ Can only retrieve documents.` };
-  }
+  if (entity === 'document' && identifier?.lot_number) {
+    const { data: documents } = await supabase
+      .from('uploaded_documents')
+      .select('*')
+      .ilike('lot_number', `%${identifier.lot_number}%`)
+      .order('uploaded_at', { ascending: false });
 
-  const lotNumber = identifier?.lot_number;
-  
-  const query = supabase.from('uploaded_documents').select('*');
-  
-  if (lotNumber) {
-    query.ilike('lot_number', `%${lotNumber}%`);
-  }
-  
-  query.order('uploaded_at', { ascending: false }).limit(10);
-  
-  const { data: documents, error } = await query;
-
-  if (error) throw error;
-  if (!documents || documents.length === 0) {
-    return { success: true, message: `❌ No documents found${lotNumber ? ` for LOT ${lotNumber}` : ''}.` };
-  }
-
-  // If we have chatId and token, send the actual files
-  const sentFiles: string[] = [];
-  const failedFiles: string[] = [];
-
-  if (chatId && telegramToken) {
-    for (const doc of documents) {
-      if (doc.file_path) {
-        try {
-          // Generate a signed URL for the file (valid for 1 hour)
-          const { data: signedUrlData, error: signedUrlError } = await supabase
-            .storage
-            .from('documents')
-            .createSignedUrl(doc.file_path, 3600);
-
-          if (signedUrlError || !signedUrlData?.signedUrl) {
-            console.error('Failed to get signed URL:', signedUrlError);
-            failedFiles.push(doc.file_name);
-            continue;
-          }
-
-          // Download the file
-          const fileResponse = await fetch(signedUrlData.signedUrl);
-          if (!fileResponse.ok) {
-            console.error('Failed to download file:', fileResponse.status);
-            failedFiles.push(doc.file_name);
-            continue;
-          }
-
-          const fileBlob = await fileResponse.blob();
-          
-          // Send file via Telegram
-          const formData = new FormData();
-          formData.append('chat_id', chatId.toString());
-          formData.append('document', fileBlob, doc.file_name);
-          formData.append('caption', `📎 ${doc.file_name}\n${doc.document_type ? `Type: ${doc.document_type}` : ''}${doc.lot_number ? `\nLOT: ${doc.lot_number}` : ''}`);
-
-          const telegramResponse = await fetch(
-            `https://api.telegram.org/bot${telegramToken}/sendDocument`,
-            { method: 'POST', body: formData }
-          );
-
-          if (telegramResponse.ok) {
-            sentFiles.push(doc.file_name);
-          } else {
-            const errorText = await telegramResponse.text();
-            console.error('Telegram sendDocument failed:', errorText);
-            failedFiles.push(doc.file_name);
-          }
-        } catch (fileError) {
-          console.error('Error sending file:', fileError);
-          failedFiles.push(doc.file_name);
-        }
-      } else {
-        failedFiles.push(doc.file_name);
-      }
+    if (!documents?.length) {
+      return { success: true, message: `📄 No documents found for LOT ${identifier.lot_number}` };
     }
-  }
 
-  // Build response message
-  let message = '';
-  
-  if (sentFiles.length > 0) {
-    message = `✅ Sent ${sentFiles.length} document${sentFiles.length > 1 ? 's' : ''}${lotNumber ? ` for LOT ${lotNumber}` : ''}:\n`;
-    message += sentFiles.map(f => `📎 ${f}`).join('\n');
-  }
-  
-  if (failedFiles.length > 0) {
-    if (message) message += '\n\n';
-    message += `⚠️ Could not send ${failedFiles.length} file${failedFiles.length > 1 ? 's' : ''}:\n`;
-    message += failedFiles.map(f => `❌ ${f}`).join('\n');
-  }
-
-  if (!message) {
-    message = `📄 <b>Documents${lotNumber ? ` for LOT ${lotNumber}` : ''}</b>\n\n`;
-    for (const doc of documents) {
-      message += `📎 <b>${doc.file_name}</b>\n`;
-      message += `   Type: ${doc.document_type || 'Unknown'}\n`;
-      if (doc.lot_number) message += `   LOT: ${doc.lot_number}\n`;
-      if (doc.supplier_name) message += `   Supplier: ${doc.supplier_name}\n`;
-      if (doc.summary) message += `   Summary: ${doc.summary.substring(0, 100)}...\n`;
-      message += `   Uploaded: ${new Date(doc.uploaded_at).toLocaleDateString()}\n\n`;
-    }
-  }
-
-  return { success: true, message, data: documents, sentFiles, failedFiles };
-}
-
-// Log action to automation_logs
-async function logAction(supabase: any, userMessage: string, actionPlan: any, result: any) {
-  try {
-    await supabase.from('automation_logs').insert({
-      source: 'telegram',
-      action: actionPlan.action || 'query',
-      lot_number: actionPlan.identifier?.lot_number || null,
-      request_body: { message: userMessage, plan: actionPlan },
-      response: result,
-      success: result.success !== false,
-      error: result.success === false ? result.message : null,
+    let message = `📄 <b>Documents for LOT ${identifier.lot_number}</b>\n\n`;
+    documents.forEach((doc: any, i: number) => {
+      message += `${i + 1}. ${doc.file_name}\n`;
+      message += `   Type: ${doc.ai_classification || doc.document_type || 'Unknown'}\n`;
     });
-  } catch (error) {
-    console.error('Failed to log action:', error);
+
+    return { success: true, message, data: documents };
   }
+
+  return { success: false, message: '❌ Invalid retrieve request' };
 }
 
-// Send message via Telegram
-async function sendTelegramMessage(token: string, chatId: number, text: string) {
-  // Telegram has a 4096 character limit, truncate if needed
-  const truncatedText = text.length > 4000 ? text.substring(0, 4000) + '\n\n... (truncated)' : text;
+function formatShipmentTelegram(s: any): string {
+  const marginEmoji = (s.profit_margin || 0) >= 15 ? '✅' : (s.profit_margin || 0) >= 10 ? '⚠️' : '❌';
   
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: truncatedText,
-      parse_mode: 'HTML',
-    }),
-  });
-  
-  if (!response.ok) {
-    console.error('Failed to send Telegram message:', await response.text());
-  }
-  return response;
-}
-
-// Format shipment for display
-function formatShipment(s: any): string {
   let msg = `📦 <b>LOT ${s.lot_number}</b>\n`;
-  msg += `${getStatusEmoji(s.status)} Status: ${s.status}\n`;
-  if (s.supplier_name) msg += `🏭 Supplier: ${s.supplier_name}\n`;
-  if (s.client_name) msg += `👤 Client: ${s.client_name}\n`;
-  if (s.commodity) msg += `📋 Commodity: ${s.commodity}\n`;
-  if (s.eta) msg += `📅 ETA: ${s.eta}\n`;
-  if (s.total_foreign) msg += `💵 Total Cost: $${Number(s.total_foreign).toLocaleString()}\n`;
-  if (s.client_invoice_zar) msg += `📄 Invoice: R${Number(s.client_invoice_zar).toLocaleString()}\n`;
-  if (s.net_profit_zar) {
-    msg += `💰 Profit: R${Number(s.net_profit_zar).toLocaleString()}`;
-    if (s.profit_margin) msg += ` (${Number(s.profit_margin).toFixed(1)}%)`;
-    msg += '\n';
-  }
+  msg += `├─ Status: ${getStatusEmoji(s.status)} ${s.status}\n`;
+  msg += `├─ Route: ${s.supplier_name || '?'} → ${s.client_name || '?'}\n`;
+  if (s.commodity) msg += `├─ Commodity: ${s.commodity}\n`;
+  if (s.eta) msg += `├─ ETA: ${s.eta}\n`;
+  if (s.net_profit_zar) msg += `├─ Profit: R${Number(s.net_profit_zar).toLocaleString()}\n`;
+  if (s.profit_margin) msg += `└─ Margin: ${s.profit_margin.toFixed(1)}% ${marginEmoji}\n`;
+  
   return msg;
 }
 
 function getStatusEmoji(status: string): string {
-  switch (status) {
-    case 'pending': return '⏳';
-    case 'in-transit': return '🚚';
-    case 'documents-submitted': return '📄';
-    case 'completed': return '✅';
-    default: return '📦';
+  const emojis: Record<string, string> = {
+    'pending': '⏳',
+    'in-transit': '🚢',
+    'documents-submitted': '📄',
+    'completed': '✅',
+  };
+  return emojis[status] || '📦';
+}
+
+async function sendTelegramMessage(token: string, chatId: number, text: string) {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML',
+    }),
+  });
+}
+
+async function logAction(supabase: any, userMessage: string, actionPlan: any, result: any) {
+  try {
+    await supabase.from('automation_logs').insert({
+      source: 'flair_telegram',
+      action: actionPlan.action || 'unknown',
+      lot_number: actionPlan.identifier?.lot_number || null,
+      request_body: { user_message: userMessage, action_plan: actionPlan },
+      response: result,
+      success: result.success,
+    });
+  } catch (error) {
+    console.error('Log error:', error);
   }
 }

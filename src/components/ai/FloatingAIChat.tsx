@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { MessageSquare, X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AIQueryChat } from './AIQueryChat';
 
 export function FloatingAIChat() {
@@ -9,7 +9,7 @@ export function FloatingAIChat() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating FLAIR Button */}
       <button
         onClick={() => setIsOpen(true)}
         className={cn(
@@ -21,22 +21,30 @@ export function FloatingAIChat() {
           'animate-pulse-glow'
         )}
         style={{
-          background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(239 84% 67%))',
+          background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(217 91% 60%))',
           boxShadow: '0 0 30px hsl(var(--primary) / 0.4)',
         }}
-        title="AI Assistant"
+        title="FLAIR - Operations Manager"
       >
-        <MessageSquare className="h-6 w-6" />
+        <Sparkles className="h-6 w-6" />
       </button>
 
-      {/* Chat Modal */}
+      {/* FLAIR Chat Modal */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              AI Assistant
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <span className="font-bold">FLAIR</span>
+                <span className="text-muted-foreground font-normal ml-2">Operations Manager</span>
+              </div>
             </DialogTitle>
+            <DialogDescription className="text-xs">
+              Your intelligent logistics assistant - query data, update shipments, and get proactive insights
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
             <AIQueryChat />
