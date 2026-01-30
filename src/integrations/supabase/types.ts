@@ -813,6 +813,117 @@ export type Database = {
           },
         ]
       }
+      document_extraction_queue: {
+        Row: {
+          auto_actions_taken: Json | null
+          confidence_score: number | null
+          created_at: string | null
+          document_type: string | null
+          error_message: string | null
+          extracted_data: Json | null
+          extracted_text: string | null
+          id: string
+          matched_client_id: string | null
+          matched_shipment_id: string | null
+          matched_supplier_id: string | null
+          needs_human_review: boolean | null
+          original_file_path: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          processing_time_ms: number | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_reference: string | null
+          source_type: string
+          status: string | null
+        }
+        Insert: {
+          auto_actions_taken?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          document_type?: string | null
+          error_message?: string | null
+          extracted_data?: Json | null
+          extracted_text?: string | null
+          id?: string
+          matched_client_id?: string | null
+          matched_shipment_id?: string | null
+          matched_supplier_id?: string | null
+          needs_human_review?: boolean | null
+          original_file_path?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          processing_time_ms?: number | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string | null
+          source_type: string
+          status?: string | null
+        }
+        Update: {
+          auto_actions_taken?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          document_type?: string | null
+          error_message?: string | null
+          extracted_data?: Json | null
+          extracted_text?: string | null
+          id?: string
+          matched_client_id?: string | null
+          matched_shipment_id?: string | null
+          matched_supplier_id?: string | null
+          needs_human_review?: boolean | null
+          original_file_path?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          processing_time_ms?: number | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string | null
+          source_type?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_extraction_queue_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_extraction_queue_matched_shipment_id_fkey"
+            columns: ["matched_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_extraction_queue_matched_shipment_id_fkey"
+            columns: ["matched_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_extraction_queue_matched_supplier_id_fkey"
+            columns: ["matched_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_extraction_queue_matched_supplier_id_fkey"
+            columns: ["matched_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_folders: {
         Row: {
           assigned_staff_id: string | null
@@ -1683,6 +1794,66 @@ export type Database = {
           id?: string
           permission?: Database["public"]["Enums"]["app_permission"]
           role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
+      rollback_checkpoints: {
+        Row: {
+          action_type: string
+          ai_conversation_id: string | null
+          ai_query: string | null
+          can_rollback: boolean | null
+          created_at: string | null
+          entity_id: string | null
+          entity_ids: string[] | null
+          entity_type: string
+          id: string
+          is_rolled_back: boolean | null
+          new_state: Json | null
+          previous_state: Json
+          rollback_expires_at: string | null
+          rolled_back_at: string | null
+          rolled_back_by: string | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          ai_conversation_id?: string | null
+          ai_query?: string | null
+          can_rollback?: boolean | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_ids?: string[] | null
+          entity_type: string
+          id?: string
+          is_rolled_back?: boolean | null
+          new_state?: Json | null
+          previous_state: Json
+          rollback_expires_at?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          ai_conversation_id?: string | null
+          ai_query?: string | null
+          can_rollback?: boolean | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_ids?: string[] | null
+          entity_type?: string
+          id?: string
+          is_rolled_back?: boolean | null
+          new_state?: Json | null
+          previous_state?: Json
+          rollback_expires_at?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          session_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -2839,6 +3010,51 @@ export type Database = {
           updated_at?: string | null
           used_bytes?: number | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      voice_messages: {
+        Row: {
+          audio_duration_seconds: number | null
+          audio_file_path: string | null
+          audio_format: string | null
+          channel: string
+          channel_user_id: string | null
+          created_at: string | null
+          flair_response: string | null
+          id: string
+          tools_used: string[] | null
+          transcription: string | null
+          transcription_confidence: number | null
+          user_id: string | null
+        }
+        Insert: {
+          audio_duration_seconds?: number | null
+          audio_file_path?: string | null
+          audio_format?: string | null
+          channel: string
+          channel_user_id?: string | null
+          created_at?: string | null
+          flair_response?: string | null
+          id?: string
+          tools_used?: string[] | null
+          transcription?: string | null
+          transcription_confidence?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          audio_duration_seconds?: number | null
+          audio_file_path?: string | null
+          audio_format?: string | null
+          channel?: string
+          channel_user_id?: string | null
+          created_at?: string | null
+          flair_response?: string | null
+          id?: string
+          tools_used?: string[] | null
+          transcription?: string | null
+          transcription_confidence?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }

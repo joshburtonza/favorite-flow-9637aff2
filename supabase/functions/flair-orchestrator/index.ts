@@ -557,6 +557,67 @@ const TOOL_DEFINITIONS = [
         required: ["entity_type", "entity_reference"]
       }
     }
+  },
+
+  // ========== OCR/DOCUMENT TOOLS (2) ==========
+  {
+    type: "function",
+    function: {
+      name: "document_process_ocr",
+      description: "Queue a document for OCR extraction. Use when user uploads an image/PDF and wants data extracted.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: { type: "string", description: "Path to the file in storage" },
+          source_type: { type: "string", enum: ["upload", "whatsapp", "telegram", "email"] }
+        },
+        required: ["file_path"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "document_extraction_status",
+      description: "Check status of document extractions.",
+      parameters: {
+        type: "object",
+        properties: {
+          queue_id: { type: "string", description: "Specific queue ID to check" },
+          status: { type: "string", enum: ["pending", "processing", "completed", "failed", "needs_review"] },
+          limit: { type: "number" }
+        }
+      }
+    }
+  },
+
+  // ========== ROLLBACK TOOLS (2) ==========
+  {
+    type: "function",
+    function: {
+      name: "rollback_last_action",
+      description: "Undo the last action. Use when user says 'undo', 'revert', 'cancel that', 'rollback'.",
+      parameters: {
+        type: "object",
+        properties: {
+          confirm: { type: "boolean", description: "User confirmation to proceed with rollback" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "rollback_list",
+      description: "List available rollback checkpoints.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number" },
+          entity_type: { type: "string" }
+        }
+      }
+    }
   }
 ];
 
@@ -762,6 +823,12 @@ async function executeTool(supabase: any, toolName: string, params: any, context
         break;
       case 'activity':
         result = await executeActivityTool(supabase, action, params);
+        break;
+      case 'document':
+        result = await executeDocumentTool(supabase, action, params);
+        break;
+      case 'rollback':
+        result = await executeRollbackTool(supabase, action, params, context);
         break;
       default:
         result = { success: false, error: `Unknown tool category: ${category}` };
@@ -1459,6 +1526,198 @@ async function executeReportTool(supabase: any, action: string, params: any, con
     default:
       return { success: false, error: `Unknown report action: ${action}` };
   }
+}
+
+// ========== DOCUMENT OCR TOOLS ==========
+async function executeDocumentTool(supabase: any, action: string, params: any): Promise<any> {
+  switch (action) {
+    case 'process_ocr': {
+      // Create queue entry
+      const { data: queueEntry, error: queueError } = await supabase
+        .from('document_extraction_queue')
+        .insert({
+          source_type: params.source_type || 'upload',
+          original_file_path: params.file_path,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (queueError) throw queueError;
+
+      // Trigger OCR processing
+      try {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/process-document-ocr`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            queue_id: queueEntry.id,
+            file_path: params.file_path,
+            source_type: params.source_type || 'upload'
+          })
+        });
+      } catch (e) {
+        console.error('OCR trigger error:', e);
+      }
+
+      return { 
+        success: true, 
+        data: queueEntry, 
+        message: 'Document queued for OCR extraction. I\'ll notify you when complete.' 
+      };
+    }
+
+    case 'extraction_status': {
+      let query = supabase.from('document_extraction_queue').select('*');
+      
+      if (params.queue_id) {
+        const { data, error } = await query.eq('id', params.queue_id).single();
+        if (error) throw error;
+        return { success: true, data };
+      }
+
+      if (params.status) {
+        query = query.eq('status', params.status);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(params.limit || 10);
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    default:
+      return { success: false, error: `Unknown document action: ${action}` };
+  }
+}
+
+// ========== ROLLBACK TOOLS ==========
+async function executeRollbackTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  const userId = context.current_user?.id;
+
+  switch (action) {
+    case 'last_action': {
+      // Get most recent rollback-able checkpoint
+      let query = supabase
+        .from('rollback_checkpoints')
+        .select('*')
+        .eq('is_rolled_back', false)
+        .eq('can_rollback', true)
+        .gt('rollback_expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data: checkpoints, error: fetchError } = await query;
+      if (fetchError) throw fetchError;
+
+      if (!checkpoints || checkpoints.length === 0) {
+        return { success: false, error: 'No actions available to rollback' };
+      }
+
+      const checkpoint = checkpoints[0];
+
+      if (!params.confirm) {
+        return {
+          success: false,
+          needs_confirmation: true,
+          checkpoint: {
+            id: checkpoint.id,
+            action_type: checkpoint.action_type,
+            entity_type: checkpoint.entity_type,
+            created_at: checkpoint.created_at
+          },
+          message: `Are you sure you want to undo: ${checkpoint.action_type} on ${checkpoint.entity_type}? Say "yes" to confirm.`
+        };
+      }
+
+      // Execute rollback
+      const tableName = getTableName(checkpoint.entity_type);
+      if (!tableName) {
+        return { success: false, error: `Cannot rollback: unknown entity type ${checkpoint.entity_type}` };
+      }
+
+      try {
+        switch (checkpoint.action_type) {
+          case 'create':
+            await supabase.from(tableName).delete().eq('id', checkpoint.entity_id);
+            break;
+          case 'update':
+            await supabase.from(tableName).update(checkpoint.previous_state).eq('id', checkpoint.entity_id);
+            break;
+          case 'delete':
+            await supabase.from(tableName).insert({ id: checkpoint.entity_id, ...checkpoint.previous_state });
+            break;
+        }
+
+        // Mark as rolled back
+        await supabase.from('rollback_checkpoints').update({
+          is_rolled_back: true,
+          rolled_back_at: new Date().toISOString(),
+          rolled_back_by: userId
+        }).eq('id', checkpoint.id);
+
+        return { 
+          success: true, 
+          message: `✅ Successfully rolled back: ${checkpoint.action_type} on ${checkpoint.entity_type}`,
+          checkpoint
+        };
+      } catch (e) {
+        return { success: false, error: `Rollback failed: ${e instanceof Error ? e.message : 'Unknown error'}` };
+      }
+    }
+
+    case 'list': {
+      let query = supabase
+        .from('rollback_checkpoints')
+        .select('id, action_type, entity_type, entity_id, ai_query, created_at, rollback_expires_at')
+        .eq('is_rolled_back', false)
+        .eq('can_rollback', true)
+        .gt('rollback_expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(params.limit || 10);
+
+      if (params.entity_type) {
+        query = query.eq('entity_type', params.entity_type);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return { 
+        success: true, 
+        data,
+        count: data?.length || 0,
+        message: data?.length ? `Found ${data.length} actions that can be rolled back` : 'No rollback-able actions found'
+      };
+    }
+
+    default:
+      return { success: false, error: `Unknown rollback action: ${action}` };
+  }
+}
+
+function getTableName(entityType: string): string | null {
+  const tableMap: Record<string, string> = {
+    'shipment': 'shipments',
+    'shipments': 'shipments',
+    'supplier': 'suppliers',
+    'suppliers': 'suppliers',
+    'client': 'clients',
+    'clients': 'clients',
+    'payment': 'payment_schedule',
+    'payment_schedule': 'payment_schedule',
+    'invoice': 'client_invoices',
+    'client_invoice': 'client_invoices',
+    'supplier_ledger': 'supplier_ledger',
+    'shipment_costs': 'shipment_costs',
+  };
+  return tableMap[entityType.toLowerCase()] || null;
 }
 
 // ========== ALERT TOOLS ==========
