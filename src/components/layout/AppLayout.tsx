@@ -36,7 +36,8 @@ import {
   MessageSquare,
   Calendar,
   Menu,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
 
@@ -73,6 +74,7 @@ const navItems: NavItem[] = [
   { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
   { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
+  { path: '/activity-log', label: 'Activity Log', icon: Activity, permission: 'manage_team' },
   { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
   { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
 ];

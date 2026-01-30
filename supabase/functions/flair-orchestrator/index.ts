@@ -507,6 +507,56 @@ const TOOL_DEFINITIONS = [
         }
       }
     }
+  },
+
+  // ========== ACTIVITY/AUDIT TOOLS (3) ==========
+  {
+    type: "function",
+    function: {
+      name: "activity_query",
+      description: "Query user activity logs. Use for: who did what, recent changes, audit trail, what happened to X.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_email: { type: "string", description: "Filter by specific user email" },
+          action_type: { type: "string", enum: ["create", "update", "delete", "view", "export", "login", "logout"], description: "Filter by action type" },
+          entity_type: { type: "string", description: "Filter by entity: shipment, supplier, client, payment, document" },
+          entity_name: { type: "string", description: "Filter by entity reference (LOT number, supplier name, etc.)" },
+          days_back: { type: "number", description: "How many days back to search (default: 7)" },
+          limit: { type: "number", description: "Max results (default: 20)" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "activity_summary",
+      description: "Get activity summary/statistics. Use for: activity report, who's been busy, system usage, daily/weekly summary.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", enum: ["today", "yesterday", "week", "month"], description: "Time period for summary" },
+          group_by: { type: "string", enum: ["user", "action", "entity"], description: "How to group the summary" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "activity_entity_history",
+      description: "Get complete change history for a specific entity. Use for: history of LOT X, what changed on supplier Y, audit trail for Z.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", description: "Type: shipment, supplier, client, payment" },
+          entity_reference: { type: "string", description: "Reference like LOT number or name" },
+          limit: { type: "number", description: "Max results (default: 20)" }
+        },
+        required: ["entity_type", "entity_reference"]
+      }
+    }
   }
 ];
 
@@ -710,6 +760,9 @@ async function executeTool(supabase: any, toolName: string, params: any, context
       case 'channel':
         result = await executeChannelTool(supabase, action, params, channel, channelId);
         break;
+      case 'activity':
+        result = await executeActivityTool(supabase, action, params);
+        break;
       default:
         result = { success: false, error: `Unknown tool category: ${category}` };
     }
@@ -798,6 +851,131 @@ async function executeChannelTool(supabase: any, action: string, params: any, ch
 
     default:
       return { success: false, error: `Unknown channel action: ${action}` };
+  }
+}
+
+// ========== ACTIVITY/AUDIT TOOLS ==========
+async function executeActivityTool(supabase: any, action: string, params: any): Promise<any> {
+  switch (action) {
+    case 'query': {
+      const daysBack = params.days_back || 7;
+      const limit = params.limit || 20;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysBack);
+
+      let query = supabase
+        .from('activity_logs')
+        .select('id, user_email, action_type, entity_type, entity_id, entity_name, description, created_at')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (params.user_email) {
+        query = query.ilike('user_email', `%${params.user_email}%`);
+      }
+      if (params.action_type) {
+        query = query.eq('action_type', params.action_type);
+      }
+      if (params.entity_type) {
+        query = query.eq('entity_type', params.entity_type);
+      }
+      if (params.entity_name) {
+        query = query.ilike('entity_name', `%${params.entity_name}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      return { 
+        success: true, 
+        data,
+        count: data?.length || 0,
+        period: `Last ${daysBack} days`
+      };
+    }
+
+    case 'summary': {
+      const period = params.period || 'week';
+      let startDate = new Date();
+      
+      switch (period) {
+        case 'today':
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case 'yesterday':
+          startDate.setDate(startDate.getDate() - 1);
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case 'month':
+          startDate.setDate(startDate.getDate() - 30);
+          break;
+      }
+
+      const { data: logs, error } = await supabase
+        .from('activity_logs')
+        .select('user_email, action_type, entity_type')
+        .gte('created_at', startDate.toISOString());
+
+      if (error) throw error;
+
+      const summary: any = {
+        period,
+        total_activities: logs?.length || 0,
+        by_user: {} as Record<string, number>,
+        by_action: {} as Record<string, number>,
+        by_entity: {} as Record<string, number>
+      };
+
+      logs?.forEach((log: any) => {
+        if (log.user_email) {
+          summary.by_user[log.user_email] = (summary.by_user[log.user_email] || 0) + 1;
+        }
+        summary.by_action[log.action_type] = (summary.by_action[log.action_type] || 0) + 1;
+        summary.by_entity[log.entity_type] = (summary.by_entity[log.entity_type] || 0) + 1;
+      });
+
+      // Get top users
+      const topUsers = Object.entries(summary.by_user)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 5)
+        .map(([email, count]) => ({ email, count }));
+
+      return {
+        success: true,
+        data: {
+          ...summary,
+          top_users: topUsers
+        }
+      };
+    }
+
+    case 'entity_history': {
+      const limit = params.limit || 20;
+
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('id, user_email, action_type, entity_type, entity_name, description, old_values, new_values, created_at')
+        .eq('entity_type', params.entity_type)
+        .ilike('entity_name', `%${params.entity_reference}%`)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data,
+        entity_type: params.entity_type,
+        entity_reference: params.entity_reference,
+        count: data?.length || 0
+      };
+    }
+
+    default:
+      return { success: false, error: `Unknown activity action: ${action}` };
   }
 }
 
