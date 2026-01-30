@@ -1298,6 +1298,68 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          alert_id: string | null
+          channel: string
+          channel_user_id: string
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          notification_type: string
+          read_at: string | null
+          sent_at: string | null
+          status: string
+          title: string | null
+          user_id: string | null
+        }
+        Insert: {
+          alert_id?: string | null
+          channel: string
+          channel_user_id: string
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          notification_type: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          title?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          alert_id?: string | null
+          channel?: string
+          channel_user_id?: string
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          notification_type?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          title?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "proactive_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           action_url: string | null
@@ -2509,6 +2571,54 @@ export type Database = {
           },
         ]
       }
+      user_channel_identities: {
+        Row: {
+          channel: string
+          channel_user_id: string
+          created_at: string | null
+          display_name: string | null
+          id: string
+          is_active: boolean | null
+          is_verified: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          receive_alerts: boolean | null
+          receive_briefings: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          channel: string
+          channel_user_id: string
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          receive_alerts?: boolean | null
+          receive_briefings?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          channel_user_id?: string
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          receive_alerts?: boolean | null
+          receive_briefings?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_favorites: {
         Row: {
           created_at: string | null
@@ -2788,6 +2898,17 @@ export type Database = {
     Functions: {
       cleanup_old_conversations: { Args: never; Returns: undefined }
       generate_invoice_number: { Args: never; Returns: string }
+      get_alert_recipients: {
+        Args: never
+        Returns: {
+          channel: string
+          channel_user_id: string
+          display_name: string
+          quiet_hours_end: string
+          quiet_hours_start: string
+          user_id: string
+        }[]
+      }
       get_mtd_totals: {
         Args: { month_start: string }
         Returns: {
@@ -2838,6 +2959,17 @@ export type Database = {
           id: string
           last_payment_date: string
           name: string
+        }[]
+      }
+      get_user_by_channel: {
+        Args: { p_channel: string; p_channel_user_id: string }
+        Returns: {
+          display_name: string
+          email: string
+          is_verified: boolean
+          receive_alerts: boolean
+          receive_briefings: boolean
+          user_id: string
         }[]
       }
       has_permission: {

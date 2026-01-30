@@ -476,6 +476,37 @@ const TOOL_DEFINITIONS = [
         }
       }
     }
+  },
+
+  // ========== CHANNEL/USER TOOLS (2) ==========
+  {
+    type: "function",
+    function: {
+      name: "channel_register",
+      description: "Register current chat channel for a user. Admin only. Use when user wants to link their Telegram/WhatsApp to their account.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_email: { type: "string", description: "Email of user to register this channel for" },
+          display_name: { type: "string", description: "Display name for notifications" }
+        },
+        required: ["user_email"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "channel_list",
+      description: "List registered channel identities for users.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_email: { type: "string", description: "Filter by user email" },
+          list_all: { type: "boolean", description: "List all registered channels" }
+        }
+      }
+    }
   }
 ];
 
@@ -649,7 +680,7 @@ function buildContextPrompt(context: any): string {
 // TOOL EXECUTION FUNCTIONS
 // ============================================================================
 
-async function executeTool(supabase: any, toolName: string, params: any, context: any): Promise<any> {
+async function executeTool(supabase: any, toolName: string, params: any, context: any, channel?: string, channelId?: string): Promise<any> {
   const startTime = Date.now();
   let result: any = { success: false };
 
@@ -676,6 +707,9 @@ async function executeTool(supabase: any, toolName: string, params: any, context
       case 'alert':
         result = await executeAlertTool(supabase, action, params, context);
         break;
+      case 'channel':
+        result = await executeChannelTool(supabase, action, params, channel, channelId);
+        break;
       default:
         result = { success: false, error: `Unknown tool category: ${category}` };
     }
@@ -685,6 +719,86 @@ async function executeTool(supabase: any, toolName: string, params: any, context
 
   result.execution_time_ms = Date.now() - startTime;
   return result;
+}
+
+// ========== CHANNEL TOOLS ==========
+async function executeChannelTool(supabase: any, action: string, params: any, channel?: string, channelId?: string): Promise<any> {
+  switch (action) {
+    case 'register': {
+      if (!channel || !channelId) {
+        return { success: false, error: 'Channel information not available. Send from Telegram or WhatsApp.' };
+      }
+
+      // Find user by email
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .ilike('email', `%${params.user_email}%`)
+        .single();
+
+      if (!profile) {
+        return { success: false, error: `User with email "${params.user_email}" not found` };
+      }
+
+      // Check if already registered
+      const { data: existing } = await supabase
+        .from('user_channel_identities')
+        .select('id')
+        .eq('channel', channel)
+        .eq('channel_user_id', channelId)
+        .single();
+
+      if (existing) {
+        // Update existing
+        const { data, error } = await supabase
+          .from('user_channel_identities')
+          .update({
+            user_id: profile.id,
+            display_name: params.display_name || profile.full_name,
+            is_verified: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return { success: true, data, action: 'updated', message: `Updated channel for ${profile.email}` };
+      }
+
+      // Create new
+      const { data, error } = await supabase
+        .from('user_channel_identities')
+        .insert({
+          user_id: profile.id,
+          channel,
+          channel_user_id: channelId,
+          display_name: params.display_name || profile.full_name,
+          is_verified: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data, action: 'created', message: `Registered ${channel} for ${profile.email}` };
+    }
+
+    case 'list': {
+      let query = supabase.from('user_channel_identities').select('*, profiles(email, full_name)');
+      
+      if (params.user_email) {
+        const { data: profile } = await supabase.from('profiles').select('id').ilike('email', `%${params.user_email}%`).single();
+        if (profile) query = query.eq('user_id', profile.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    default:
+      return { success: false, error: `Unknown channel action: ${action}` };
+  }
 }
 
 // ========== SHIPMENT TOOLS ==========
@@ -1295,11 +1409,27 @@ serve(async (req) => {
   );
 
   try {
-    const { message, channel = 'web', channel_id, user_id } = await req.json();
+    const { message, channel = 'web', channel_id, user_id: provided_user_id } = await req.json();
     console.log(`[FLAIR] ${channel}: "${message}"`);
+
+    // 0. Resolve user identity from channel
+    let user_id = provided_user_id;
+    let userName = 'Unknown User';
+    
+    if (!user_id && channel && channel_id && channel !== 'web') {
+      const { data: identity } = await supabase
+        .rpc('get_user_by_channel', { p_channel: channel, p_channel_user_id: channel_id });
+      
+      if (identity && identity.length > 0) {
+        user_id = identity[0].user_id;
+        userName = identity[0].display_name || identity[0].email || 'User';
+        console.log(`[FLAIR] Resolved user: ${userName} (${user_id})`);
+      }
+    }
 
     // 1. Fetch context
     const context = await fetchContext(supabase, channel_id);
+    context.current_user = { id: user_id, name: userName };
     const contextPrompt = buildContextPrompt(context);
 
     // 2. Store user message
@@ -1338,7 +1468,7 @@ serve(async (req) => {
         console.log(`[FLAIR] Tool: ${toolName}`, params);
         toolsUsed.push(toolName);
 
-        const result = await executeTool(supabase, toolName, params, context);
+        const result = await executeTool(supabase, toolName, params, context, channel, channel_id);
         toolResults.push(result);
 
         // Log execution

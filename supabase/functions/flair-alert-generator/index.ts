@@ -246,35 +246,36 @@ serve(async (req) => {
       withInvoice?.map(s => s.id) || [], alertsResolved, true);
 
     // =========================================================================
-    // SEND TELEGRAM NOTIFICATION IF NEW ALERTS
+    // SEND NOTIFICATIONS VIA FLAIR-NOTIFY FOR NEW ALERTS
     // =========================================================================
     if (alertsCreated.length > 0) {
-      const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
-      const TELEGRAM_CHAT_ID = Deno.env.get('TELEGRAM_CHAT_ID');
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+      const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      
+      // Filter for warning and above severity
+      const notifyAlerts = alertsCreated.filter(a => 
+        ['warning', 'urgent', 'critical'].includes(a.severity)
+      );
 
-      if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-        const urgentAlerts = alertsCreated.filter(a => a.severity === 'urgent' || a.severity === 'critical');
-        
-        if (urgentAlerts.length > 0) {
-          let message = `🚨 <b>FLAIR Alert${urgentAlerts.length > 1 ? 's' : ''}</b>\n\n`;
-          
-          for (const alert of urgentAlerts.slice(0, 5)) {
-            message += `⚠️ <b>${alert.title}</b>\n${alert.message}\n\n`;
-          }
-
-          if (urgentAlerts.length > 5) {
-            message += `...and ${urgentAlerts.length - 5} more alerts`;
-          }
-
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      for (const alert of notifyAlerts) {
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/flair-notify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
-              chat_id: TELEGRAM_CHAT_ID,
-              text: message,
-              parse_mode: 'HTML'
+              type: 'alert',
+              alert_id: alert.id,
+              title: alert.title,
+              message: alert.message + (alert.suggested_action ? `\n\n💡 ${alert.suggested_action}` : ''),
+              priority: alert.severity === 'critical' ? 'high' : 'normal'
             })
           });
+          console.log(`[Alert Generator] Notification sent for: ${alert.type}`);
+        } catch (e) {
+          console.error(`[Alert Generator] Failed to notify for ${alert.type}:`, e);
         }
       }
     }
