@@ -212,6 +212,62 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_tool_executions: {
+        Row: {
+          affected_entities: Json | null
+          completed_at: string | null
+          conversation_id: string | null
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          input_params: Json
+          output_result: Json | null
+          started_at: string | null
+          success: boolean
+          tool_category: string
+          tool_name: string
+          user_id: string | null
+        }
+        Insert: {
+          affected_entities?: Json | null
+          completed_at?: string | null
+          conversation_id?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_params?: Json
+          output_result?: Json | null
+          started_at?: string | null
+          success?: boolean
+          tool_category: string
+          tool_name: string
+          user_id?: string | null
+        }
+        Update: {
+          affected_entities?: Json | null
+          completed_at?: string | null
+          conversation_id?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_params?: Json
+          output_result?: Json | null
+          started_at?: string | null
+          success?: boolean
+          tool_category?: string
+          tool_name?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_tool_executions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_memory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcement_reads: {
         Row: {
           announcement_id: string
@@ -532,6 +588,48 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      conversation_memory: {
+        Row: {
+          channel: string
+          channel_id: string | null
+          content: string
+          created_at: string | null
+          entities_referenced: Json | null
+          id: string
+          response_time_ms: number | null
+          role: string
+          tokens_used: number | null
+          tools_used: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          channel: string
+          channel_id?: string | null
+          content: string
+          created_at?: string | null
+          entities_referenced?: Json | null
+          id?: string
+          response_time_ms?: number | null
+          role: string
+          tokens_used?: number | null
+          tools_used?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string
+          channel_id?: string | null
+          content?: string
+          created_at?: string | null
+          entities_referenced?: Json | null
+          id?: string
+          response_time_ms?: number | null
+          role?: string
+          tokens_used?: number | null
+          tools_used?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1116,6 +1214,60 @@ export type Database = {
           },
         ]
       }
+      fx_rate_history: {
+        Row: {
+          applied_rate: number | null
+          captured_at: string | null
+          currency_pair: string
+          id: string
+          lot_number: string | null
+          provider: string
+          shipment_id: string | null
+          source: string | null
+          spot_rate: number
+          spread: number | null
+        }
+        Insert: {
+          applied_rate?: number | null
+          captured_at?: string | null
+          currency_pair: string
+          id?: string
+          lot_number?: string | null
+          provider: string
+          shipment_id?: string | null
+          source?: string | null
+          spot_rate: number
+          spread?: number | null
+        }
+        Update: {
+          applied_rate?: number | null
+          captured_at?: string | null
+          currency_pair?: string
+          id?: string
+          lot_number?: string | null
+          provider?: string
+          shipment_id?: string | null
+          source?: string | null
+          spot_rate?: number
+          spread?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fx_rate_history_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_rate_history_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fx_rates: {
         Row: {
           applied_rate: number | null
@@ -1281,6 +1433,84 @@ export type Database = {
           },
         ]
       }
+      proactive_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          action_required: boolean | null
+          alert_type: string
+          created_at: string | null
+          entity_id: string | null
+          entity_reference: string | null
+          entity_type: string | null
+          expires_at: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          notified_at: string | null
+          notified_via: Json | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: Database["public"]["Enums"]["alert_severity"]
+          status: Database["public"]["Enums"]["alert_status"]
+          suggested_action: string | null
+          target_role: string | null
+          target_user_id: string | null
+          title: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_required?: boolean | null
+          alert_type: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_reference?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          notified_at?: string | null
+          notified_via?: Json | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: Database["public"]["Enums"]["alert_severity"]
+          status?: Database["public"]["Enums"]["alert_status"]
+          suggested_action?: string | null
+          target_role?: string | null
+          target_user_id?: string | null
+          title: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_required?: boolean | null
+          alert_type?: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_reference?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          notified_at?: string | null
+          notified_via?: Json | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: Database["public"]["Enums"]["alert_severity"]
+          status?: Database["public"]["Enums"]["alert_status"]
+          suggested_action?: string | null
+          target_role?: string | null
+          target_user_id?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1337,6 +1567,63 @@ export type Database = {
           id?: string
           permission?: Database["public"]["Enums"]["app_permission"]
           role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
+      scheduled_reports: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          delivery_channel: string
+          delivery_target: string
+          id: string
+          is_active: boolean | null
+          last_run_at: string | null
+          last_run_status: string | null
+          next_run_at: string | null
+          report_name: string
+          report_params: Json | null
+          report_type: string
+          run_count: number | null
+          schedule_cron: string
+          timezone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          delivery_channel: string
+          delivery_target: string
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          report_name: string
+          report_params?: Json | null
+          report_type: string
+          run_count?: number | null
+          schedule_cron: string
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          delivery_channel?: string
+          delivery_target?: string
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          report_name?: string
+          report_params?: Json | null
+          report_type?: string
+          run_count?: number | null
+          schedule_cron?: string
+          timezone?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2273,6 +2560,63 @@ export type Database = {
         }
         Relationships: []
       }
+      user_preferences: {
+        Row: {
+          auto_calculate_profit: boolean | null
+          confirm_dangerous_ops: boolean | null
+          created_at: string | null
+          daily_briefing_time: string | null
+          include_profit_in_briefing: boolean | null
+          language: string | null
+          low_margin_threshold: number | null
+          notify_low_margin: boolean | null
+          notify_new_shipment: boolean | null
+          notify_payment_due: boolean | null
+          notify_status_change: boolean | null
+          preferred_channel: string | null
+          response_verbosity: string | null
+          timezone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_calculate_profit?: boolean | null
+          confirm_dangerous_ops?: boolean | null
+          created_at?: string | null
+          daily_briefing_time?: string | null
+          include_profit_in_briefing?: boolean | null
+          language?: string | null
+          low_margin_threshold?: number | null
+          notify_low_margin?: boolean | null
+          notify_new_shipment?: boolean | null
+          notify_payment_due?: boolean | null
+          notify_status_change?: boolean | null
+          preferred_channel?: string | null
+          response_verbosity?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_calculate_profit?: boolean | null
+          confirm_dangerous_ops?: boolean | null
+          created_at?: string | null
+          daily_briefing_time?: string | null
+          include_profit_in_briefing?: boolean | null
+          language?: string | null
+          low_margin_threshold?: number | null
+          notify_low_margin?: boolean | null
+          notify_new_shipment?: boolean | null
+          notify_payment_due?: boolean | null
+          notify_status_change?: boolean | null
+          preferred_channel?: string | null
+          response_verbosity?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2348,23 +2692,61 @@ export type Database = {
         }
         Relationships: []
       }
+      v_latest_fx_rates: {
+        Row: {
+          applied_rate: number | null
+          captured_at: string | null
+          currency_pair: string | null
+          provider: string | null
+          spot_rate: number | null
+        }
+        Relationships: []
+      }
       v_pending_payments: {
         Row: {
           amount_foreign: number | null
           amount_zar: number | null
-          bank_account_name: string | null
-          commission_earned: number | null
-          created_at: string | null
           currency: Database["public"]["Enums"]["currency_type"] | null
           fx_rate: number | null
           id: string | null
           lot_number: string | null
           notes: string | null
           payment_date: string | null
+          shipment_id: string | null
           status: Database["public"]["Enums"]["payment_status"] | null
+          supplier_id: string | null
           supplier_name: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_schedule_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedule_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedule_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_schedule_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_shipments_full: {
         Row: {
@@ -2404,6 +2786,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_old_conversations: { Args: never; Returns: undefined }
       generate_invoice_number: { Args: never; Returns: string }
       has_permission: {
         Args: {
@@ -2440,6 +2823,8 @@ export type Database = {
       }
     }
     Enums: {
+      alert_severity: "info" | "warning" | "urgent" | "critical"
+      alert_status: "active" | "acknowledged" | "resolved" | "dismissed"
       announcement_priority: "urgent" | "high" | "normal" | "low"
       app_permission:
         | "view_dashboard"
@@ -2649,6 +3034,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alert_severity: ["info", "warning", "urgent", "critical"],
+      alert_status: ["active", "acknowledged", "resolved", "dismissed"],
       announcement_priority: ["urgent", "high", "normal", "low"],
       app_permission: [
         "view_dashboard",

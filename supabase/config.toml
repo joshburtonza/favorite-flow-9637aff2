@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.embed-document]
 verify_jwt = true
+
+[functions.flair-orchestrator]
+verify_jwt = false
