@@ -1047,6 +1047,63 @@ export type Database = {
         }
         Relationships: []
       }
+      document_type_definitions: {
+        Row: {
+          created_at: string | null
+          display_name: string
+          document_type: string
+          extraction_rules: Json
+          field_mapping: Json
+          id: string
+          is_active: boolean | null
+          recognition_patterns: Json
+          updated_at: string | null
+          vendor_id: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_name: string
+          document_type: string
+          extraction_rules?: Json
+          field_mapping?: Json
+          id?: string
+          is_active?: boolean | null
+          recognition_patterns?: Json
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string
+          document_type?: string
+          extraction_rules?: Json
+          field_mapping?: Json
+          id?: string
+          is_active?: boolean | null
+          recognition_patterns?: Json
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_type_definitions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_type_definitions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "v_creditors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duplicate_detection_settings: {
         Row: {
           auto_block_exact_duplicates: boolean | null
@@ -2009,17 +2066,26 @@ export type Database = {
       }
       shipment_costs: {
         Row: {
+          agency_fee: number | null
           bank_charges: number
+          cargo_dues: number | null
           clearing_cost: number
           client_invoice_zar: number
+          container_landing: number | null
           created_at: string
+          customs_duty: number | null
+          customs_vat: number | null
           freight_cost: number
+          freight_usd: number | null
+          freight_zar: number | null
           fx_applied_rate: number
+          fx_client_rate: number | null
           fx_commission_zar: number | null
           fx_spot_rate: number
           fx_spread: number | null
           fx_spread_profit_zar: number | null
           gross_profit_zar: number | null
+          handover_fee: number | null
           id: string
           net_profit_zar: number | null
           profit_margin: number | null
@@ -2029,20 +2095,31 @@ export type Database = {
           total_foreign: number | null
           total_zar: number | null
           transport_cost: number
+          transport_surcharges: number | null
+          transport_total: number | null
           updated_at: string
         }
         Insert: {
+          agency_fee?: number | null
           bank_charges?: number
+          cargo_dues?: number | null
           clearing_cost?: number
           client_invoice_zar?: number
+          container_landing?: number | null
           created_at?: string
+          customs_duty?: number | null
+          customs_vat?: number | null
           freight_cost?: number
+          freight_usd?: number | null
+          freight_zar?: number | null
           fx_applied_rate?: number
+          fx_client_rate?: number | null
           fx_commission_zar?: number | null
           fx_spot_rate?: number
           fx_spread?: number | null
           fx_spread_profit_zar?: number | null
           gross_profit_zar?: number | null
+          handover_fee?: number | null
           id?: string
           net_profit_zar?: number | null
           profit_margin?: number | null
@@ -2052,20 +2129,31 @@ export type Database = {
           total_foreign?: number | null
           total_zar?: number | null
           transport_cost?: number
+          transport_surcharges?: number | null
+          transport_total?: number | null
           updated_at?: string
         }
         Update: {
+          agency_fee?: number | null
           bank_charges?: number
+          cargo_dues?: number | null
           clearing_cost?: number
           client_invoice_zar?: number
+          container_landing?: number | null
           created_at?: string
+          customs_duty?: number | null
+          customs_vat?: number | null
           freight_cost?: number
+          freight_usd?: number | null
+          freight_zar?: number | null
           fx_applied_rate?: number
+          fx_client_rate?: number | null
           fx_commission_zar?: number | null
           fx_spot_rate?: number
           fx_spread?: number | null
           fx_spread_profit_zar?: number | null
           gross_profit_zar?: number | null
+          handover_fee?: number | null
           id?: string
           net_profit_zar?: number | null
           profit_margin?: number | null
@@ -2075,6 +2163,8 @@ export type Database = {
           total_foreign?: number | null
           total_zar?: number | null
           transport_cost?: number
+          transport_surcharges?: number | null
+          transport_total?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -2097,8 +2187,10 @@ export type Database = {
       shipments: {
         Row: {
           ai_summary: string | null
+          bl_number: string | null
           client_id: string | null
           commodity: string | null
+          container_number: string | null
           created_at: string
           delivery_date: string | null
           document_submitted: boolean
@@ -2113,11 +2205,14 @@ export type Database = {
           telex_released: boolean
           telex_released_date: string | null
           updated_at: string
+          vessel_name: string | null
         }
         Insert: {
           ai_summary?: string | null
+          bl_number?: string | null
           client_id?: string | null
           commodity?: string | null
+          container_number?: string | null
           created_at?: string
           delivery_date?: string | null
           document_submitted?: boolean
@@ -2132,11 +2227,14 @@ export type Database = {
           telex_released?: boolean
           telex_released_date?: string | null
           updated_at?: string
+          vessel_name?: string | null
         }
         Update: {
           ai_summary?: string | null
+          bl_number?: string | null
           client_id?: string | null
           commodity?: string | null
+          container_number?: string | null
           created_at?: string
           delivery_date?: string | null
           document_submitted?: boolean
@@ -2151,6 +2249,7 @@ export type Database = {
           telex_released?: boolean
           telex_released_date?: string | null
           updated_at?: string
+          vessel_name?: string | null
         }
         Relationships: [
           {

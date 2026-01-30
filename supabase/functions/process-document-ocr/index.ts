@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface ExtractionResult {
@@ -70,38 +70,67 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a document extraction AI for a freight forwarding company. 
+            content: `You are a document extraction AI for Favorite Logistics, a freight forwarding company.
 Extract data from documents and return structured JSON.
 
-Document types you handle:
-- supplier_invoice: Has supplier name, invoice number, amounts, currency
-- packing_list: Has items, weights, quantities, container info
-- bill_of_lading: Has shipping details, BL number, vessel, consignee
-- clearing_agent_invoice: Has customs duties, VAT, fees, agency charges
-- transport_invoice: Has transport costs, delivery details, truck info
-- telex_release: Confirmation of cargo release
-- commercial_invoice: Product pricing, FOB values
+KNOWN VENDOR DOCUMENT TYPES:
+1. clearing_agent_nunsofast - Nunso-Fast Clearing Invoice
+   - Pink/salmon colored header
+   - Contains: CUSTOMS DUTY, CUSTOMS VAT, CONTAINER LANDING, AGENCY, CARGO DUES
+   - Invoice format: IN123456
+   - Look for: "Your Reference" field = LOT number
 
-Look for LOT numbers in format "LOT XXX" or similar references.
+2. shipping_invoice_kelilah - Kelilah Shipping Invoice
+   - Contains: OCEAN FREIGHT (USD), R.O.E., HANDOVER FEE
+   - Invoice format: KS-0123
+   - Has shipping details: POR, POD, ETA, VSL/VOY, MBL, HBL
 
-Always return JSON with:
+3. transport_invoice_barakuda - Barakuda Transport Invoice
+   - Green header
+   - Contains: Transport costs, GIM SURCHARGE
+   - Invoice format: BAR0123XXX
+   - Look for: LOT number in Client Ref field
+
+4. file_costing_internal - Internal File Costing (Excel)
+   - Header format: "LOT XXX - SUPPLIER - DOC CLIENT"
+   - Contains: FOB, ROE values, clearing costs breakdown
+
+OTHER DOCUMENT TYPES:
+- supplier_invoice, packing_list, bill_of_lading, telex_release, commercial_invoice
+
+EXTRACTION RULES:
+- Parse all amounts as numbers (remove R, $, ZAR, USD, commas)
+- Convert dates to YYYY-MM-DD
+- Extract container numbers (XXXX1234567 format)
+- Extract LOT numbers from any reference field
+- Extract vessel names exactly as shown
+
+Always return JSON:
 {
-  "document_type": "supplier_invoice|packing_list|bill_of_lading|clearing_agent_invoice|transport_invoice|telex_release|commercial_invoice|unknown",
+  "document_type": "clearing_agent_nunsofast|shipping_invoice_kelilah|transport_invoice_barakuda|supplier_invoice|...|unknown",
   "confidence": 0.0-1.0,
   "data": { 
     "supplier_name": "...",
     "invoice_number": "...",
     "invoice_date": "YYYY-MM-DD",
     "lot_number": "...",
+    "container_number": "...",
+    "vessel": "...",
     "amount": 0.00,
-    "currency": "USD|ZAR|EUR",
+    "currency": "USD|ZAR",
     "customs_duty": 0.00,
     "customs_vat": 0.00,
+    "container_landing": 0.00,
+    "cargo_dues": 0.00,
     "agency_fee": 0.00,
+    "ocean_freight_usd": 0.00,
+    "ocean_freight_zar": 0.00,
+    "roe": 0.0000,
+    "handover_fee": 0.00,
     "transport_cost": 0.00,
     "items": []
   },
-  "raw_text": "full text from document"
+  "raw_text": "full extracted text"
 }`
           },
           {
@@ -159,17 +188,19 @@ Always return JSON with:
 
     // Auto-update records if high confidence and matched shipment
     if (extraction.confidence >= 0.85 && matches.shipment_id) {
-      if (extraction.document_type === 'clearing_agent_invoice') {
+      // Nunso-Fast Clearing Invoice
+      if (extraction.document_type === 'clearing_agent_nunsofast' || extraction.document_type === 'clearing_agent_invoice') {
         const updateData: any = {};
         if (extraction.data.customs_duty) updateData.customs_duty = extraction.data.customs_duty;
         if (extraction.data.customs_vat) updateData.customs_vat = extraction.data.customs_vat;
-        if (extraction.data.agency_fee) updateData.clearing_cost = extraction.data.agency_fee;
+        if (extraction.data.container_landing) updateData.container_landing = extraction.data.container_landing;
+        if (extraction.data.cargo_dues) updateData.cargo_dues = extraction.data.cargo_dues;
+        if (extraction.data.agency_fee) updateData.agency_fee = extraction.data.agency_fee;
         if (extraction.data.amount) updateData.clearing_cost = extraction.data.amount;
 
         if (Object.keys(updateData).length > 0) {
           await supabase.from('shipment_costs')
-            .update(updateData)
-            .eq('shipment_id', matches.shipment_id);
+            .upsert({ shipment_id: matches.shipment_id, ...updateData }, { onConflict: 'shipment_id' });
 
           autoActions.push({
             action: 'update_clearing_costs',
@@ -179,25 +210,67 @@ Always return JSON with:
         }
       }
 
-      if (extraction.document_type === 'transport_invoice') {
-        await supabase.from('shipment_costs')
-          .update({ transport_cost: extraction.data.transport_cost || extraction.data.amount })
-          .eq('shipment_id', matches.shipment_id);
+      // Kelilah Shipping Invoice
+      if (extraction.document_type === 'shipping_invoice_kelilah' || extraction.document_type === 'shipping_invoice') {
+        const updateData: any = {};
+        if (extraction.data.ocean_freight_usd) updateData.freight_usd = extraction.data.ocean_freight_usd;
+        if (extraction.data.ocean_freight_zar) updateData.freight_zar = extraction.data.ocean_freight_zar;
+        if (extraction.data.roe) updateData.fx_applied_rate = extraction.data.roe;
+        if (extraction.data.handover_fee) updateData.handover_fee = extraction.data.handover_fee;
+        if (extraction.data.amount) updateData.freight_cost = extraction.data.amount;
 
-        autoActions.push({
-          action: 'update_transport_cost',
-          shipment_id: matches.shipment_id,
-          amount: extraction.data.transport_cost || extraction.data.amount
-        });
+        if (Object.keys(updateData).length > 0) {
+          await supabase.from('shipment_costs')
+            .upsert({ shipment_id: matches.shipment_id, ...updateData }, { onConflict: 'shipment_id' });
+
+          autoActions.push({
+            action: 'update_shipping_costs',
+            shipment_id: matches.shipment_id,
+            data: updateData
+          });
+        }
+
+        // Update shipment with vessel/BL info
+        const shipmentUpdate: any = {};
+        if (extraction.data.vessel) shipmentUpdate.vessel_name = extraction.data.vessel;
+        if (extraction.data.mbl) shipmentUpdate.bl_number = extraction.data.mbl;
+        if (extraction.data.eta) shipmentUpdate.eta = extraction.data.eta;
+        if (extraction.data.container_number) shipmentUpdate.container_number = extraction.data.container_number;
+
+        if (Object.keys(shipmentUpdate).length > 0) {
+          await supabase.from('shipments')
+            .update(shipmentUpdate)
+            .eq('id', matches.shipment_id);
+        }
       }
 
+      // Barakuda Transport Invoice
+      if (extraction.document_type === 'transport_invoice_barakuda' || extraction.document_type === 'transport_invoice') {
+        const updateData: any = {};
+        if (extraction.data.transport_cost) updateData.transport_cost = extraction.data.transport_cost;
+        if (extraction.data.gim_surcharge) updateData.transport_surcharges = extraction.data.gim_surcharge;
+        if (extraction.data.amount) updateData.transport_total = extraction.data.amount;
+
+        if (Object.keys(updateData).length > 0) {
+          await supabase.from('shipment_costs')
+            .upsert({ shipment_id: matches.shipment_id, ...updateData }, { onConflict: 'shipment_id' });
+
+          autoActions.push({
+            action: 'update_transport_cost',
+            shipment_id: matches.shipment_id,
+            data: updateData
+          });
+        }
+      }
+
+      // Supplier Invoice
       if (extraction.document_type === 'supplier_invoice') {
         await supabase.from('shipment_costs')
-          .update({ 
+          .upsert({ 
+            shipment_id: matches.shipment_id,
             supplier_cost: extraction.data.amount,
             source_currency: extraction.data.currency || 'USD'
-          })
-          .eq('shipment_id', matches.shipment_id);
+          }, { onConflict: 'shipment_id' });
 
         autoActions.push({
           action: 'update_supplier_cost',
@@ -207,6 +280,7 @@ Always return JSON with:
         });
       }
 
+      // Telex Release
       if (extraction.document_type === 'telex_release') {
         await supabase.from('shipments')
           .update({ 
