@@ -28,10 +28,14 @@ interface Message {
   content: string;
   timestamp: Date;
   context_summary?: {
-    total_shipments: number;
-    total_revenue: number;
-    total_profit: number;
-    avg_margin: number;
+    active_shipments?: number;
+    total_shipments?: number;
+    total_supplier_balance?: number;
+    pending_payments_total?: number;
+    mtd_profit?: number;
+    total_revenue?: number;
+    total_profit?: number;
+    avg_margin?: number;
   };
   update_result?: {
     success: boolean;
@@ -296,15 +300,21 @@ export function AIQueryChat({
                     {/* Context Summary */}
                     {message.context_summary && !message.update_result && !message.file_results?.length && (
                       <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
-                        <Badge variant="secondary" className="text-xs">
-                          {message.context_summary.total_shipments} shipments
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {formatCurrency(message.context_summary.total_profit)} profit
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {message.context_summary.avg_margin.toFixed(1)}% avg margin
-                        </Badge>
+                        {message.context_summary.active_shipments !== undefined && (
+                          <Badge variant="secondary" className="text-xs">
+                            {message.context_summary.active_shipments} active
+                          </Badge>
+                        )}
+                        {message.context_summary.mtd_profit !== undefined && (
+                          <Badge variant="secondary" className="text-xs">
+                            {formatCurrency(message.context_summary.mtd_profit)} MTD profit
+                          </Badge>
+                        )}
+                        {message.context_summary.total_supplier_balance !== undefined && (
+                          <Badge variant="secondary" className="text-xs">
+                            ${message.context_summary.total_supplier_balance.toLocaleString()} owed
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </div>

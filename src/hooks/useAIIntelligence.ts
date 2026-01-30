@@ -40,10 +40,14 @@ interface FileResult {
 interface AIQueryResult {
   response: string;
   context_summary?: {
-    total_shipments: number;
-    total_revenue: number;
-    total_profit: number;
-    avg_margin: number;
+    active_shipments?: number;
+    total_shipments?: number;
+    total_supplier_balance?: number;
+    pending_payments_total?: number;
+    mtd_profit?: number;
+    total_revenue?: number;
+    total_profit?: number;
+    avg_margin?: number;
   };
   update_result?: {
     success: boolean;
@@ -51,6 +55,8 @@ interface AIQueryResult {
     updates: Record<string, any>;
   };
   file_results?: FileResult[];
+  tools_used?: string[];
+  tool_results?: any[];
 }
 
 interface AIEvent {
@@ -131,16 +137,22 @@ export function useAIQuery() {
     mutationFn: async ({ 
       query, 
       entityType, 
-      entityId 
+      entityId,
+      channel = 'web',
+      channel_id
     }: { 
       query: string; 
       entityType?: string; 
       entityId?: string;
+      channel?: string;
+      channel_id?: string;
     }): Promise<AIQueryResult> => {
-      const { data, error } = await supabase.functions.invoke('ai-intelligence', {
+      // Use the new FLAIR orchestrator for full tool-calling support
+      const { data, error } = await supabase.functions.invoke('flair-orchestrator', {
         body: { 
-          action: 'query',
-          query,
+          message: query,
+          channel,
+          channel_id,
           entityType,
           entityId
         }
@@ -149,10 +161,15 @@ export function useAIQuery() {
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
       
-      return data;
+      return {
+        response: data.response,
+        context_summary: data.context_summary,
+        tools_used: data.tools_used,
+        tool_results: data.tool_results
+      };
     },
     onError: (error: any) => {
-      if (error.message?.includes('rate limit')) {
+      if (error.message?.includes('RATE_LIMITED') || error.message?.includes('rate limit')) {
         toast({
           title: 'Rate Limited',
           description: 'Please wait a moment before trying again.',

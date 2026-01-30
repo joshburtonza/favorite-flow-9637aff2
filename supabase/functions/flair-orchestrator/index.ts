@@ -7,13 +7,12 @@ const corsHeaders = {
 };
 
 // ============================================
-// FLAIR ORCHESTRATOR v2.0
-// Complete AI-first ERP Interface with Tool Calling
+// FLAIR ORCHESTRATOR v2.1
+// Complete AI-first ERP Interface with 25+ Tools
 // ============================================
 
-// Tool definitions for function calling
 const TOOL_DEFINITIONS = [
-  // Shipment Tools
+  // ========== SHIPMENT TOOLS (7) ==========
   {
     type: "function",
     function: {
@@ -112,7 +111,39 @@ const TOOL_DEFINITIONS = [
       }
     }
   },
-  // Supplier Tools
+  {
+    type: "function",
+    function: {
+      name: "shipment_bulk_update",
+      description: "Update multiple shipments at once. Use for: mark all, update all X shipments, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_numbers: { type: "array", items: { type: "string" }, description: "List of LOT numbers" },
+          filter: { type: "object", description: "Filter criteria: supplier_name, status, etc." },
+          updates: { type: "object", description: "Fields to update: status, notes, etc." }
+        },
+        required: ["updates"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "shipment_delete",
+      description: "Cancel/delete a shipment. ALWAYS confirm with user first.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_number: { type: "string" },
+          reason: { type: "string" }
+        },
+        required: ["lot_number", "reason"]
+      }
+    }
+  },
+
+  // ========== SUPPLIER TOOLS (5) ==========
   {
     type: "function",
     function: {
@@ -125,6 +156,40 @@ const TOOL_DEFINITIONS = [
           list_all: { type: "boolean" },
           has_balance: { type: "boolean", description: "Only suppliers with outstanding balance" }
         }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "supplier_create",
+      description: "Create a new supplier.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          contact_person: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          currency: { type: "string", enum: ["USD", "EUR", "CNY"] },
+          notes: { type: "string" }
+        },
+        required: ["name"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "supplier_update",
+      description: "Update supplier information.",
+      parameters: {
+        type: "object",
+        properties: {
+          supplier_name: { type: "string" },
+          updates: { type: "object", description: "Fields to update" }
+        },
+        required: ["supplier_name", "updates"]
       }
     }
   },
@@ -144,7 +209,93 @@ const TOOL_DEFINITIONS = [
       }
     }
   },
-  // Payment Tools
+  {
+    type: "function",
+    function: {
+      name: "supplier_ledger_entry",
+      description: "Add a ledger entry (debit or credit) for a supplier.",
+      parameters: {
+        type: "object",
+        properties: {
+          supplier_name: { type: "string" },
+          ledger_type: { type: "string", enum: ["debit", "credit"] },
+          amount: { type: "number" },
+          description: { type: "string" },
+          lot_number: { type: "string" },
+          reference: { type: "string" }
+        },
+        required: ["supplier_name", "ledger_type", "amount"]
+      }
+    }
+  },
+
+  // ========== CLIENT TOOLS (4) ==========
+  {
+    type: "function",
+    function: {
+      name: "client_query",
+      description: "Get client information.",
+      parameters: {
+        type: "object",
+        properties: {
+          client_name: { type: "string" },
+          list_all: { type: "boolean" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "client_create",
+      description: "Create a new client.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          contact_person: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          address: { type: "string" },
+          notes: { type: "string" }
+        },
+        required: ["name"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "client_update",
+      description: "Update client information.",
+      parameters: {
+        type: "object",
+        properties: {
+          client_name: { type: "string" },
+          updates: { type: "object" }
+        },
+        required: ["client_name", "updates"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "client_shipments",
+      description: "Get all shipments for a specific client.",
+      parameters: {
+        type: "object",
+        properties: {
+          client_name: { type: "string" },
+          status: { type: "string" },
+          limit: { type: "number" }
+        },
+        required: ["client_name"]
+      }
+    }
+  },
+
+  // ========== PAYMENT TOOLS (4) ==========
   {
     type: "function",
     function: {
@@ -185,7 +336,42 @@ const TOOL_DEFINITIONS = [
       }
     }
   },
-  // Report Tools
+  {
+    type: "function",
+    function: {
+      name: "payment_schedule_query",
+      description: "Get scheduled/pending payments.",
+      parameters: {
+        type: "object",
+        properties: {
+          supplier_name: { type: "string" },
+          status: { type: "string", enum: ["pending", "completed"] },
+          date_from: { type: "string" },
+          date_to: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "payment_schedule_update",
+      description: "Update a scheduled payment (mark as paid, reschedule, cancel).",
+      parameters: {
+        type: "object",
+        properties: {
+          payment_id: { type: "string" },
+          status: { type: "string", enum: ["pending", "completed"] },
+          paid_date: { type: "string" },
+          actual_fx_rate: { type: "number" },
+          notes: { type: "string" }
+        },
+        required: ["payment_id"]
+      }
+    }
+  },
+
+  // ========== REPORT TOOLS (5) ==========
   {
     type: "function",
     function: {
@@ -216,7 +402,48 @@ const TOOL_DEFINITIONS = [
       }
     }
   },
-  // Alert Tools
+  {
+    type: "function",
+    function: {
+      name: "report_shipment_status",
+      description: "Get shipment status breakdown report.",
+      parameters: {
+        type: "object",
+        properties: {
+          date_from: { type: "string" },
+          include_completed: { type: "boolean" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "report_cash_flow",
+      description: "Project cash flow based on scheduled payments and expected receipts.",
+      parameters: {
+        type: "object",
+        properties: {
+          weeks_ahead: { type: "number", description: "Number of weeks to project (default: 4)" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "report_aging",
+      description: "Get accounts receivable/payable aging report.",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["receivable", "payable", "both"] }
+        }
+      }
+    }
+  },
+
+  // ========== ALERT TOOLS (2) ==========
   {
     type: "function",
     function: {
@@ -235,10 +462,24 @@ const TOOL_DEFINITIONS = [
         required: ["alert_type", "title", "message"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "alert_list",
+      description: "Get active alerts.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["active", "acknowledged", "resolved", "all"] },
+          severity: { type: "string", enum: ["info", "warning", "urgent", "critical"] }
+        }
+      }
+    }
   }
 ];
 
-// FLAIR System Prompt
+// FLAIR System Prompt v2.1
 const FLAIR_SYSTEM_PROMPT = `You are FLAIR (Favorite Logistics AI Resource) - the intelligent operations manager for Favorite Logistics, a South African import freight forwarding company owned by Mo Irshad.
 
 ## YOUR ROLE
@@ -248,7 +489,7 @@ You have complete authority to query, create, update, and manage all business da
 ## BUSINESS CONTEXT
 - Business: Import freight forwarding (China/Europe/USA → South Africa)
 - Volume: 35-45 shipments/month
-- Key suppliers: WINTEX (fabric), HUBEI PUFANG (shoes), HAMZA TOWELS, NINGBO CROSSLEAP
+- Key suppliers: WINTEX (fabric), HUBEI PUFANG (shoes), HAMZA TOWELS, NINGBO CROSSLEAP, AMAGGI, COFCO
 - Key clients: ADNAN JOOSAB, MJ, MOTALA, CHEVAL SHOES, FOOT FOCUS, FOOTWORKS, GLOBAL
 - Clearing agents: Sanjith (primary), Shane, Kara, Mojo
 - FX Providers: Financiere Suisse (primary), FNB, Obeid
@@ -265,15 +506,16 @@ You have complete authority to query, create, update, and manage all business da
 
 ## TOOL USAGE RULES
 1. ALWAYS use tools to get real data - never make up shipment info
-2. Chain tools for complex operations
+2. Chain tools for complex operations (create shipment → update ledger → generate response)
 3. Confirm before: deleting anything, payments over $10,000, bulk operations
 4. Include relevant context in responses (supplier balance, related shipments)
 
 ## RESPONSE STYLE
 - Be conversational but efficient
-- Use emojis: 📦 shipment, 💰 money, ⚠️ warning, ✅ success, 🚨 urgent
+- Use emojis: 📦 shipment, 💰 money, ⚠️ warning, ✅ success, 🚨 urgent, 📊 report
 - Always show calculated values (profit, margins, totals)
 - Proactively flag issues (high balances, overdue items, low margins)
+- Suggest next actions when appropriate
 
 ## NATURAL LANGUAGE PARSING
 Understand these patterns:
@@ -282,11 +524,15 @@ Understand these patterns:
 - "Pay X $50k on Friday" → payment_schedule
 - "What do we owe X?" → supplier_balance
 - "How did we do this month?" → report_profit_summary
+- "Mark all X shipments as..." → shipment_bulk_update
+- "Create supplier X" → supplier_create
+- "Add client Y" → client_create
 
 ## ALERT THRESHOLDS
 - Supplier balance > $50,000: Warning
 - ETA in 3 days, no telex: Urgent
-- Profit margin < 10%: Warning`;
+- Profit margin < 10%: Warning
+- Payment overdue > 7 days: Critical`;
 
 // Helper: Format date for South Africa
 function formatDate(date: Date): string {
@@ -306,14 +552,16 @@ async function fetchContext(supabase: any, channelId?: string): Promise<any> {
     current_time: now.toLocaleTimeString('en-ZA', { timeZone: 'Africa/Johannesburg' }),
     shipments: [],
     suppliers: [],
+    clients: [],
     pending_payments: [],
     active_alerts: [],
     conversation_history: []
   };
 
-  const [shipmentsResult, suppliersResult, paymentsResult, alertsResult, historyResult] = await Promise.all([
+  const [shipmentsResult, suppliersResult, clientsResult, paymentsResult, alertsResult, historyResult] = await Promise.all([
     supabase.from('v_shipments_full').select('*').order('created_at', { ascending: false }).limit(50),
     supabase.from('suppliers').select('id, name, currency, current_balance').order('current_balance', { ascending: false }),
+    supabase.from('clients').select('id, name, contact_person').order('name'),
     supabase.from('v_pending_payments').select('*').order('payment_date').limit(20),
     supabase.from('proactive_alerts').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(10),
     channelId ? supabase.from('conversation_memory').select('role, content, created_at')
@@ -322,6 +570,7 @@ async function fetchContext(supabase: any, channelId?: string): Promise<any> {
 
   if (shipmentsResult.data) context.shipments = shipmentsResult.data;
   if (suppliersResult.data) context.suppliers = suppliersResult.data;
+  if (clientsResult.data) context.clients = clientsResult.data;
   if (paymentsResult.data) context.pending_payments = paymentsResult.data;
   if (alertsResult.data) context.active_alerts = alertsResult.data;
   if (historyResult?.data) context.conversation_history = historyResult.data.reverse();
@@ -372,7 +621,7 @@ function buildContextPrompt(context: any): string {
   if (context.active_alerts.length > 0) {
     prompt += `### 🚨 Active Alerts\n`;
     context.active_alerts.forEach((a: any) => {
-      prompt += `- [${a.severity.toUpperCase()}] ${a.title}\n`;
+      prompt += `- [${a.severity?.toUpperCase() || 'INFO'}] ${a.title}\n`;
     });
     prompt += '\n';
   }
@@ -387,449 +636,39 @@ function buildContextPrompt(context: any): string {
   return prompt;
 }
 
-// Tool execution functions
+// ============================================================================
+// TOOL EXECUTION FUNCTIONS
+// ============================================================================
+
 async function executeTool(supabase: any, toolName: string, params: any, context: any): Promise<any> {
   const startTime = Date.now();
   let result: any = { success: false };
 
   try {
-    switch (toolName) {
-      case 'shipment_create': {
-        // Find or create supplier
-        let supplierId = null;
-        if (params.supplier_name) {
-          const { data: suppliers } = await supabase
-            .from('suppliers')
-            .select('id')
-            .ilike('name', `%${params.supplier_name}%`)
-            .limit(1);
-          
-          if (suppliers?.length) {
-            supplierId = suppliers[0].id;
-          } else {
-            const { data: newSupplier } = await supabase
-              .from('suppliers')
-              .insert({ name: params.supplier_name, currency: params.currency || 'USD' })
-              .select()
-              .single();
-            supplierId = newSupplier?.id;
-          }
-        }
+    const [category, ...actionParts] = toolName.split('_');
+    const action = actionParts.join('_');
 
-        // Find or create client
-        let clientId = null;
-        if (params.client_name) {
-          const { data: clients } = await supabase
-            .from('clients')
-            .select('id')
-            .ilike('name', `%${params.client_name}%`)
-            .limit(1);
-          
-          if (clients?.length) {
-            clientId = clients[0].id;
-          } else {
-            const { data: newClient } = await supabase
-              .from('clients')
-              .insert({ name: params.client_name })
-              .select()
-              .single();
-            clientId = newClient?.id;
-          }
-        }
-
-        // Generate LOT number
-        let lotNumber = params.lot_number;
-        if (!lotNumber) {
-          const { data: lastShipment } = await supabase
-            .from('shipments')
-            .select('lot_number')
-            .order('created_at', { ascending: false })
-            .limit(1);
-          const lastNum = lastShipment?.[0]?.lot_number ? parseInt(lastShipment[0].lot_number) : 885;
-          lotNumber = String(lastNum + 1);
-        }
-
-        // Create shipment
-        const { data: shipment, error } = await supabase
-          .from('shipments')
-          .insert({
-            lot_number: lotNumber,
-            supplier_id: supplierId,
-            client_id: clientId,
-            commodity: params.commodity,
-            eta: params.eta,
-            status: 'pending',
-            notes: params.notes
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // Create costs if provided
-        if (params.supplier_cost) {
-          await supabase.from('shipment_costs').insert({
-            shipment_id: shipment.id,
-            supplier_cost: params.supplier_cost,
-            source_currency: params.currency || 'USD'
-          });
-        }
-
-        result = {
-          success: true,
-          data: {
-            id: shipment.id,
-            lot_number: lotNumber,
-            supplier_name: params.supplier_name,
-            client_name: params.client_name,
-            commodity: params.commodity,
-            eta: params.eta,
-            supplier_cost: params.supplier_cost
-          }
-        };
+    switch (category) {
+      case 'shipment':
+        result = await executeShipmentTool(supabase, action, params, context);
         break;
-      }
-
-      case 'shipment_query': {
-        let query = supabase.from('v_shipments_full').select('*');
-        
-        if (params.lot_number) {
-          query = query.ilike('lot_number', `%${params.lot_number}%`);
-        }
-        if (params.supplier_name) {
-          query = query.ilike('supplier_name', `%${params.supplier_name}%`);
-        }
-        if (params.client_name) {
-          query = query.ilike('client_name', `%${params.client_name}%`);
-        }
-        if (params.status) {
-          query = query.eq('status', params.status);
-        }
-        
-        const { data, error } = await query.order('created_at', { ascending: false }).limit(params.limit || 10);
-        if (error) throw error;
-        
-        result = { success: true, data };
+      case 'supplier':
+        result = await executeSupplierTool(supabase, action, params, context);
         break;
-      }
-
-      case 'shipment_update_status': {
-        const { data: shipments } = await supabase
-          .from('shipments')
-          .select('id, status')
-          .ilike('lot_number', `%${params.lot_number}%`)
-          .limit(1);
-
-        if (!shipments?.length) {
-          result = { success: false, error: `Shipment LOT ${params.lot_number} not found` };
-          break;
-        }
-
-        const updates: any = { updated_at: new Date().toISOString(), last_updated_by: 'flair' };
-        if (params.status) updates.status = params.status;
-        if (params.document_submitted !== undefined) updates.document_submitted = params.document_submitted;
-        if (params.document_submitted_date) updates.document_submitted_date = params.document_submitted_date;
-        if (params.telex_released !== undefined) updates.telex_released = params.telex_released;
-        if (params.telex_released_date) updates.telex_released_date = params.telex_released_date;
-        if (params.delivery_date) updates.delivery_date = params.delivery_date;
-        if (params.notes) updates.notes = params.notes;
-
-        const { error } = await supabase.from('shipments').update(updates).eq('id', shipments[0].id);
-        if (error) throw error;
-
-        result = { success: true, data: { lot_number: params.lot_number, updates } };
+      case 'client':
+        result = await executeClientTool(supabase, action, params, context);
         break;
-      }
-
-      case 'shipment_add_costs': {
-        const { data: shipments } = await supabase
-          .from('shipments')
-          .select('id')
-          .ilike('lot_number', `%${params.lot_number}%`)
-          .limit(1);
-
-        if (!shipments?.length) {
-          result = { success: false, error: `Shipment LOT ${params.lot_number} not found` };
-          break;
-        }
-
-        const costs: any = {};
-        if (params.supplier_cost) costs.supplier_cost = params.supplier_cost;
-        if (params.freight_cost) costs.freight_cost = params.freight_cost;
-        if (params.clearing_cost) costs.clearing_cost = params.clearing_cost;
-        if (params.transport_cost) costs.transport_cost = params.transport_cost;
-        if (params.currency) costs.source_currency = params.currency;
-        if (params.fx_spot_rate) costs.fx_spot_rate = params.fx_spot_rate;
-        if (params.fx_applied_rate) costs.fx_applied_rate = params.fx_applied_rate;
-        if (params.bank_charges) costs.bank_charges = params.bank_charges;
-
-        const { data: existing } = await supabase
-          .from('shipment_costs')
-          .select('id')
-          .eq('shipment_id', shipments[0].id)
-          .limit(1);
-
-        if (existing?.length) {
-          await supabase.from('shipment_costs').update(costs).eq('shipment_id', shipments[0].id);
-        } else {
-          await supabase.from('shipment_costs').insert({ shipment_id: shipments[0].id, ...costs });
-        }
-
-        result = { success: true, data: { lot_number: params.lot_number, costs } };
+      case 'payment':
+        result = await executePaymentTool(supabase, action, params, context);
         break;
-      }
-
-      case 'shipment_add_revenue': {
-        const { data: shipments } = await supabase
-          .from('shipments')
-          .select('id')
-          .ilike('lot_number', `%${params.lot_number}%`)
-          .limit(1);
-
-        if (!shipments?.length) {
-          result = { success: false, error: `Shipment LOT ${params.lot_number} not found` };
-          break;
-        }
-
-        const revenue = {
-          client_invoice_zar: params.client_invoice_zar,
-          invoice_number: params.invoice_number,
-          invoice_date: params.invoice_date
-        };
-
-        await supabase.from('shipment_costs').update(revenue).eq('shipment_id', shipments[0].id);
-
-        result = { success: true, data: { lot_number: params.lot_number, revenue } };
+      case 'report':
+        result = await executeReportTool(supabase, action, params, context);
         break;
-      }
-
-      case 'supplier_query': {
-        let query = supabase.from('suppliers').select('*');
-        
-        if (params.supplier_name) {
-          query = query.ilike('name', `%${params.supplier_name}%`);
-        }
-        if (params.has_balance) {
-          query = query.gt('current_balance', 0);
-        }
-        
-        const { data, error } = await query.order('name');
-        if (error) throw error;
-        
-        result = { success: true, data };
+      case 'alert':
+        result = await executeAlertTool(supabase, action, params, context);
         break;
-      }
-
-      case 'supplier_balance': {
-        const { data: suppliers } = await supabase
-          .from('suppliers')
-          .select('*')
-          .ilike('name', `%${params.supplier_name}%`)
-          .limit(1);
-
-        if (!suppliers?.length) {
-          result = { success: false, error: `Supplier ${params.supplier_name} not found` };
-          break;
-        }
-
-        const supplier = suppliers[0];
-        let transactions: any[] = [];
-
-        if (params.include_transactions !== false) {
-          const { data: ledger } = await supabase
-            .from('supplier_ledger')
-            .select('*, shipment:shipments(lot_number)')
-            .eq('supplier_id', supplier.id)
-            .order('transaction_date', { ascending: false })
-            .limit(params.transaction_limit || 10);
-          transactions = ledger || [];
-        }
-
-        result = {
-          success: true,
-          data: {
-            supplier,
-            balance: supplier.current_balance,
-            currency: supplier.currency,
-            transactions
-          }
-        };
-        break;
-      }
-
-      case 'payment_create': {
-        const { data: suppliers } = await supabase
-          .from('suppliers')
-          .select('id')
-          .ilike('name', `%${params.supplier_name}%`)
-          .limit(1);
-
-        if (!suppliers?.length) {
-          result = { success: false, error: `Supplier ${params.supplier_name} not found` };
-          break;
-        }
-
-        // Create ledger entry (credit reduces what we owe)
-        const { error } = await supabase.from('supplier_ledger').insert({
-          supplier_id: suppliers[0].id,
-          ledger_type: 'credit',
-          amount: params.amount,
-          transaction_date: params.payment_date || new Date().toISOString().split('T')[0],
-          invoice_number: params.reference,
-          description: `Payment: ${params.notes || params.reference || ''}`
-        });
-
-        if (error) throw error;
-
-        result = {
-          success: true,
-          data: {
-            supplier_name: params.supplier_name,
-            amount: params.amount,
-            currency: params.currency || 'USD',
-            date: params.payment_date
-          }
-        };
-        break;
-      }
-
-      case 'payment_schedule': {
-        const { data: suppliers } = await supabase
-          .from('suppliers')
-          .select('id')
-          .ilike('name', `%${params.supplier_name}%`)
-          .limit(1);
-
-        if (!suppliers?.length) {
-          result = { success: false, error: `Supplier ${params.supplier_name} not found` };
-          break;
-        }
-
-        let shipmentId = null;
-        if (params.lot_number) {
-          const { data: shipments } = await supabase
-            .from('shipments')
-            .select('id')
-            .ilike('lot_number', `%${params.lot_number}%`)
-            .limit(1);
-          shipmentId = shipments?.[0]?.id;
-        }
-
-        const { data: payment, error } = await supabase
-          .from('payment_schedule')
-          .insert({
-            supplier_id: suppliers[0].id,
-            shipment_id: shipmentId,
-            amount_foreign: params.amount,
-            currency: params.currency || 'USD',
-            payment_date: params.due_date,
-            status: 'pending',
-            notes: params.notes
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        result = {
-          success: true,
-          data: {
-            id: payment.id,
-            supplier_name: params.supplier_name,
-            amount: params.amount,
-            due_date: params.due_date
-          }
-        };
-        break;
-      }
-
-      case 'report_profit_summary': {
-        let query = supabase.from('v_shipments_full').select('*').eq('status', 'completed');
-        
-        const now = new Date();
-        let dateFrom = params.date_from;
-        let dateTo = params.date_to || now.toISOString().split('T')[0];
-
-        if (!dateFrom && params.period) {
-          const d = new Date();
-          switch (params.period) {
-            case 'day': d.setDate(d.getDate() - 1); break;
-            case 'week': d.setDate(d.getDate() - 7); break;
-            case 'month': d.setMonth(d.getMonth() - 1); break;
-            case 'quarter': d.setMonth(d.getMonth() - 3); break;
-            case 'year': d.setFullYear(d.getFullYear() - 1); break;
-          }
-          dateFrom = d.toISOString().split('T')[0];
-        }
-
-        if (dateFrom) query = query.gte('created_at', dateFrom);
-        if (dateTo) query = query.lte('created_at', dateTo);
-
-        const { data: shipments, error } = await query.order('created_at', { ascending: false });
-        if (error) throw error;
-
-        const summary = {
-          period: { from: dateFrom, to: dateTo },
-          total_shipments: shipments?.length || 0,
-          total_revenue: shipments?.reduce((sum: number, s: any) => sum + (s.client_invoice_zar || 0), 0) || 0,
-          total_costs: shipments?.reduce((sum: number, s: any) => sum + (s.total_zar || 0), 0) || 0,
-          total_profit: shipments?.reduce((sum: number, s: any) => sum + (s.net_profit_zar || 0), 0) || 0,
-          avg_margin: shipments?.length 
-            ? shipments.reduce((sum: number, s: any) => sum + (s.profit_margin || 0), 0) / shipments.length 
-            : 0,
-          shipments
-        };
-
-        result = { success: true, data: summary };
-        break;
-      }
-
-      case 'report_supplier_balances': {
-        let query = supabase.from('suppliers').select('*');
-        
-        if (params.only_outstanding !== false) {
-          query = query.gt('current_balance', 0);
-        }
-
-        if (params.sort_by === 'balance_asc') {
-          query = query.order('current_balance', { ascending: true });
-        } else if (params.sort_by === 'name') {
-          query = query.order('name');
-        } else {
-          query = query.order('current_balance', { ascending: false });
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        const total = data?.reduce((sum: number, s: any) => sum + (s.current_balance || 0), 0) || 0;
-
-        result = { success: true, data: { suppliers: data, total_outstanding: total } };
-        break;
-      }
-
-      case 'alert_create': {
-        const { data: alert, error } = await supabase
-          .from('proactive_alerts')
-          .insert({
-            alert_type: params.alert_type,
-            severity: params.severity || 'info',
-            title: params.title,
-            message: params.message,
-            entity_type: params.entity_type,
-            entity_reference: params.entity_reference
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        result = { success: true, data: alert };
-        break;
-      }
-
       default:
-        result = { success: false, error: `Unknown tool: ${toolName}` };
+        result = { success: false, error: `Unknown tool category: ${category}` };
     }
   } catch (error) {
     result = { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -837,6 +676,520 @@ async function executeTool(supabase: any, toolName: string, params: any, context
 
   result.execution_time_ms = Date.now() - startTime;
   return result;
+}
+
+// ========== SHIPMENT TOOLS ==========
+async function executeShipmentTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'create': {
+      let supplierId = null;
+      if (params.supplier_name) {
+        const { data: suppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${params.supplier_name}%`).limit(1);
+        if (suppliers?.length) {
+          supplierId = suppliers[0].id;
+        } else {
+          const { data: newSupplier } = await supabase.from('suppliers').insert({ name: params.supplier_name, currency: params.currency || 'USD' }).select().single();
+          supplierId = newSupplier?.id;
+        }
+      }
+
+      let clientId = null;
+      if (params.client_name) {
+        const { data: clients } = await supabase.from('clients').select('id').ilike('name', `%${params.client_name}%`).limit(1);
+        if (clients?.length) {
+          clientId = clients[0].id;
+        } else {
+          const { data: newClient } = await supabase.from('clients').insert({ name: params.client_name }).select().single();
+          clientId = newClient?.id;
+        }
+      }
+
+      let lotNumber = params.lot_number;
+      if (!lotNumber) {
+        const { data: lastShipment } = await supabase.from('shipments').select('lot_number').order('created_at', { ascending: false }).limit(1);
+        const lastNum = lastShipment?.[0]?.lot_number ? parseInt(lastShipment[0].lot_number) : 885;
+        lotNumber = String(lastNum + 1);
+      }
+
+      const { data: shipment, error } = await supabase.from('shipments').insert({
+        lot_number: lotNumber,
+        supplier_id: supplierId,
+        client_id: clientId,
+        commodity: params.commodity,
+        eta: params.eta,
+        status: 'pending',
+        notes: params.notes
+      }).select().single();
+
+      if (error) throw error;
+
+      if (params.supplier_cost) {
+        await supabase.from('shipment_costs').insert({
+          shipment_id: shipment.id,
+          supplier_cost: params.supplier_cost,
+          source_currency: params.currency || 'USD'
+        });
+        
+        if (supplierId) {
+          await supabase.from('supplier_ledger').insert({
+            supplier_id: supplierId,
+            shipment_id: shipment.id,
+            ledger_type: 'debit',
+            amount: params.supplier_cost,
+            description: `LOT ${lotNumber} - ${params.commodity || 'Goods'}`,
+            transaction_date: new Date().toISOString().split('T')[0]
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: { id: shipment.id, lot_number: lotNumber, supplier_name: params.supplier_name, client_name: params.client_name, commodity: params.commodity, eta: params.eta, supplier_cost: params.supplier_cost }
+      };
+    }
+
+    case 'query': {
+      let query = supabase.from('v_shipments_full').select('*');
+      if (params.lot_number) query = query.ilike('lot_number', `%${params.lot_number}%`);
+      if (params.supplier_name) query = query.ilike('supplier_name', `%${params.supplier_name}%`);
+      if (params.client_name) query = query.ilike('client_name', `%${params.client_name}%`);
+      if (params.status) query = query.eq('status', params.status);
+      
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(params.limit || 10);
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'update_status': {
+      const { data: shipments } = await supabase.from('shipments').select('id, status').ilike('lot_number', `%${params.lot_number}%`).limit(1);
+      if (!shipments?.length) return { success: false, error: `Shipment LOT ${params.lot_number} not found` };
+
+      const updates: any = { updated_at: new Date().toISOString(), last_updated_by: 'flair' };
+      if (params.status) updates.status = params.status;
+      if (params.document_submitted !== undefined) {
+        updates.document_submitted = params.document_submitted;
+        updates.document_submitted_date = params.document_submitted_date || new Date().toISOString().split('T')[0];
+      }
+      if (params.telex_released !== undefined) {
+        updates.telex_released = params.telex_released;
+        updates.telex_released_date = params.telex_released_date || new Date().toISOString().split('T')[0];
+      }
+      if (params.delivery_date) updates.delivery_date = params.delivery_date;
+      if (params.notes) updates.notes = params.notes;
+
+      const { error } = await supabase.from('shipments').update(updates).eq('id', shipments[0].id);
+      if (error) throw error;
+      return { success: true, data: { lot_number: params.lot_number, updates } };
+    }
+
+    case 'add_costs': {
+      const { data: shipments } = await supabase.from('shipments').select('id').ilike('lot_number', `%${params.lot_number}%`).limit(1);
+      if (!shipments?.length) return { success: false, error: `Shipment LOT ${params.lot_number} not found` };
+
+      const costs: any = {};
+      if (params.supplier_cost) costs.supplier_cost = params.supplier_cost;
+      if (params.freight_cost) costs.freight_cost = params.freight_cost;
+      if (params.clearing_cost) costs.clearing_cost = params.clearing_cost;
+      if (params.transport_cost) costs.transport_cost = params.transport_cost;
+      if (params.currency) costs.source_currency = params.currency;
+      if (params.fx_spot_rate) costs.fx_spot_rate = params.fx_spot_rate;
+      if (params.fx_applied_rate) costs.fx_applied_rate = params.fx_applied_rate;
+      if (params.bank_charges) costs.bank_charges = params.bank_charges;
+
+      const { data: existing } = await supabase.from('shipment_costs').select('id').eq('shipment_id', shipments[0].id).limit(1);
+      if (existing?.length) {
+        await supabase.from('shipment_costs').update(costs).eq('shipment_id', shipments[0].id);
+      } else {
+        await supabase.from('shipment_costs').insert({ shipment_id: shipments[0].id, ...costs });
+      }
+
+      return { success: true, data: { lot_number: params.lot_number, costs } };
+    }
+
+    case 'add_revenue': {
+      const { data: shipments } = await supabase.from('shipments').select('id').ilike('lot_number', `%${params.lot_number}%`).limit(1);
+      if (!shipments?.length) return { success: false, error: `Shipment LOT ${params.lot_number} not found` };
+
+      await supabase.from('shipment_costs').update({
+        client_invoice_zar: params.client_invoice_zar
+      }).eq('shipment_id', shipments[0].id);
+
+      return { success: true, data: { lot_number: params.lot_number, revenue: params.client_invoice_zar } };
+    }
+
+    case 'bulk_update': {
+      let lotNumbers = params.lot_numbers || [];
+      
+      if (params.filter) {
+        let query = supabase.from('shipments').select('lot_number');
+        if (params.filter.status) query = query.eq('status', params.filter.status);
+        const { data } = await query;
+        lotNumbers = data?.map((s: any) => s.lot_number) || [];
+      }
+
+      if (lotNumbers.length === 0) return { success: false, error: 'No shipments matched the criteria' };
+
+      const { data, error } = await supabase.from('shipments').update(params.updates).in('lot_number', lotNumbers).select('lot_number');
+      if (error) throw error;
+      return { success: true, count: data?.length || 0, lot_numbers: lotNumbers, updates: params.updates };
+    }
+
+    case 'delete': {
+      const { data: shipment } = await supabase.from('shipments').select('id, lot_number').ilike('lot_number', `%${params.lot_number}%`).single();
+      if (!shipment) return { success: false, error: `Shipment LOT ${params.lot_number} not found` };
+
+      const { error } = await supabase.from('shipments').update({ status: 'cancelled', notes: `Cancelled: ${params.reason}` }).eq('id', shipment.id);
+      if (error) throw error;
+      return { success: true, data: { lot_number: shipment.lot_number, reason: params.reason } };
+    }
+
+    default:
+      return { success: false, error: `Unknown shipment action: ${action}` };
+  }
+}
+
+// ========== SUPPLIER TOOLS ==========
+async function executeSupplierTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'query': {
+      let query = supabase.from('suppliers').select('*');
+      if (params.supplier_name) query = query.ilike('name', `%${params.supplier_name}%`);
+      if (params.has_balance) query = query.gt('current_balance', 0);
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'create': {
+      const { data, error } = await supabase.from('suppliers').insert({
+        name: params.name,
+        contact_person: params.contact_person,
+        email: params.email,
+        phone: params.phone,
+        currency: params.currency || 'USD',
+        notes: params.notes
+      }).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'update': {
+      const { data: supplier } = await supabase.from('suppliers').select('id').ilike('name', `%${params.supplier_name}%`).single();
+      if (!supplier) return { success: false, error: `Supplier "${params.supplier_name}" not found` };
+
+      const { data, error } = await supabase.from('suppliers').update(params.updates).eq('id', supplier.id).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'balance': {
+      const { data: suppliers } = await supabase.from('suppliers').select('*').ilike('name', `%${params.supplier_name}%`).limit(1);
+      if (!suppliers?.length) return { success: false, error: `Supplier ${params.supplier_name} not found` };
+
+      const supplier = suppliers[0];
+      let transactions: any[] = [];
+
+      if (params.include_transactions !== false) {
+        const { data: ledger } = await supabase.from('supplier_ledger').select('*, shipment:shipments(lot_number)')
+          .eq('supplier_id', supplier.id).order('transaction_date', { ascending: false }).limit(params.transaction_limit || 10);
+        transactions = ledger || [];
+      }
+
+      return { success: true, data: { supplier, balance: supplier.current_balance, currency: supplier.currency, transactions } };
+    }
+
+    case 'ledger_entry': {
+      const { data: supplier } = await supabase.from('suppliers').select('id, name').ilike('name', `%${params.supplier_name}%`).single();
+      if (!supplier) return { success: false, error: `Supplier "${params.supplier_name}" not found` };
+
+      let shipmentId = null;
+      if (params.lot_number) {
+        const { data: shipment } = await supabase.from('shipments').select('id').ilike('lot_number', `%${params.lot_number}%`).single();
+        shipmentId = shipment?.id;
+      }
+
+      const { data, error } = await supabase.from('supplier_ledger').insert({
+        supplier_id: supplier.id,
+        shipment_id: shipmentId,
+        ledger_type: params.ledger_type,
+        amount: params.amount,
+        description: params.description || `${params.ledger_type === 'credit' ? 'Payment' : 'Invoice'}`,
+        transaction_date: new Date().toISOString().split('T')[0],
+        invoice_number: params.reference
+      }).select().single();
+
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    default:
+      return { success: false, error: `Unknown supplier action: ${action}` };
+  }
+}
+
+// ========== CLIENT TOOLS ==========
+async function executeClientTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'query': {
+      let query = supabase.from('clients').select('*');
+      if (params.client_name) query = query.ilike('name', `%${params.client_name}%`);
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      return { success: true, data, count: data?.length };
+    }
+
+    case 'create': {
+      const { data, error } = await supabase.from('clients').insert({
+        name: params.name,
+        contact_person: params.contact_person,
+        email: params.email,
+        phone: params.phone,
+        address: params.address,
+        notes: params.notes
+      }).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'update': {
+      const { data: client } = await supabase.from('clients').select('id').ilike('name', `%${params.client_name}%`).single();
+      if (!client) return { success: false, error: `Client "${params.client_name}" not found` };
+
+      const { data, error } = await supabase.from('clients').update(params.updates).eq('id', client.id).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'shipments': {
+      const { data: client } = await supabase.from('clients').select('id').ilike('name', `%${params.client_name}%`).single();
+      if (!client) return { success: false, error: `Client "${params.client_name}" not found` };
+
+      let query = supabase.from('v_shipments_full').select('*').eq('client_id', client.id);
+      if (params.status) query = query.eq('status', params.status);
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(params.limit || 20);
+      if (error) throw error;
+      return { success: true, data, count: data?.length };
+    }
+
+    default:
+      return { success: false, error: `Unknown client action: ${action}` };
+  }
+}
+
+// ========== PAYMENT TOOLS ==========
+async function executePaymentTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'create': {
+      const { data: suppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${params.supplier_name}%`).limit(1);
+      if (!suppliers?.length) return { success: false, error: `Supplier ${params.supplier_name} not found` };
+
+      const { error } = await supabase.from('supplier_ledger').insert({
+        supplier_id: suppliers[0].id,
+        ledger_type: 'credit',
+        amount: params.amount,
+        transaction_date: params.payment_date || new Date().toISOString().split('T')[0],
+        invoice_number: params.reference,
+        description: `Payment: ${params.notes || params.reference || ''}`
+      });
+
+      if (error) throw error;
+      return { success: true, data: { supplier_name: params.supplier_name, amount: params.amount, currency: params.currency || 'USD', date: params.payment_date } };
+    }
+
+    case 'schedule': {
+      const { data: suppliers } = await supabase.from('suppliers').select('id').ilike('name', `%${params.supplier_name}%`).limit(1);
+      if (!suppliers?.length) return { success: false, error: `Supplier ${params.supplier_name} not found` };
+
+      let shipmentId = null;
+      if (params.lot_number) {
+        const { data: shipments } = await supabase.from('shipments').select('id').ilike('lot_number', `%${params.lot_number}%`).limit(1);
+        shipmentId = shipments?.[0]?.id;
+      }
+
+      const { data: payment, error } = await supabase.from('payment_schedule').insert({
+        supplier_id: suppliers[0].id,
+        shipment_id: shipmentId,
+        amount_foreign: params.amount,
+        currency: params.currency || 'USD',
+        payment_date: params.due_date,
+        status: 'pending',
+        notes: params.notes
+      }).select().single();
+
+      if (error) throw error;
+      return { success: true, data: { id: payment.id, supplier_name: params.supplier_name, amount: params.amount, due_date: params.due_date } };
+    }
+
+    case 'schedule_query': {
+      let query = supabase.from('v_pending_payments').select('*');
+      if (params.supplier_name) query = query.ilike('supplier_name', `%${params.supplier_name}%`);
+      if (params.status) query = query.eq('status', params.status);
+      if (params.date_from) query = query.gte('payment_date', params.date_from);
+      if (params.date_to) query = query.lte('payment_date', params.date_to);
+      
+      const { data, error } = await query.order('payment_date');
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    case 'schedule_update': {
+      const updates: any = {};
+      if (params.status) updates.status = params.status;
+      if (params.paid_date) updates.paid_date = params.paid_date;
+      if (params.actual_fx_rate) updates.fx_rate = params.actual_fx_rate;
+      if (params.notes) updates.notes = params.notes;
+
+      const { data, error } = await supabase.from('payment_schedule').update(updates).eq('id', params.payment_id).select().single();
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    default:
+      return { success: false, error: `Unknown payment action: ${action}` };
+  }
+}
+
+// ========== REPORT TOOLS ==========
+async function executeReportTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'profit_summary': {
+      let query = supabase.from('v_shipments_full').select('*').eq('status', 'completed');
+      
+      const now = new Date();
+      let dateFrom = params.date_from;
+      let dateTo = params.date_to || now.toISOString().split('T')[0];
+
+      if (!dateFrom && params.period) {
+        const d = new Date();
+        switch (params.period) {
+          case 'day': d.setDate(d.getDate() - 1); break;
+          case 'week': d.setDate(d.getDate() - 7); break;
+          case 'month': d.setMonth(d.getMonth() - 1); break;
+          case 'quarter': d.setMonth(d.getMonth() - 3); break;
+          case 'year': d.setFullYear(d.getFullYear() - 1); break;
+        }
+        dateFrom = d.toISOString().split('T')[0];
+      }
+
+      if (dateFrom) query = query.gte('created_at', dateFrom);
+      if (dateTo) query = query.lte('created_at', dateTo);
+
+      const { data: shipments, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+
+      const summary = {
+        period: { from: dateFrom, to: dateTo },
+        total_shipments: shipments?.length || 0,
+        total_revenue: shipments?.reduce((sum: number, s: any) => sum + (s.client_invoice_zar || 0), 0) || 0,
+        total_costs: shipments?.reduce((sum: number, s: any) => sum + (s.total_zar || 0), 0) || 0,
+        total_profit: shipments?.reduce((sum: number, s: any) => sum + (s.net_profit_zar || 0), 0) || 0,
+        avg_margin: shipments?.length ? shipments.reduce((sum: number, s: any) => sum + (s.profit_margin || 0), 0) / shipments.length : 0,
+        shipments
+      };
+
+      return { success: true, data: summary };
+    }
+
+    case 'supplier_balances': {
+      let query = supabase.from('suppliers').select('*');
+      if (params.only_outstanding !== false) query = query.gt('current_balance', 0);
+
+      if (params.sort_by === 'balance_asc') {
+        query = query.order('current_balance', { ascending: true });
+      } else if (params.sort_by === 'name') {
+        query = query.order('name');
+      } else {
+        query = query.order('current_balance', { ascending: false });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const total = data?.reduce((sum: number, s: any) => sum + (s.current_balance || 0), 0) || 0;
+      return { success: true, data: { suppliers: data, total_outstanding: total } };
+    }
+
+    case 'shipment_status': {
+      let query = supabase.from('shipments').select('status');
+      if (params.date_from) query = query.gte('created_at', params.date_from);
+      if (!params.include_completed) query = query.not('status', 'in', '("completed","cancelled")');
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const statusCounts: Record<string, number> = {};
+      data?.forEach((s: any) => {
+        statusCounts[s.status] = (statusCounts[s.status] || 0) + 1;
+      });
+
+      return { success: true, data: { breakdown: statusCounts, total: data?.length || 0 } };
+    }
+
+    case 'cash_flow': {
+      const weeksAhead = params.weeks_ahead || 4;
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + weeksAhead * 7);
+
+      const { data: payments } = await supabase.from('v_pending_payments').select('*')
+        .lte('payment_date', endDate.toISOString().split('T')[0]).order('payment_date');
+
+      const projection = {
+        weeks_ahead: weeksAhead,
+        total_outflow: payments?.reduce((sum: number, p: any) => sum + (p.amount_foreign || 0), 0) || 0,
+        payment_count: payments?.length || 0,
+        payments
+      };
+
+      return { success: true, data: projection };
+    }
+
+    case 'aging': {
+      const { data: suppliers } = await supabase.from('suppliers').select('id, name, currency, current_balance').gt('current_balance', 0);
+      
+      const aging = {
+        type: params.type || 'payable',
+        total: suppliers?.reduce((sum: number, s: any) => sum + (s.current_balance || 0), 0) || 0,
+        accounts: suppliers
+      };
+
+      return { success: true, data: aging };
+    }
+
+    default:
+      return { success: false, error: `Unknown report action: ${action}` };
+  }
+}
+
+// ========== ALERT TOOLS ==========
+async function executeAlertTool(supabase: any, action: string, params: any, context: any): Promise<any> {
+  switch (action) {
+    case 'create': {
+      const { data: alert, error } = await supabase.from('proactive_alerts').insert({
+        alert_type: params.alert_type,
+        severity: params.severity || 'info',
+        title: params.title,
+        message: params.message,
+        entity_type: params.entity_type,
+        entity_reference: params.entity_reference
+      }).select().single();
+
+      if (error) throw error;
+      return { success: true, data: alert };
+    }
+
+    case 'list': {
+      let query = supabase.from('proactive_alerts').select('*');
+      if (params.status && params.status !== 'all') query = query.eq('status', params.status);
+      if (params.severity) query = query.eq('severity', params.severity);
+      
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(20);
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    default:
+      return { success: false, error: `Unknown alert action: ${action}` };
+  }
 }
 
 // Log tool execution
@@ -941,11 +1294,17 @@ serve(async (req) => {
     const contextPrompt = buildContextPrompt(context);
 
     // 2. Store user message
-    const { data: userMsg } = await supabase
-      .from('conversation_memory')
-      .insert({ user_id, channel, channel_id, role: 'user', content: message })
-      .select()
-      .single();
+    let userMsgId = null;
+    try {
+      const { data: userMsg } = await supabase
+        .from('conversation_memory')
+        .insert({ user_id, channel, channel_id, role: 'user', content: message })
+        .select()
+        .single();
+      userMsgId = userMsg?.id;
+    } catch (e) {
+      console.log('Could not store user message:', e);
+    }
 
     // 3. Build conversation history
     const history = context.conversation_history.map((m: any) => ({
@@ -974,7 +1333,7 @@ serve(async (req) => {
         toolResults.push(result);
 
         // Log execution
-        await logToolExecution(supabase, userMsg?.id, user_id, toolName, params, result);
+        await logToolExecution(supabase, userMsgId, user_id, toolName, params, result);
       }
 
       // Get final response after tools
@@ -982,14 +1341,18 @@ serve(async (req) => {
     }
 
     // 6. Store assistant response
-    await supabase.from('conversation_memory').insert({
-      user_id,
-      channel,
-      channel_id,
-      role: 'assistant',
-      content: finalResponse,
-      tools_used: toolsUsed
-    });
+    try {
+      await supabase.from('conversation_memory').insert({
+        user_id,
+        channel,
+        channel_id,
+        role: 'assistant',
+        content: finalResponse,
+        tools_used: toolsUsed
+      });
+    } catch (e) {
+      console.log('Could not store assistant message:', e);
+    }
 
     return new Response(
       JSON.stringify({
@@ -1004,23 +1367,16 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[FLAIR] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     
-    if (errorMessage === 'RATE_LIMITED') {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Rate limited. Please try again in a moment.' }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    if (errorMessage === 'PAYMENT_REQUIRED') {
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI credits exhausted. Please add credits.' }),
-        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage, response: '❌ Sorry, I encountered an error. Please try again.' }),
+      JSON.stringify({
+        success: false,
+        error: errorMsg,
+        response: errorMsg.includes('RATE_LIMITED') 
+          ? '⏳ I\'m being rate limited. Please wait a moment and try again.'
+          : '❌ Sorry, I encountered an error. Please try again.'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
