@@ -56,3 +56,9 @@ verify_jwt = true
 
 [functions.flair-orchestrator]
 verify_jwt = false
+
+[functions.flair-alert-generator]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
