@@ -62,3 +62,9 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.flair-notify]
+verify_jwt = false
+
+[functions.flair-daily-briefing]
+verify_jwt = false
