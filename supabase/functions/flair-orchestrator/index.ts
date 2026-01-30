@@ -544,9 +544,11 @@ function formatDate(date: Date): string {
   });
 }
 
-// Fetch context for injection
+// Fetch context for injection using optimized RPC functions
 async function fetchContext(supabase: any, channelId?: string): Promise<any> {
   const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  
   const context: any = {
     current_date: formatDate(now),
     current_time: now.toLocaleTimeString('en-ZA', { timeZone: 'Africa/Johannesburg' }),
@@ -555,15 +557,18 @@ async function fetchContext(supabase: any, channelId?: string): Promise<any> {
     clients: [],
     pending_payments: [],
     active_alerts: [],
-    conversation_history: []
+    conversation_history: [],
+    mtd_totals: null
   };
 
-  const [shipmentsResult, suppliersResult, clientsResult, paymentsResult, alertsResult, historyResult] = await Promise.all([
-    supabase.from('v_shipments_full').select('*').order('created_at', { ascending: false }).limit(50),
-    supabase.from('suppliers').select('id, name, currency, current_balance').order('current_balance', { ascending: false }),
+  // Use RPC functions for optimized context loading
+  const [shipmentsResult, suppliersResult, clientsResult, paymentsResult, alertsResult, mtdResult, historyResult] = await Promise.all([
+    supabase.rpc('get_shipments_with_age', { limit_count: 50 }),
+    supabase.rpc('get_suppliers_summary'),
     supabase.from('clients').select('id, name, contact_person').order('name'),
-    supabase.from('v_pending_payments').select('*').order('payment_date').limit(20),
+    supabase.rpc('get_pending_payments_with_urgency'),
     supabase.from('proactive_alerts').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(10),
+    supabase.rpc('get_mtd_totals', { month_start: monthStart }),
     channelId ? supabase.from('conversation_memory').select('role, content, created_at')
       .eq('channel_id', channelId).order('created_at', { ascending: false }).limit(10) : null
   ]);
@@ -573,15 +578,19 @@ async function fetchContext(supabase: any, channelId?: string): Promise<any> {
   if (clientsResult.data) context.clients = clientsResult.data;
   if (paymentsResult.data) context.pending_payments = paymentsResult.data;
   if (alertsResult.data) context.active_alerts = alertsResult.data;
+  if (mtdResult.data?.[0]) context.mtd_totals = mtdResult.data[0];
   if (historyResult?.data) context.conversation_history = historyResult.data.reverse();
 
-  // Calculate totals
+  // Calculate totals using optimized data
   const activeShipments = context.shipments.filter((s: any) => !['completed', 'cancelled'].includes(s.status));
   context.totals = {
     active_shipments: activeShipments.length,
     total_supplier_balance: context.suppliers.reduce((sum: number, s: any) => sum + (s.current_balance || 0), 0),
-    pending_payments_total: context.pending_payments.reduce((sum: number, p: any) => sum + (p.amount_foreign || 0), 0),
-    mtd_profit: context.shipments.reduce((sum: number, s: any) => sum + (s.net_profit_zar || 0), 0)
+    pending_payments_total: context.pending_payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+    overdue_payments: context.pending_payments.filter((p: any) => p.is_overdue).length,
+    mtd_revenue: context.mtd_totals?.total_revenue || 0,
+    mtd_profit: context.mtd_totals?.total_profit || 0,
+    mtd_shipments: context.mtd_totals?.shipment_count || 0
   };
 
   return context;

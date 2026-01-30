@@ -2788,6 +2788,58 @@ export type Database = {
     Functions: {
       cleanup_old_conversations: { Args: never; Returns: undefined }
       generate_invoice_number: { Args: never; Returns: string }
+      get_mtd_totals: {
+        Args: { month_start: string }
+        Returns: {
+          shipment_count: number
+          total_profit: number
+          total_revenue: number
+        }[]
+      }
+      get_pending_payments_with_urgency: {
+        Args: never
+        Returns: {
+          amount: number
+          currency: string
+          days_until_due: number
+          due_date: string
+          id: string
+          is_overdue: boolean
+          lot_number: string
+          supplier_name: string
+        }[]
+      }
+      get_shipments_with_age: {
+        Args: { limit_count?: number }
+        Returns: {
+          client_invoice_zar: number
+          client_name: string
+          commodity: string
+          days_since_eta: number
+          document_submitted: boolean
+          eta: string
+          id: string
+          lot_number: string
+          net_profit_zar: number
+          profit_margin: number
+          status: string
+          supplier_cost: number
+          supplier_name: string
+          telex_released: boolean
+        }[]
+      }
+      get_suppliers_summary: {
+        Args: never
+        Returns: {
+          active_shipments: number
+          currency: string
+          current_balance: number
+          days_since_payment: number
+          id: string
+          last_payment_date: string
+          name: string
+        }[]
+      }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]
