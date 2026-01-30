@@ -882,6 +882,60 @@ export type Database = {
           },
         ]
       }
+      document_templates: {
+        Row: {
+          color_scheme: Json | null
+          created_at: string | null
+          created_by: string | null
+          document_type: string
+          field_mappings: Json | null
+          fonts: Json | null
+          format_rules: Json | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          template_data: Json | null
+          template_file_path: string | null
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          color_scheme?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          document_type: string
+          field_mappings?: Json | null
+          fonts?: Json | null
+          format_rules?: Json | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          template_data?: Json | null
+          template_file_path?: string | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          color_scheme?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          document_type?: string
+          field_mappings?: Json | null
+          fonts?: Json | null
+          format_rules?: Json | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          template_data?: Json | null
+          template_file_path?: string | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: []
+      }
       duplicate_detection_settings: {
         Row: {
           auto_block_exact_duplicates: boolean | null
@@ -2400,6 +2454,7 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           folder_id: string | null
+          format_metadata: Json | null
           id: string
           is_favorite: boolean | null
           is_latest_version: boolean | null
@@ -2408,6 +2463,7 @@ export type Database = {
           original_folder: string | null
           original_name: string | null
           parent_document: string | null
+          parsed_structure: Json | null
           rejected_at: string | null
           rejected_by: string | null
           rejection_reason: string | null
@@ -2421,6 +2477,7 @@ export type Database = {
           summary: string | null
           supplier_name: string | null
           tags: string[] | null
+          template_id: string | null
           thumbnail_path: string | null
           updated_at: string | null
           uploaded_at: string | null
@@ -2453,6 +2510,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           folder_id?: string | null
+          format_metadata?: Json | null
           id?: string
           is_favorite?: boolean | null
           is_latest_version?: boolean | null
@@ -2461,6 +2519,7 @@ export type Database = {
           original_folder?: string | null
           original_name?: string | null
           parent_document?: string | null
+          parsed_structure?: Json | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
@@ -2474,6 +2533,7 @@ export type Database = {
           summary?: string | null
           supplier_name?: string | null
           tags?: string[] | null
+          template_id?: string | null
           thumbnail_path?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
@@ -2508,6 +2568,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           folder_id?: string | null
+          format_metadata?: Json | null
           id?: string
           is_favorite?: boolean | null
           is_latest_version?: boolean | null
@@ -2516,6 +2577,7 @@ export type Database = {
           original_folder?: string | null
           original_name?: string | null
           parent_document?: string | null
+          parsed_structure?: Json | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
@@ -2529,6 +2591,7 @@ export type Database = {
           summary?: string | null
           supplier_name?: string | null
           tags?: string[] | null
+          template_id?: string | null
           thumbnail_path?: string | null
           updated_at?: string | null
           uploaded_at?: string | null
@@ -2567,6 +2630,13 @@ export type Database = {
             columns: ["shipment_id"]
             isOneToOne: false
             referencedRelation: "v_shipments_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uploaded_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
             referencedColumns: ["id"]
           },
         ]
