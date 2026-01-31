@@ -174,13 +174,22 @@ export function AIQueryChat({
           {messages.length === 0 ? (
             <div className="space-y-4">
               <div className="text-center py-6">
-                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center mb-3">
-                  <Sparkles className="h-8 w-8 text-primary" />
+                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-primary via-blue-500 to-cyan-400 flex items-center justify-center mb-3 shadow-lg shadow-primary/25">
+                  <Sparkles className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="font-semibold mb-1">Hello! I'm FLAIR</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your operations manager. I can query data AND update shipments.
+                <p className="text-sm text-muted-foreground mb-3">
+                  Your intelligent operations manager for Favorite Logistics.
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => handleSubmit("Give me my daily briefing")}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Get Daily Briefing
+                </Button>
               </div>
               <div className="space-y-3">
                 <div>
