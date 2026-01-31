@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +61,15 @@ export default function Workspace() {
   const [expandedSaveFolders, setExpandedSaveFolders] = useState<Set<string>>(new Set());
   // New table from CSV import (batch support)
   const [importAsNewTableDialog, setImportAsNewTableDialog] = useState(false);
-  const [batchImportData, setBatchImportData] = useState<{ headers: string[]; rows: string[][]; fileName: string; confidence?: string; documentType?: string; summary?: string }[]>([]);
+  const [batchImportData, setBatchImportData] = useState<{ 
+    headers: string[]; 
+    rows: string[][]; 
+    fileName: string; 
+    confidence?: string; 
+    documentType?: string; 
+    summary?: string;
+    cellStyles?: Record<string, Record<string, any>>;
+  }[]>([]);
   const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
   
   // PDF import
@@ -269,13 +278,127 @@ export default function Workspace() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const parsedFiles: { headers: string[]; rows: string[][]; fileName: string }[] = [];
+    const parsedFiles: { 
+      headers: string[]; 
+      rows: string[][]; 
+      fileName: string;
+      cellStyles?: Record<string, Record<string, any>>;
+    }[] = [];
     
     for (const file of Array.from(files)) {
       const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
-      const text = await file.text();
-      const parsed = parseCSV(text);
-      parsedFiles.push({ ...parsed, fileName });
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+      
+      let parsed: { headers: string[]; rows: string[][]; cellStyles?: Record<string, Record<string, any>> };
+      
+      if (isExcel) {
+        try {
+          const buffer = await file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { 
+            type: 'array',
+            cellStyles: true,
+            cellDates: true,
+            cellNF: true
+          });
+          
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          
+          // Get data as array of arrays
+          const jsonData = XLSX.utils.sheet_to_json<any[]>(sheet, { 
+            header: 1, 
+            defval: '',
+            raw: false
+          });
+          
+          if (jsonData.length === 0) {
+            parsed = { headers: [], rows: [] };
+          } else {
+            // Find header row (first row with multiple non-empty cells)
+            let headerRowIndex = 0;
+            for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+              const row = jsonData[i] as any[];
+              const nonEmpty = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '');
+              if (nonEmpty.length >= 2) {
+                headerRowIndex = i;
+                break;
+              }
+            }
+            
+            const headerRow = jsonData[headerRowIndex] as any[];
+            const headers = headerRow.map((h, idx) => 
+              h !== null && h !== undefined && String(h).trim() !== '' 
+                ? String(h).trim() 
+                : `Column ${idx + 1}`
+            );
+            
+            // Extract cell styles
+            const cellStyles: Record<string, Record<string, any>> = {};
+            
+            Object.keys(sheet).forEach(addr => {
+              if (addr.startsWith('!')) return;
+              const cell = sheet[addr];
+              if (cell.s) {
+                // Has style information
+                cellStyles[addr] = {
+                  bold: cell.s.font?.bold,
+                  italic: cell.s.font?.italic,
+                  fontSize: cell.s.font?.sz,
+                  fontColor: cell.s.font?.color?.rgb,
+                  bgColor: cell.s.fill?.fgColor?.rgb || cell.s.fill?.bgColor?.rgb,
+                  numFmt: cell.z,
+                  alignment: cell.s.alignment?.horizontal
+                };
+              }
+            });
+            
+            // Get data rows
+            const rows = jsonData.slice(headerRowIndex + 1)
+              .map(row => {
+                const rowArray = row as any[];
+                return headers.map((_, idx) => {
+                  const cell = rowArray[idx];
+                  if (cell === null || cell === undefined) return '';
+                  if (typeof cell === 'number') {
+                    return cell.toLocaleString('en-ZA', { 
+                      minimumFractionDigits: 0, 
+                      maximumFractionDigits: 2 
+                    });
+                  }
+                  return String(cell).trim();
+                });
+              })
+              .filter(row => row.some(cell => cell !== ''));
+            
+            parsed = { headers, rows, cellStyles };
+          }
+        } catch (error) {
+          console.error('Excel parsing error:', error);
+          toast({ 
+            title: `Error parsing ${file.name}`, 
+            description: error instanceof Error ? error.message : 'Invalid Excel file',
+            variant: 'destructive' 
+          });
+          continue;
+        }
+      } else {
+        // CSV/TSV - existing logic
+        const text = await file.text();
+        parsed = parseCSV(text);
+      }
+      
+      if (parsed.headers.length > 0) {
+        parsedFiles.push({ ...parsed, fileName });
+      }
+    }
+    
+    if (parsedFiles.length === 0) {
+      toast({ 
+        title: 'No valid files', 
+        description: 'Could not parse any uploaded files',
+        variant: 'destructive' 
+      });
+      return;
     }
     
     setBatchImportData(parsedFiles);
@@ -313,7 +436,6 @@ export default function Workspace() {
       const { data: user } = await supabase.auth.getUser();
       
       for (const importData of batchImportData) {
-        // Create the table using the file name
         const { data: newTable, error: tableError } = await supabase
           .from('custom_tables')
           .insert({
@@ -327,13 +449,31 @@ export default function Workspace() {
         
         if (tableError) throw tableError;
 
-        // Create columns from headers
-        const columnInserts = importData.headers.map((header, index) => ({
-          table_id: newTable.id,
-          name: header.trim() || `Column ${index + 1}`,
-          column_type: 'text' as const,
-          order_position: index,
-        }));
+        // Create columns with detected types
+        const columnInserts = importData.headers.map((header, index) => {
+          // Try to detect column type from first few data rows
+          let columnType: 'text' | 'number' | 'currency' | 'date' = 'text';
+          const sampleValues = importData.rows.slice(0, 5).map(row => row[index]).filter(v => v);
+          
+          if (sampleValues.length > 0) {
+            const allNumbers = sampleValues.every(v => !isNaN(parseFloat(v.replace(/[R$€£,\s]/g, ''))));
+            const hasCurrency = sampleValues.some(v => /^[R$€£]/.test(v) || /ZAR|USD|EUR/.test(v));
+            
+            if (allNumbers && hasCurrency) {
+              columnType = 'currency';
+            } else if (allNumbers) {
+              columnType = 'number';
+            }
+          }
+          
+          return {
+            table_id: newTable.id,
+            name: header.trim() || `Column ${index + 1}`,
+            column_type: columnType,
+            order_position: index,
+            width: 150,
+          };
+        });
 
         const { data: createdColumns, error: colError } = await supabase
           .from('custom_columns')
@@ -342,16 +482,35 @@ export default function Workspace() {
         
         if (colError) throw colError;
 
-        // Create rows with data mapped to column IDs
+        // Create rows with data and styles
         if (importData.rows.length > 0 && createdColumns) {
-          const rowInserts = importData.rows.map(rowData => {
+          const rowInserts = importData.rows.map((rowData, rowIndex) => {
             const data: Record<string, any> = {};
-            createdColumns.forEach((col, i) => {
-              data[col.id] = rowData[i] ?? '';
+            const styles: Record<string, any> = {};
+            
+            createdColumns.forEach((col, colIndex) => {
+              const cellValue = rowData[colIndex] ?? '';
+              data[col.id] = cellValue;
+              
+              // Map cell styles if available
+              if (importData.cellStyles) {
+                // Excel uses 1-based indexing, A1 notation
+                // Row 1 is header, so data row 0 = Excel row 2
+                const excelRow = rowIndex + 2; // +1 for header, +1 for 1-based
+                const excelCol = colIndex < 26 
+                  ? String.fromCharCode(65 + colIndex) 
+                  : String.fromCharCode(64 + Math.floor(colIndex / 26)) + String.fromCharCode(65 + (colIndex % 26));
+                const cellAddr = `${excelCol}${excelRow}`;
+                
+                if (importData.cellStyles[cellAddr]) {
+                  styles[col.id] = importData.cellStyles[cellAddr];
+                }
+              }
             });
+            
             return {
               table_id: newTable.id,
-              data,
+              data: Object.keys(styles).length > 0 ? { ...data, _styles: styles } : data,
               created_by: user.user?.id,
             };
           });
@@ -369,21 +528,22 @@ export default function Workspace() {
 
       toast({ 
         title: 'Import complete', 
-        description: `Created ${createdCount} table${createdCount > 1 ? 's' : ''} from CSV files` 
+        description: `Created ${createdCount} table${createdCount > 1 ? 's' : ''}` 
       });
-
-      // Invalidate queries to refresh the table list
-      await queryClient.invalidateQueries({ queryKey: ['custom-tables'] });
+      
+      setBatchImportData([]);
+      setImportAsNewTableDialog(false);
       
       if (lastTableId) {
         setSelectedTableId(lastTableId);
       }
-      setImportAsNewTableDialog(false);
-      setBatchImportData([]);
+      
+      queryClient.invalidateQueries({ queryKey: ['custom-tables'] });
     } catch (error: any) {
+      console.error('Import error:', error);
       toast({ 
-        title: 'Error creating tables', 
-        description: error.message, 
+        title: 'Import failed', 
+        description: error.message,
         variant: 'destructive' 
       });
     } finally {
