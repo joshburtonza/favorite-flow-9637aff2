@@ -69,6 +69,24 @@ const FONT_SIZE_CLASSES: Record<FontSize, string> = {
 // Zoom steps from 50% to 200%
 const ZOOM_LEVELS = [50, 75, 100, 125, 150, 175, 200];
 
+// Helper to extract cell styles from row data
+const getCellStyle = (row: CustomRow, columnId: string): React.CSSProperties => {
+  const styles = (row.data as any)?._styles?.[columnId];
+  if (!styles) return {};
+  
+  const css: React.CSSProperties = {};
+  
+  if (styles.bold) css.fontWeight = 'bold';
+  if (styles.italic) css.fontStyle = 'italic';
+  if (styles.bgColor) css.backgroundColor = `#${styles.bgColor}`;
+  if (styles.fontColor) css.color = `#${styles.fontColor}`;
+  if (styles.fontSize) css.fontSize = `${styles.fontSize}pt`;
+  if (styles.alignment === 'center') css.textAlign = 'center';
+  if (styles.alignment === 'right') css.textAlign = 'right';
+  
+  return css;
+};
+
 export function SpreadsheetGrid({
   columns,
   rows,
@@ -739,6 +757,9 @@ export function SpreadsheetGrid({
       );
     }
 
+    // Get imported cell styles
+    const importedStyle = getCellStyle(row, column.id);
+
     return (
       <div
         className={cn(
@@ -748,6 +769,7 @@ export function SpreadsheetGrid({
           condStyle?.bg,
           condStyle?.text
         )}
+        style={importedStyle}
         onClick={() => handleCellClick(row.id, column.id, value)}
       >
         {formatValue(value, column) || <span className="text-muted-foreground">-</span>}
