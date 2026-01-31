@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 type AlertSeverity = 'info' | 'warning' | 'urgent' | 'critical';
 type AlertStatus = 'active' | 'acknowledged' | 'resolved' | 'dismissed';
@@ -31,10 +32,29 @@ interface ProactiveAlert {
   expires_at: string | null;
 }
 
-export function useProactiveAlerts() {
+const SEVERITY_ICONS: Record<AlertSeverity, string> = {
+  info: 'ℹ️',
+  warning: '⚠️',
+  urgent: '🚨',
+  critical: '🔴',
+};
+
+export function useProactiveAlerts(showToasts: boolean = false) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [alerts, setAlerts] = useState<ProactiveAlert[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const showAlertToast = useCallback((alert: ProactiveAlert) => {
+    if (!showToasts) return;
+    
+    toast({
+      title: `${SEVERITY_ICONS[alert.severity] || '📢'} ${alert.title}`,
+      description: alert.message,
+      variant: alert.severity === 'critical' || alert.severity === 'urgent' ? 'destructive' : 'default',
+      duration: alert.severity === 'critical' ? 10000 : 5000,
+    });
+  }, [showToasts, toast]);
 
   const fetchAlerts = useCallback(async () => {
     if (!user) return;
@@ -86,6 +106,11 @@ export function useProactiveAlerts() {
               metadata: (payload.new.metadata as Record<string, unknown>) || {},
             } as ProactiveAlert;
             setAlerts(prev => [newAlert, ...prev]);
+            
+            // Show toast for new active alerts
+            if (newAlert.status === 'active') {
+              showAlertToast(newAlert);
+            }
           } else if (payload.eventType === 'UPDATE') {
             setAlerts(prev =>
               prev.map(a => a.id === payload.new.id ? {

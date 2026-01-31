@@ -8,6 +8,9 @@ import { ThemeProvider } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FlairProvider } from "@/contexts/FlairContext";
+import { GlobalFlairChat } from "@/components/ai/GlobalFlairChat";
+import { useProactiveAlerts } from "@/hooks/useProactiveAlerts";
 
 // Lazy load all pages for better code splitting
 const Auth = lazy(() => import("./pages/Auth"));
@@ -105,6 +108,26 @@ function ScreenshotProtectionWrapper({ children }: { children: React.ReactNode }
   return <>{children}</>;
 }
 
+// Component that enables proactive alerts with toast notifications
+function ProactiveAlertListener() {
+  useProactiveAlerts(true);
+  return null;
+}
+
+// Component that renders FLAIR globally for authenticated users
+function FlairIntegration() {
+  const { user } = useAuth();
+  
+  if (!user) return null;
+  
+  return (
+    <>
+      <ProactiveAlertListener />
+      <GlobalFlairChat />
+    </>
+  );
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -114,42 +137,46 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-                  <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
-                  <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
-                  <Route path="/analyze" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
-                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
-                  <Route path="/schedule" element={<ProtectedRoute><ShipmentSchedule /></ProtectedRoute>} />
-                  <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-                  <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
-                  <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-                  <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
-                  <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-                  <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
-                  <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
-                  <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
-                  <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
-                  <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
-                  <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-                  <Route path="/document-workflow" element={<ProtectedRoute><DocumentWorkflow /></ProtectedRoute>} />
-                  <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
-                  <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
-                  <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
-                  <Route path="/file-costing" element={<ProtectedRoute><FileCosting /></ProtectedRoute>} />
-                  <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
-                  <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-                  <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
-                  <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
-                  <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-                  <Route path="/calendar" element={<ProtectedRoute><TeamCalendar /></ProtectedRoute>} />
-                  <Route path="/activity-log" element={<ProtectedRoute><ActivityLog /></ProtectedRoute>} />
-                  <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
-                </Routes>
-              </Suspense>
+              <FlairProvider>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+                    <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
+                    <Route path="/" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+                    <Route path="/analyze" element={<ProtectedRoute><AIHub /></ProtectedRoute>} />
+                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/shipments" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/shipments/:id" element={<ProtectedRoute><ShipmentDetail /></ProtectedRoute>} />
+                    <Route path="/schedule" element={<ProtectedRoute><ShipmentSchedule /></ProtectedRoute>} />
+                    <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+                    <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
+                    <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+                    <Route path="/clients/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+                    <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+                    <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
+                    <Route path="/creditors" element={<ProtectedRoute><Creditors /></ProtectedRoute>} />
+                    <Route path="/bank-accounts" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
+                    <Route path="/import" element={<ProtectedRoute><ImportData /></ProtectedRoute>} />
+                    <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
+                    <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+                    <Route path="/document-workflow" element={<ProtectedRoute><DocumentWorkflow /></ProtectedRoute>} />
+                    <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+                    <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
+                    <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+                    <Route path="/file-costing" element={<ProtectedRoute><FileCosting /></ProtectedRoute>} />
+                    <Route path="/team" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
+                    <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+                    <Route path="/security" element={<ProtectedRoute><SecurityCenter /></ProtectedRoute>} />
+                    <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+                    <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+                    <Route path="/calendar" element={<ProtectedRoute><TeamCalendar /></ProtectedRoute>} />
+                    <Route path="/activity-log" element={<ProtectedRoute><ActivityLog /></ProtectedRoute>} />
+                    <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
+                  </Routes>
+                </Suspense>
+                {/* FLAIR - Global AI Assistant */}
+                <FlairIntegration />
+              </FlairProvider>
             </BrowserRouter>
           </ScreenshotProtectionWrapper>
         </TooltipProvider>
