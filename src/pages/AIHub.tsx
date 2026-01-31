@@ -538,20 +538,31 @@ const AIHub = () => {
   return (
     <AppLayout>
       <div className="space-y-8">
-        {/* Header Section */}
+        {/* FLAIR Header Section */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Control Tower</p>
-            <h1 className="text-3xl font-semibold gradient-text">AI Data Entry</h1>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary via-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-primary/25">
+              <Sparkles className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">AI Operations Manager</p>
+              <h1 className="text-3xl font-semibold gradient-text">FLAIR Hub</h1>
+            </div>
           </div>
-          <div className="search-glass w-full md:w-80">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search HBL, Container or Client..." 
-              className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="text-xs px-3 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
+              Online
+            </Badge>
+            <div className="search-glass w-full md:w-80">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Ask FLAIR anything..." 
+                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
         </header>
 
