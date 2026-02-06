@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Shipment, ShipmentStatus, ShipmentCosts } from '@/types/database';
 import { toast } from 'sonner';
 import { useActivityLogger } from './useActivityLogger';
+import { useAuth } from './useAuth';
 
 interface ShipmentFilters {
   status?: ShipmentStatus | 'all';
@@ -89,6 +90,7 @@ export function useShipment(id: string) {
 export function useCreateShipment() {
   const queryClient = useQueryClient();
   const { logCreate } = useActivityLogger();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (data: {
@@ -115,10 +117,14 @@ export function useCreateShipment() {
       
       if (costsError) throw costsError;
       
+      // Create shipment folder structure
+      await createShipmentFolders(shipment.id, data.lot_number, user?.id);
+      
       return shipment;
     },
     onSuccess: (shipment, variables) => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['document-folders'] });
       logCreate('shipment', shipment.id, shipment.lot_number, variables);
       toast.success('Shipment created successfully');
     },
@@ -126,6 +132,65 @@ export function useCreateShipment() {
       toast.error(error.message || 'Failed to create shipment');
     },
   });
+}
+
+// Helper function to create shipment folder structure
+async function createShipmentFolders(shipmentId: string, lotNumber: string, userId?: string) {
+  try {
+    // Get the default folder template
+    const { data: template } = await supabase
+      .from('folder_templates')
+      .select('folder_structure')
+      .eq('template_type', 'shipment')
+      .eq('is_active', true)
+      .single();
+    
+    const folderNames = template?.folder_structure as string[] || [
+      'Documents',
+      'Invoices', 
+      'Customs',
+      'Payment Proofs',
+      'Correspondence'
+    ];
+
+    // Create the main shipment folder
+    const { data: parentFolder, error: parentError } = await supabase
+      .from('document_folders')
+      .insert({
+        name: lotNumber,
+        folder_type: 'system',
+        shipment_id: shipmentId,
+        created_by: userId,
+      })
+      .select()
+      .single();
+    
+    if (parentError) {
+      console.error('Error creating parent folder:', parentError);
+      return;
+    }
+
+    // Create child folders
+    const childFolders = folderNames.map((name, index) => ({
+      name,
+      parent_id: parentFolder.id,
+      folder_type: 'system' as const,
+      shipment_id: shipmentId,
+      order_position: index,
+      created_by: userId,
+    }));
+
+    const { error: childError } = await supabase
+      .from('document_folders')
+      .insert(childFolders);
+    
+    if (childError) {
+      console.error('Error creating child folders:', childError);
+    }
+  } catch (error) {
+    console.error('Error creating shipment folders:', error);
+    // Don't throw - folder creation is non-critical
+  }
 }
 
 export function useUpdateShipment() {
