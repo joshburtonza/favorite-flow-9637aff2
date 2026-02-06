@@ -43,6 +43,9 @@ const Announcements = lazy(() => import("./pages/Announcements"));
 const Messages = lazy(() => import("./pages/Messages"));
 const TeamCalendar = lazy(() => import("./pages/TeamCalendar"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
+const Feedback = lazy(() => import("./pages/Feedback"));
+const TestingChecklist = lazy(() => import("./pages/TestingChecklist"));
+const StaffInterviews = lazy(() => import("./pages/StaffInterviews"));
 
 // Optimized QueryClient with better caching defaults
 const queryClient = new QueryClient({
@@ -171,6 +174,9 @@ const App = () => (
                     <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                     <Route path="/calendar" element={<ProtectedRoute><TeamCalendar /></ProtectedRoute>} />
                     <Route path="/activity-log" element={<ProtectedRoute><ActivityLog /></ProtectedRoute>} />
+                    <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+                    <Route path="/testing" element={<ProtectedRoute><TestingChecklist /></ProtectedRoute>} />
+                    <Route path="/interviews" element={<ProtectedRoute><StaffInterviews /></ProtectedRoute>} />
                     <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
                   </Routes>
                 </Suspense>

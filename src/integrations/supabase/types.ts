@@ -940,6 +940,7 @@ export type Database = {
           name: string
           order_position: number | null
           parent_id: string | null
+          shipment_id: string | null
           updated_at: string
         }
         Insert: {
@@ -957,6 +958,7 @@ export type Database = {
           name: string
           order_position?: number | null
           parent_id?: string | null
+          shipment_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -974,6 +976,7 @@ export type Database = {
           name?: string
           order_position?: number | null
           parent_id?: string | null
+          shipment_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -989,6 +992,20 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_folders_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_folders_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_shipments_full"
             referencedColumns: ["id"]
           },
         ]
@@ -1435,6 +1452,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      folder_templates: {
+        Row: {
+          created_at: string
+          folder_structure: Json
+          id: string
+          is_active: boolean
+          name: string
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          folder_structure?: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          template_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          folder_structure?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          template_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       fx_rate_history: {
         Row: {
@@ -2305,6 +2352,128 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_feedback: {
+        Row: {
+          admin_notes: string | null
+          affected_area: string | null
+          category: Database["public"]["Enums"]["feedback_category"]
+          created_at: string
+          current_url: string | null
+          description: string
+          id: string
+          priority: Database["public"]["Enums"]["feedback_priority"]
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["feedback_status"]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          affected_area?: string | null
+          category?: Database["public"]["Enums"]["feedback_category"]
+          created_at?: string
+          current_url?: string | null
+          description: string
+          id?: string
+          priority?: Database["public"]["Enums"]["feedback_priority"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          affected_area?: string | null
+          category?: Database["public"]["Enums"]["feedback_category"]
+          created_at?: string
+          current_url?: string | null
+          description?: string
+          id?: string
+          priority?: Database["public"]["Enums"]["feedback_priority"]
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      staff_interview_responses: {
+        Row: {
+          created_at: string
+          id: string
+          interview_id: string
+          question_key: string
+          question_text: string
+          response_type: Database["public"]["Enums"]["interview_response_type"]
+          response_value: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interview_id: string
+          question_key: string
+          question_text: string
+          response_type?: Database["public"]["Enums"]["interview_response_type"]
+          response_value?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interview_id?: string
+          question_key?: string
+          question_text?: string
+          response_type?: Database["public"]["Enums"]["interview_response_type"]
+          response_value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_interview_responses_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "staff_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_interviews: {
+        Row: {
+          assigned_by: string
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          status: Database["public"]["Enums"]["interview_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["interview_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["interview_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       staff_invites: {
         Row: {
           accepted_at: string | null
@@ -2699,6 +2868,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      testing_results: {
+        Row: {
+          category: string
+          created_at: string
+          feature_key: string
+          id: string
+          notes: string | null
+          result: Database["public"]["Enums"]["test_result"]
+          run_id: string
+          tested_at: string | null
+          tester_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          feature_key: string
+          id?: string
+          notes?: string | null
+          result?: Database["public"]["Enums"]["test_result"]
+          run_id: string
+          tested_at?: string | null
+          tester_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          feature_key?: string
+          id?: string
+          notes?: string | null
+          result?: Database["public"]["Enums"]["test_result"]
+          run_id?: string
+          tested_at?: string | null
+          tester_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testing_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "testing_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      testing_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["testing_run_status"]
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["testing_run_status"]
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["testing_run_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       uploaded_documents: {
         Row: {
@@ -3448,8 +3700,17 @@ export type Database = {
         | "shipment"
         | "other"
       event_visibility: "private" | "team" | "public"
+      feedback_category: "bug" | "suggestion" | "question" | "other"
+      feedback_priority: "low" | "medium" | "high" | "critical"
+      feedback_status: "new" | "in_progress" | "resolved" | "dismissed"
       file_costing_status: "draft" | "pending_review" | "finalized"
       folder_type: "system" | "staff" | "clearing_agent" | "custom"
+      interview_response_type:
+        | "text"
+        | "rating"
+        | "multiple_choice"
+        | "checklist"
+      interview_status: "pending" | "in_progress" | "completed"
       invoice_status: "draft" | "sent" | "paid" | "cancelled"
       ledger_type: "debit" | "credit"
       payment_status: "pending" | "completed"
@@ -3470,6 +3731,8 @@ export type Database = {
         | "operations"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "pending" | "in_progress" | "completed" | "cancelled"
+      test_result: "untested" | "pass" | "fail" | "skip" | "needs_review"
+      testing_run_status: "active" | "completed" | "archived"
       workflow_status:
         | "draft"
         | "pending_review"
@@ -3663,8 +3926,18 @@ export const Constants = {
         "other",
       ],
       event_visibility: ["private", "team", "public"],
+      feedback_category: ["bug", "suggestion", "question", "other"],
+      feedback_priority: ["low", "medium", "high", "critical"],
+      feedback_status: ["new", "in_progress", "resolved", "dismissed"],
       file_costing_status: ["draft", "pending_review", "finalized"],
       folder_type: ["system", "staff", "clearing_agent", "custom"],
+      interview_response_type: [
+        "text",
+        "rating",
+        "multiple_choice",
+        "checklist",
+      ],
+      interview_status: ["pending", "in_progress", "completed"],
       invoice_status: ["draft", "sent", "paid", "cancelled"],
       ledger_type: ["debit", "credit"],
       payment_status: ["pending", "completed"],
@@ -3687,6 +3960,8 @@ export const Constants = {
       ],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["pending", "in_progress", "completed", "cancelled"],
+      test_result: ["untested", "pass", "fail", "skip", "needs_review"],
+      testing_run_status: ["active", "completed", "archived"],
       workflow_status: [
         "draft",
         "pending_review",

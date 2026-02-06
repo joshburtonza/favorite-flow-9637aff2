@@ -37,9 +37,13 @@ import {
   Calendar,
   Menu,
   X,
-  Activity
+  Activity,
+  MessageSquarePlus,
+  ClipboardCheck,
+  ClipboardList
 } from 'lucide-react';
 import { BottomNavigation } from './BottomNavigation';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -77,6 +81,9 @@ const navItems: NavItem[] = [
   { path: '/activity-log', label: 'Activity Log', icon: Activity, permission: 'manage_team' },
   { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
   { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
+  { path: '/feedback', label: 'Feedback', icon: MessageSquarePlus, permission: 'manage_team' },
+  { path: '/testing', label: 'Testing Checklist', icon: ClipboardCheck, permission: 'manage_team' },
+  { path: '/interviews', label: 'Staff Interviews', icon: ClipboardList, permission: 'manage_team' },
 ];
 
 const primaryNavPaths = ['/', '/dashboard', '/messages', '/calendar', '/tasks', '/files'];
@@ -265,6 +272,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       {isMobile && <BottomNavigation />}
       <FloatingAIChat />
+      <FeedbackButton />
     </div>
   );
 }
