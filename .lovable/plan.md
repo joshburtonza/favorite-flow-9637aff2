@@ -1,262 +1,269 @@
 
+# Implementation Plan: Pre-Testing Features Package
 
-# FLAIR AI System Implementation Plan
+## Executive Summary
+This plan covers four robust systems needed before the platform goes into testing with staff:
 
-## Overview
-
-Transform the existing AI assistant into **FLAIR** (Favorite Logistics AI Resource) - a comprehensive, intelligent operations manager that serves as the primary interface to the entire business operations system. This involves updating the system prompts across all AI edge functions, enhancing the UI components, and adding new capabilities.
-
----
-
-## What This Changes
-
-The user has provided a comprehensive "FLAIR" system prompt specification that defines:
-1. **Identity & Personality** - Professional operations manager persona for "FLAIR"
-2. **Business Context** - Detailed business model, entities, and workflows
-3. **Data Model Reference** - Complete schema documentation for AI context
-4. **Tool Definitions** - Structured function signatures for all operations
-5. **Response Formatting** - WhatsApp/Telegram vs Web interface formatting
-6. **Proactive Behaviors** - Automatic alerts and anticipatory responses
-7. **Conversation Patterns** - Natural language understanding examples
-8. **Error Handling** - User-friendly error messages
-9. **Context Injection** - Real-time system state awareness
+1. **Feedback Collection System** - Floating widget for staff to report bugs, suggestions, and issues
+2. **Staff Interview Templates** - Questionnaire system to capture each staff member's workflow
+3. **Testing Checklist System** - Interactive checklist to validate all platform features
+4. **Shipment Folder Templates** - Auto-create standard folder structures when new shipments are created
 
 ---
 
-## Implementation Phases
+## Feature 1: Feedback Collection System
 
-### Phase 1: Core System Prompt Updates
+### What It Does
+A floating feedback button (separate from FLAIR) that staff can click anytime to report:
+- Bugs and errors
+- Suggestions for improvement  
+- "Something doesn't work as expected"
+- General feedback
 
-**Files to update:**
+Staff can select a category, write their feedback, optionally attach a screenshot reference, and submit. All feedback is stored in the database for admin review.
 
-1. **`supabase/functions/ai-intelligence/index.ts`**
-   - Replace `getSystemAwarenessPrompt()` with the full FLAIR system prompt
-   - Add FLAIR identity and personality traits
-   - Include complete business context (suppliers, clients, clearing agents, FX providers)
-   - Add profit calculation formulas and examples
-   - Include response formatting guidelines for web interface
-   - Add proactive behavior triggers
+### User Experience
+1. Staff sees a small "Feedback" button fixed in the corner
+2. Clicking opens a quick form with:
+   - Category dropdown (Bug, Suggestion, Question, Other)
+   - Priority selection (Low, Medium, High, Critical)
+   - Affected area (which page/feature)
+   - Description text area
+   - Optional: current page auto-captured
+3. Submit saves to database and shows confirmation
+4. Admins can view all feedback in a dedicated page
 
-2. **`supabase/functions/telegram-query/index.ts`**
-   - Replace `SYSTEM_PROMPT` with FLAIR-specific Telegram/WhatsApp formatting
-   - Add mobile-optimized response formatting with emojis
-   - Include all tool function definitions
-   - Add natural language command parsing examples
+### Components to Create
+- `src/components/feedback/FeedbackButton.tsx` - Floating button component
+- `src/components/feedback/FeedbackDialog.tsx` - The feedback submission form
+- `src/components/feedback/FeedbackList.tsx` - Admin view of all feedback
+- `src/hooks/useFeedback.ts` - CRUD hooks for feedback
+- `src/pages/Feedback.tsx` - Admin page to review feedback
 
-3. **`supabase/functions/analyze-document/index.ts`**
-   - Update `SYSTEM_PROMPT` to use FLAIR persona
-   - Enhance document classification with business context
-   - Add FLAIR-style extraction rules and confidence levels
+### Database Changes
+New table: `staff_feedback`
+- id (uuid, primary key)
+- user_id (uuid, references auth.users)
+- category (enum: bug, suggestion, question, other)
+- priority (enum: low, medium, high, critical)
+- affected_area (text) - page/feature name
+- current_url (text) - auto-captured URL
+- title (text)
+- description (text)
+- status (enum: new, in_progress, resolved, dismissed)
+- admin_notes (text)
+- resolved_by (uuid)
+- resolved_at (timestamp)
+- created_at (timestamp)
 
-### Phase 2: Enhanced AI Chat Interface
-
-**Files to update/create:**
-
-1. **`src/components/ai/FloatingAIChat.tsx`**
-   - Rename dialog title from "AI Assistant" to "FLAIR - Operations Manager"
-   - Add FLAIR avatar/branding
-   - Enhance visual styling to match FLAIR persona
-
-2. **`src/components/ai/AIQueryChat.tsx`**
-   - Update greeting message to FLAIR persona
-   - Add daily briefing feature on first message
-   - Update example queries to match FLAIR documentation
-   - Add context summary display improvements
-   - Implement proactive suggestions after responses
-
-3. **Create `src/lib/flair-prompts.ts`** (new file)
-   - Centralized FLAIR system prompts for reuse
-   - Business context constants (known suppliers, clients, etc.)
-   - Response formatting utilities
-   - Proactive alert thresholds
-
-### Phase 3: Proactive Intelligence Features
-
-**Files to update:**
-
-1. **`supabase/functions/ai-intelligence/index.ts`**
-   - Add automatic alert triggers:
-     - Supplier balance exceeds $50,000
-     - Shipment ETA within 3 days but telex not released
-     - Document submitted but no update in 5 days
-     - Payment scheduled within 2 days
-     - Profit margin below 10%
-     - Client invoice overdue
-   - Add daily briefing context generation
-   - Add cash flow projection capability
-
-2. **`src/hooks/useAIIntelligence.ts`**
-   - Add `useDailyBriefing()` hook
-   - Add `useProactiveAlerts()` hook
-   - Add `useCashFlowProjection()` hook
-
-### Phase 4: Enhanced Tool Capabilities
-
-**Add to `supabase/functions/ai-intelligence/index.ts`:**
-
-New action handlers:
-- `bulk_update_status` - Update multiple shipments at once
-- `bulk_create_shipments` - Create multiple shipments from list
-- `report_profit_summary` - Generate profit reports with grouping
-- `report_supplier_balances` - Get all outstanding balances
-- `report_cash_flow` - Project cash flow for coming weeks
-- `alert_send` - Send alerts to team members
-
-### Phase 5: Context Injection Enhancement
-
-**Update `fetchSystemContext()` in `ai-intelligence/index.ts`:**
-
-Add comprehensive context fields:
-- Recent shipments (last 100)
-- Supplier balances with outstanding amounts
-- Pending payments with due dates
-- Recent activity (last 20 changes)
-- Conversation history awareness
-- Current user information
+RLS: Users can create and view their own feedback; Admins can view all and manage
 
 ---
 
-## Technical Details
+## Feature 2: Staff Interview Templates
 
-### System Prompt Structure
+### What It Does
+A structured questionnaire system to gather information from each staff member about their daily workflows, pain points, and feature requests. This data helps tailor the platform to actual use cases.
 
-The FLAIR system prompt will be organized as:
+### User Experience
+1. Admin creates interview sessions for each staff member
+2. Staff receives a notification to complete their interview
+3. Interview form includes:
+   - Role and department info
+   - Daily tasks checklist
+   - Tools currently used
+   - Pain points and challenges
+   - Feature wishlist
+   - Time spent on specific activities
+4. Responses are saved and viewable by admins
+5. Admins can export responses for analysis
 
+### Components to Create
+- `src/components/interviews/StaffInterviewForm.tsx` - The questionnaire form
+- `src/components/interviews/InterviewResponseView.tsx` - View individual responses
+- `src/components/interviews/InterviewDashboard.tsx` - Admin overview
+- `src/hooks/useStaffInterviews.ts` - CRUD hooks
+- `src/pages/StaffInterviews.tsx` - Admin page
+
+### Database Changes
+New table: `staff_interviews`
+- id (uuid, primary key)
+- user_id (uuid, references auth.users)
+- assigned_by (uuid)
+- status (enum: pending, in_progress, completed)
+- due_date (date)
+- completed_at (timestamp)
+- created_at (timestamp)
+
+New table: `staff_interview_responses`
+- id (uuid, primary key)
+- interview_id (uuid, references staff_interviews)
+- question_key (text) - identifier for the question
+- question_text (text)
+- response_type (enum: text, rating, multiple_choice, checklist)
+- response_value (jsonb) - flexible storage for any response type
+- created_at (timestamp)
+
+Pre-defined interview questions stored in code (not database) for consistency.
+
+---
+
+## Feature 3: Testing Checklist System
+
+### What It Does
+An interactive checklist where staff can systematically test each platform feature and mark it as Pass, Fail, or Needs Review. This creates a documented testing trail.
+
+### User Experience
+1. Testing checklist page shows all features grouped by category
+2. Each item has:
+   - Feature name and description
+   - Pass/Fail/Skip buttons
+   - Notes field for issues
+   - Assigned tester (optional)
+3. Progress bar shows overall completion
+4. Failed items are highlighted and can be exported
+5. Multiple test runs can be tracked over time
+
+### Components to Create
+- `src/components/testing/TestingChecklist.tsx` - Main checklist component
+- `src/components/testing/TestingCategorySection.tsx` - Grouped sections
+- `src/components/testing/TestingItemRow.tsx` - Individual test item
+- `src/components/testing/TestingProgress.tsx` - Progress overview
+- `src/hooks/useTestingChecklist.ts` - CRUD hooks
+- `src/pages/TestingChecklist.tsx` - Full page
+
+### Database Changes
+New table: `testing_runs`
+- id (uuid, primary key)
+- name (text) - "Pre-Launch Test Run 1"
+- description (text)
+- created_by (uuid)
+- status (enum: active, completed, archived)
+- started_at (timestamp)
+- completed_at (timestamp)
+- created_at (timestamp)
+
+New table: `testing_results`
+- id (uuid, primary key)
+- run_id (uuid, references testing_runs)
+- feature_key (text) - identifier matching predefined features
+- category (text)
+- tester_id (uuid)
+- result (enum: untested, pass, fail, skip, needs_review)
+- notes (text)
+- tested_at (timestamp)
+- created_at (timestamp)
+
+Predefined test items stored in code with categories:
+- Authentication (login, logout, password reset)
+- Shipments (create, update, delete, costs)
+- Suppliers (CRUD, ledger, balance)
+- Clients (CRUD, invoices)
+- Documents (upload, folders, workflow)
+- File Management (upload, download, trash)
+- Invoices (create, PDF export)
+- Tasks (create, assign, complete)
+- Messages (send, receive, attachments)
+- Calendar (events, reminders)
+- FLAIR AI (queries, updates)
+- Reports (financials, exports)
+
+---
+
+## Feature 4: Shipment Folder Templates
+
+### What It Does
+Automatically creates a standardized folder structure when a new shipment is created. This ensures consistent document organization across all shipments.
+
+### Folder Structure
+When a shipment is created, auto-create:
 ```text
-# IDENTITY & ROLE
-You are FLAIR (Favorite Logistics AI Resource)...
-
-# THE BUSINESS MODEL
-Company Overview, Business Flow Steps...
-
-# KEY BUSINESS ENTITIES
-Known Suppliers, Clients, Clearing Agents, FX Providers...
-
-# DATA MODEL
-Shipments schema, Costs schema, Suppliers schema...
-
-# PROFIT CALCULATION FORMULAS
-Step-by-step calculation with example...
-
-# AVAILABLE TOOLS
-Shipment operations, Supplier operations, Payment operations...
-
-# RESPONSE FORMATTING
-Web interface formatting, WhatsApp/Telegram formatting...
-
-# PROACTIVE BEHAVIORS
-Alert triggers, Daily briefing context...
-
-# CONVERSATION PATTERNS
-Natural language understanding examples...
-
-# ERROR HANDLING
-Data not found, Validation errors, Permission errors...
-
-# CURRENT CONTEXT
-Injected real-time data from database...
+LOT-[number]/
+  Documents/
+  Invoices/
+  Customs/
+  Payment Proofs/
+  Correspondence/
 ```
 
-### Known Business Entities (from prompt)
+### Implementation Approach
+1. Add a database trigger or modify `useCreateShipment` hook
+2. When shipment created, automatically create shipment-specific folder
+3. Create child folders within it
+4. Link folders to shipment via `shipment_id` column in document_folders
 
-**Suppliers:**
-- WINTEX / WINTEX-ADNAN
-- HUBEI PUFANG
-- HAMZA TOWELS
-- NINGBO CROSSLEAP
-- AMAGGI
-- COFCO
+### Components to Modify
+- `src/hooks/useShipments.ts` - Extend useCreateShipment
+- `src/hooks/useDocumentFolders.ts` - Add createShipmentFolders function
 
-**Clients:**
-- ADNAN JOOSAB
-- MJ / MJ OILS
-- MOTALA
-- CHEVAL SHOES
-- FOOT FOCUS
-- FOOTWORKS
-- GLOBAL
+### Database Changes
+Add column to `document_folders`:
+- shipment_id (uuid, nullable, references shipments)
 
-**Clearing Agents:**
-- Sanjith (primary)
-- Shane
-- Kara
-- Mojo
-
-**FX Providers:**
-- Financiere Suisse (primary)
-- FNB
-- Obeid
-
-### Alert Thresholds
-
-| Alert Type | Threshold | Priority |
-|------------|-----------|----------|
-| Supplier balance high | > $50,000 | Warning |
-| ETA approaching, no telex | < 3 days | Urgent |
-| Document stale | > 5 days no update | Warning |
-| Payment due soon | < 2 days | Urgent |
-| Low profit margin | < 10% | Warning |
-| Overdue invoice | > payment terms | Urgent |
+New table: `folder_templates`
+- id (uuid, primary key)
+- name (text) - "Shipment Default"
+- template_type (text) - "shipment" or "client"
+- folder_structure (jsonb) - array of folder names
+- is_active (boolean)
+- created_at (timestamp)
 
 ---
 
-## UI Changes
+## Navigation Updates
 
-### FloatingAIChat Updates
-- Title: "FLAIR - Operations Manager"
-- Subtitle: "Your intelligent logistics assistant"
-- New icon/avatar with FLAIR branding
-- Pulsing animation on urgent alerts
-
-### AIQueryChat Updates
-- Welcome message with FLAIR persona
-- Daily briefing card on first interaction
-- Updated example queries:
-  - "What's the total profit this month?"
-  - "Show me all pending shipments"
-  - "What do we owe WINTEX?"
-  - "Update LOT 881 status to in-transit"
-- Context badges showing shipments/profit/margin
-- Proactive suggestions after each response
-
-### AIHub Updates
-- FLAIR branding in header
-- Activity feed shows FLAIR actions
-- Document upload integrates FLAIR classification
+Add new menu items to `AppLayout.tsx`:
+- Feedback (visible to all, icon: MessageSquarePlus)
+- Testing Checklist (admin only, icon: ClipboardCheck)
+- Staff Interviews (admin only, icon: ClipboardList)
 
 ---
 
-## Files Changed Summary
+## Technical Summary
 
-| File | Change Type |
-|------|-------------|
-| `supabase/functions/ai-intelligence/index.ts` | Major update |
-| `supabase/functions/telegram-query/index.ts` | Major update |
-| `supabase/functions/analyze-document/index.ts` | Update |
-| `src/components/ai/FloatingAIChat.tsx` | Update |
-| `src/components/ai/AIQueryChat.tsx` | Update |
-| `src/lib/flair-prompts.ts` | New file |
-| `src/hooks/useAIIntelligence.ts` | Update |
+### New Files to Create (17 files)
+1. `src/pages/Feedback.tsx`
+2. `src/pages/TestingChecklist.tsx`
+3. `src/pages/StaffInterviews.tsx`
+4. `src/components/feedback/FeedbackButton.tsx`
+5. `src/components/feedback/FeedbackDialog.tsx`
+6. `src/components/feedback/FeedbackList.tsx`
+7. `src/components/testing/TestingChecklist.tsx`
+8. `src/components/testing/TestingCategorySection.tsx`
+9. `src/components/testing/TestingItemRow.tsx`
+10. `src/components/testing/TestingProgress.tsx`
+11. `src/components/interviews/StaffInterviewForm.tsx`
+12. `src/components/interviews/InterviewResponseView.tsx`
+13. `src/components/interviews/InterviewDashboard.tsx`
+14. `src/hooks/useFeedback.ts`
+15. `src/hooks/useTestingChecklist.ts`
+16. `src/hooks/useStaffInterviews.ts`
+17. `src/lib/testing-definitions.ts` - Predefined test items and interview questions
+
+### Files to Modify (3 files)
+1. `src/App.tsx` - Add new routes
+2. `src/components/layout/AppLayout.tsx` - Add nav items, include FeedbackButton
+3. `src/hooks/useShipments.ts` - Add folder creation on shipment create
+
+### Database Tables (5 new tables)
+1. `staff_feedback` - Feedback submissions
+2. `staff_interviews` - Interview assignments
+3. `staff_interview_responses` - Individual responses
+4. `testing_runs` - Test run tracking
+5. `testing_results` - Individual test results
+6. `folder_templates` - Template definitions
+
+### Database Column Additions
+1. `document_folders.shipment_id` - Link folders to shipments
 
 ---
 
-## Deployment Notes
+## Delivery Order
 
-1. All edge functions need redeployment after updates
-2. No database schema changes required
-3. Frontend changes are immediate on save
-4. Telegram bot will use updated prompts automatically
-
----
-
-## Success Criteria
-
-After implementation, FLAIR will:
-- Respond with consistent persona and formatting
-- Understand natural language commands like "881 got telex today"
-- Proactively flag issues (high balances, overdue shipments)
-- Provide daily briefings with system snapshot
-- Execute database operations via conversational commands
-- Format responses appropriately for web vs Telegram
-- Include relevant context in every response
-
+1. **Database migrations** - Create all tables first
+2. **Hooks** - Create all data hooks
+3. **Feedback System** - Most useful during testing
+4. **Testing Checklist** - For systematic validation
+5. **Staff Interviews** - For process mapping
+6. **Folder Templates** - Operational improvement
+7. **Navigation updates** - Connect everything
