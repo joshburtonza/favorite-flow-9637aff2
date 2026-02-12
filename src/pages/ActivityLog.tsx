@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -50,7 +51,7 @@ interface ChangeHistory {
   created_at: string;
 }
 
-export default function ActivityLog() {
+function ActivityLogContent() {
   const [filters, setFilters] = useState({
     user_email: '',
     action_type: '',
@@ -525,5 +526,13 @@ export default function ActivityLog() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function ActivityLog() {
+  return (
+    <PermissionGate permission="manage_team" pageLevel>
+      <ActivityLogContent />
+    </PermissionGate>
   );
 }

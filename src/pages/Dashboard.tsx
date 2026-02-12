@@ -20,8 +20,9 @@ import { CalendarWidget } from '@/components/dashboard/CalendarWidget';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardRealtime } from '@/hooks/useRealtimeSubscription';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
 import { formatCurrency } from '@/lib/formatters';
-import { Package, DollarSign, FileText, Truck, Search } from 'lucide-react';
+import { Package, DollarSign, FileText, Truck, Search, Clock } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'shipments' | 'automation' | 'commands'>('shipments');
   const [searchQuery, setSearchQuery] = useState('');
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { permissions } = useRoleBasedData();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   
@@ -79,12 +81,21 @@ export default function Dashboard() {
                 icon={Package}
                 description={isMobile ? undefined : "Currently in progress"}
               />
-              <KPICard
-                title="Value in Transit"
-                value={formatCurrency(stats?.totalValueInTransit || 0, 'ZAR', { compact: true })}
-                icon={DollarSign}
-                description={isMobile ? undefined : "Total client invoices"}
-              />
+              {permissions.canSeeFinancials ? (
+                <KPICard
+                  title="Value in Transit"
+                  value={formatCurrency(stats?.totalValueInTransit || 0, 'ZAR', { compact: true })}
+                  icon={DollarSign}
+                  description={isMobile ? undefined : "Total client invoices"}
+                />
+              ) : (
+                <KPICard
+                  title="On Time"
+                  value={`${stats?.deliveriesThisWeek || 0}`}
+                  icon={Clock}
+                  description={isMobile ? undefined : "Deliveries this week"}
+                />
+              )}
               <KPICard
                 title="Docs Pending"
                 value={stats?.documentsPending || 0}

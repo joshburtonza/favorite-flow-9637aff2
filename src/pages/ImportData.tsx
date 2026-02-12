@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { useCreateShipment } from '@/hooks/useShipments';
 import { useSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
 import { useClients, useCreateClient } from '@/hooks/useClients';
@@ -82,7 +83,7 @@ const CLIENT_FIELDS = [
   { key: 'address', label: 'Address', required: false },
 ];
 
-export default function ImportData() {
+function ImportDataContent() {
   const [step, setStep] = useState<Step>('type');
   const [importType, setImportType] = useState<ImportType>('shipments');
   const [file, setFile] = useState<File | null>(null);
@@ -1077,5 +1078,13 @@ export default function ImportData() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function ImportData() {
+  return (
+    <PermissionGate permission="bulk_import" pageLevel>
+      <ImportDataContent />
+    </PermissionGate>
   );
 }

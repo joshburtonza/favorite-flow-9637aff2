@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@/hooks/useClients';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ import { Plus, Loader2, Pencil, Trash2, Building2, Search, Mail, Phone } from 'l
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Client } from '@/types/database';
 
-export default function Clients() {
+function ClientsContent() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: clients, isLoading } = useClients();
@@ -315,5 +316,13 @@ export default function Clients() {
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
+  );
+}
+
+export default function Clients() {
+  return (
+    <PermissionGate permission="view_clients" pageLevel>
+      <ClientsContent />
+    </PermissionGate>
   );
 }

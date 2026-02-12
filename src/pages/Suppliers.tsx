@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '@/hooks/useSuppliers';
 import { formatCurrency } from '@/lib/formatters';
@@ -37,7 +38,7 @@ import { CurrencyType, Supplier } from '@/types/database';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SupplierLedgerModal } from '@/components/suppliers/SupplierLedgerModal';
 
-export default function Suppliers() {
+function SuppliersContent() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: suppliers, isLoading } = useSuppliers();
@@ -350,5 +351,13 @@ export default function Suppliers() {
         />
       )}
     </AppLayout>
+  );
+}
+
+export default function Suppliers() {
+  return (
+    <PermissionGate permission="view_suppliers" pageLevel>
+      <SuppliersContent />
+    </PermissionGate>
   );
 }

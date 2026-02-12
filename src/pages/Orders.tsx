@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useShipments } from '@/hooks/useShipments';
 import { formatCurrency } from '@/lib/formatters';
@@ -31,6 +32,8 @@ export default function Orders() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  const { permissions } = useRoleBasedData();
   
   useDashboardRealtime();
   
@@ -125,15 +128,17 @@ export default function Orders() {
             </div>
             <p className="text-2xl font-bold text-blue-500">{stats.pending}</p>
           </div>
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="h-4 w-4 text-green-500" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Value</span>
+          {permissions.canSeeFinancials && (
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4 text-green-500" />
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Value</span>
+              </div>
+              <p className="text-2xl font-bold text-green-500">
+                {formatCurrency(stats.totalValue, 'ZAR', { compact: true })}
+              </p>
             </div>
-            <p className="text-2xl font-bold text-green-500">
-              {formatCurrency(stats.totalValue, 'ZAR', { compact: true })}
-            </p>
-          </div>
+          )}
         </div>
 
         {/* Orders Table */}
@@ -167,9 +172,9 @@ export default function Orders() {
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Supplier</th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Client</th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Status</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">ETA</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Invoice</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Profit</th>
+                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">ETA</th>
+                     {permissions.canSeeFinancials && <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Invoice</th>}
+                     {permissions.canSeeFinancials && <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Profit</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -194,19 +199,23 @@ export default function Orders() {
                         <td className="py-3 px-4 text-muted-foreground">
                           {shipment.eta ? format(new Date(shipment.eta), 'MMM d') : '-'}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          {costs?.client_invoice_zar 
-                            ? formatCurrency(costs.client_invoice_zar, 'ZAR') 
-                            : '-'}
-                        </td>
-                        <td className={cn(
-                          'py-3 px-4 text-right font-medium',
-                          (costs?.net_profit_zar || 0) >= 0 ? 'text-green-500' : 'text-red-500'
-                        )}>
-                          {costs?.net_profit_zar 
-                            ? formatCurrency(costs.net_profit_zar, 'ZAR') 
-                            : '-'}
-                        </td>
+                        {permissions.canSeeFinancials && (
+                          <td className="py-3 px-4 text-right">
+                            {costs?.client_invoice_zar 
+                              ? formatCurrency(costs.client_invoice_zar, 'ZAR') 
+                              : '-'}
+                          </td>
+                        )}
+                        {permissions.canSeeFinancials && (
+                          <td className={cn(
+                            'py-3 px-4 text-right font-medium',
+                            (costs?.net_profit_zar || 0) >= 0 ? 'text-green-500' : 'text-red-500'
+                          )}>
+                            {costs?.net_profit_zar 
+                              ? formatCurrency(costs.net_profit_zar, 'ZAR') 
+                              : '-'}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

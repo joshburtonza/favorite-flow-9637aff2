@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { CreateInvoiceDialog } from '@/components/invoices/CreateInvoiceDialog';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
@@ -7,7 +8,7 @@ import { FileText } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-export default function Invoices() {
+function InvoicesContent() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -51,5 +52,13 @@ export default function Invoices() {
         onOpenChange={setCreateDialogOpen} 
       />
     </AppLayout>
+  );
+}
+
+export default function Invoices() {
+  return (
+    <PermissionGate permission="view_payments" pageLevel>
+      <InvoicesContent />
+    </PermissionGate>
   );
 }
