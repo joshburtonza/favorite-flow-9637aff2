@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
+import { usePermissions, AppPermission } from '@/hooks/usePermissions';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { 
   Sparkles, 
   Moon,
@@ -28,8 +30,19 @@ import {
   Settings,
   Globe,
   Table2,
-  UserCog
+  UserCog,
+  Activity,
+  MessageSquarePlus,
+  ClipboardCheck,
+  ClipboardList,
 } from 'lucide-react';
+
+interface MoreNavItem {
+  path: string;
+  label: string;
+  icon: typeof ListTodo;
+  permission?: AppPermission;
+}
 
 const navItems = [
   { path: '/', label: 'AI', icon: Sparkles },
@@ -38,26 +51,30 @@ const navItems = [
   { path: '/calendar', label: 'Calendar', icon: Calendar },
 ];
 
-const moreItems = [
+const moreItems: MoreNavItem[] = [
   { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/announcements', label: 'Announcements', icon: Megaphone },
-  { path: '/schedule', label: 'Schedule', icon: CalendarDays },
-  { path: '/invoices', label: 'Invoices', icon: FileText },
-  { path: '/file-costing', label: 'File Costing', icon: Calculator },
-  { path: '/files', label: 'Files', icon: FolderOpen },
+  { path: '/schedule', label: 'Schedule', icon: CalendarDays, permission: 'view_shipments' },
+  { path: '/invoices', label: 'Invoices', icon: FileText, permission: 'view_payments' },
+  { path: '/file-costing', label: 'File Costing', icon: Calculator, permission: 'view_financials' },
+  { path: '/files', label: 'Files', icon: FolderOpen, permission: 'view_documents' },
   { path: '/workspace', label: 'Workspace', icon: Table2 },
-  { path: '/orders', label: 'Orders', icon: Globe },
-  { path: '/financials', label: 'Financials', icon: BarChart3 },
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
-  { path: '/clients', label: 'Clients', icon: Building2 },
-  { path: '/payments', label: 'Payments', icon: CreditCard },
-  { path: '/creditors', label: 'Creditors', icon: Landmark },
-  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings },
-  { path: '/import', label: 'Bulk Import', icon: Upload },
-  { path: '/team', label: 'Team', icon: UserCog },
-  { path: '/security', label: 'Security', icon: Shield },
-  { path: '/documents', label: 'Documents', icon: FileText },
-  { path: '/document-workflow', label: 'Workflow', icon: Workflow },
+  { path: '/orders', label: 'Orders', icon: Globe, permission: 'view_shipments' },
+  { path: '/financials', label: 'Financials', icon: BarChart3, permission: 'view_financials' },
+  { path: '/suppliers', label: 'Suppliers', icon: Users, permission: 'view_suppliers' },
+  { path: '/clients', label: 'Clients', icon: Building2, permission: 'view_clients' },
+  { path: '/payments', label: 'Payments', icon: CreditCard, permission: 'view_payments' },
+  { path: '/creditors', label: 'Creditors', icon: Landmark, permission: 'view_suppliers' },
+  { path: '/bank-accounts', label: 'Bank Accounts', icon: Settings, permission: 'manage_bank_accounts' },
+  { path: '/import', label: 'Bulk Import', icon: Upload, permission: 'bulk_import' },
+  { path: '/team', label: 'Team', icon: UserCog, permission: 'manage_team' },
+  { path: '/security', label: 'Security', icon: Shield, permission: 'manage_team' },
+  { path: '/documents', label: 'Documents', icon: FileText, permission: 'view_documents' },
+  { path: '/document-workflow', label: 'Workflow', icon: Workflow, permission: 'manage_documents' },
+  { path: '/activity-log', label: 'Activity Log', icon: Activity, permission: 'manage_team' },
+  { path: '/feedback', label: 'Feedback', icon: MessageSquarePlus, permission: 'manage_team' },
+  { path: '/testing', label: 'Testing', icon: ClipboardCheck, permission: 'manage_team' },
+  { path: '/interviews', label: 'Interviews', icon: ClipboardList, permission: 'manage_team' },
 ];
 
 export function BottomNavigation() {
@@ -65,6 +82,14 @@ export function BottomNavigation() {
   const location = useLocation();
   const { theme, setTheme } = useTheme();
   const [showMore, setShowMore] = useState(false);
+  const { hasPermission, isAdmin, loading: permissionsLoading } = usePermissions();
+
+  const filteredMoreItems = moreItems.filter(item => {
+    if (permissionsLoading) return true;
+    if (!item.permission) return true;
+    if (isAdmin) return true;
+    return hasPermission(item.permission);
+  });
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -99,7 +124,7 @@ export function BottomNavigation() {
           }}
         >
           <div className="grid grid-cols-3 gap-2">
-            {moreItems.map((item) => (
+            {filteredMoreItems.map((item) => (
               <button
                 key={item.path}
                 onClick={() => handleNavigate(item.path)}
@@ -115,6 +140,15 @@ export function BottomNavigation() {
               </button>
             ))}
           </div>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-3 w-full mt-3 pt-3 border-t border-border/30 px-3 py-2 rounded-xl text-muted-foreground hover:bg-primary/10 active:bg-primary/20 transition-colors touch-manipulation"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            <span className="text-sm font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
         </div>
       )}
       
@@ -161,18 +195,11 @@ export function BottomNavigation() {
           <span className="text-[10px] mt-1">More</span>
         </button>
 
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="relative flex flex-col items-center justify-center p-2 min-w-[56px] min-h-[44px] transition-colors text-muted-foreground touch-manipulation active:text-foreground"
-        >
-          {theme === 'dark' ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-          <span className="text-[10px] mt-1">Theme</span>
-        </button>
+        {/* Notifications */}
+        <div className="relative flex flex-col items-center justify-center p-2 min-w-[56px] min-h-[44px]">
+          <NotificationBell />
+          <span className="text-[10px] mt-1 text-muted-foreground">Alerts</span>
+        </div>
       </nav>
     </>
   );

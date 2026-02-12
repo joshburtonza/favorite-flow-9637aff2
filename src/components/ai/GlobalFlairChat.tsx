@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { Sparkles, X, Send, Loader2, RefreshCw, CheckCircle2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ export function GlobalFlairChat() {
   const { messages, isOpen, isLoading, setIsOpen, sendMessage, clearMessages } = useFlair();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -49,12 +51,13 @@ export function GlobalFlairChat() {
       <button
         onClick={() => setIsOpen(true)}
         className={cn(
-          'fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full',
+          'fixed right-6 z-50 w-14 h-14 rounded-full',
           'flex items-center justify-center',
           'bg-primary text-primary-foreground',
           'shadow-lg hover:shadow-xl transition-all duration-300',
           'hover:scale-110 active:scale-95',
-          'animate-pulse-glow'
+          'animate-pulse-glow',
+          isMobile ? 'bottom-24' : 'bottom-6'
         )}
         style={{
           background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(217 91% 60%))',
