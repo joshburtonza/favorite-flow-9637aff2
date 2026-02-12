@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -734,11 +734,16 @@ export default function Workspace() {
     );
   };
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar - Table List */}
-        <div className="w-64 border-r bg-card/50 flex flex-col">
+        <div className={cn(
+          "border-r bg-card/50 flex flex-col transition-all duration-300",
+          sidebarCollapsed ? "w-0 overflow-hidden" : "w-64"
+        )}>
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold">Tables</h2>
             <div className="flex items-center gap-1">
@@ -890,14 +895,25 @@ export default function Workspace() {
             <>
               {/* Table Header */}
               <div className="p-4 border-b flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Table2 className="h-5 w-5" />
-                    <h1 className="text-xl font-semibold">{selectedTable.name}</h1>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                  >
+                    {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                  </Button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Table2 className="h-5 w-5" />
+                      <h1 className="text-xl font-semibold">{selectedTable.name}</h1>
+                    </div>
+                    {selectedTable.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{selectedTable.description}</p>
+                    )}
                   </div>
-                  {selectedTable.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{selectedTable.description}</p>
-                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -926,8 +942,8 @@ export default function Workspace() {
                 </div>
               </div>
 
-              {/* Spreadsheet Grid */}
-              <ScrollArea className="flex-1 p-4">
+              {/* Spreadsheet Grid - no wrapper ScrollArea so scrollbars align to edges */}
+              <div className="flex-1 overflow-hidden">
                 <SpreadsheetGrid
                   columns={columns}
                   rows={rows}
@@ -940,7 +956,7 @@ export default function Workspace() {
                   onUpdateColumn={(columnId, updates) => updateColumn.mutate({ id: columnId, ...updates })}
                   onDeleteColumn={(columnId) => deleteColumn.mutate(columnId)}
                 />
-              </ScrollArea>
+              </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">

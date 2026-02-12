@@ -787,7 +787,7 @@ export function SpreadsheetGrid({
   const selectedCol = columns.find(c => c.id === selectedColumn);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Formatting Toolbar */}
       <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/30 flex-wrap">
         {/* Font Size */}
@@ -1003,7 +1003,7 @@ export function SpreadsheetGrid({
       <div className="relative flex-1 overflow-hidden border rounded-md">
         {/* Scrollable container - Excel-like horizontal and vertical scrolling */}
         <div 
-          className="overflow-scroll h-full max-h-[calc(100vh-280px)] spreadsheet-scroll"
+          className="overflow-scroll flex-1 spreadsheet-scroll"
           style={{
             scrollBehavior: 'auto',
             overscrollBehavior: 'contain',
