@@ -942,8 +942,8 @@ export default function Workspace() {
                 </div>
               </div>
 
-              {/* Spreadsheet Grid - no wrapper ScrollArea so scrollbars align to edges */}
-              <div className="flex-1 overflow-hidden">
+              {/* Spreadsheet Grid - no wrapper, scrollbars align to edges */}
+              <div className="flex-1 min-h-0">
                 <SpreadsheetGrid
                   columns={columns}
                   rows={rows}
