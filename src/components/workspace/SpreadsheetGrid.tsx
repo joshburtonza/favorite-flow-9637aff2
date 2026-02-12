@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type, Bold, Italic, Underline, Link2, Palette, ZoomIn, ZoomOut, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Settings2, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, Type, Bold, Italic, Underline, Link2, Palette, ZoomIn, ZoomOut, ArrowUp, ArrowDown, ArrowUpDown, PaintBucket, Paintbrush } from 'lucide-react';
+import { CellStyle } from '@/data/workspaceTemplates';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -330,10 +331,50 @@ export function SpreadsheetGrid({
         parsedValue = editValue === 'true';
       }
       
-      onUpdateRow(rowId, { ...row.data, [columnId]: parsedValue });
+      // Skip update if value hasn't changed — prevents _styles loss
+      const currentValue = row.data[columnId];
+      if (String(currentValue ?? '') === String(parsedValue ?? '')) {
+        setEditingCell(null);
+        return;
+      }
+      
+      // CRITICAL: Preserve _styles when updating cell data
+      const existingStyles = (row.data as any)?._styles;
+      const updatedData = { ...row.data, [columnId]: parsedValue };
+      if (existingStyles) {
+        updatedData._styles = existingStyles;
+      }
+      onUpdateRow(rowId, updatedData);
     }
     setEditingCell(null);
   };
+
+  // Apply a cell style update (bold, bgColor, fontColor) to a specific cell
+  const applyCellStyle = (rowId: string, columnId: string, styleUpdate: Partial<CellStyle>) => {
+    const row = rows.find(r => r.id === rowId);
+    if (!row) return;
+    
+    const existingStyles = (row.data as any)?._styles || {};
+    const existingCellStyle = existingStyles[columnId] || {};
+    
+    const newStyles = {
+      ...existingStyles,
+      [columnId]: { ...existingCellStyle, ...styleUpdate }
+    };
+    
+    onUpdateRow(rowId, { ...row.data, _styles: newStyles });
+  };
+
+  // Get the current cell style for toolbar state
+  const getActiveCellStyle = (): Record<string, any> | null => {
+    if (!activeCell) return null;
+    const row = sortedRows[activeCell.row];
+    const col = columns[activeCell.col];
+    if (!row || !col) return null;
+    return (row.data as any)?._styles?.[col.id] || null;
+  };
+
+  const activeCellStyle = getActiveCellStyle();
 
   const handleKeyDown = (e: React.KeyboardEvent, rowId: string, columnId: string) => {
     if (e.key === 'Enter') {
@@ -685,7 +726,10 @@ export function SpreadsheetGrid({
           <Checkbox
             checked={!!value}
             onCheckedChange={(checked) => {
-              onUpdateRow(row.id, { ...row.data, [column.id]: checked });
+              const existingStyles = (row.data as any)?._styles;
+              const updatedData = { ...row.data, [column.id]: checked };
+              if (existingStyles) updatedData._styles = existingStyles;
+              onUpdateRow(row.id, updatedData);
             }}
           />
         </div>
@@ -697,7 +741,10 @@ export function SpreadsheetGrid({
         <Select
           value={value || ''}
           onValueChange={(newValue) => {
-            onUpdateRow(row.id, { ...row.data, [column.id]: newValue });
+            const existingStyles = (row.data as any)?._styles;
+            const updatedData = { ...row.data, [column.id]: newValue };
+            if (existingStyles) updatedData._styles = existingStyles;
+            onUpdateRow(row.id, updatedData);
           }}
         >
           <SelectTrigger className={cn('h-full border-0 rounded-none focus:ring-0', fontClass)}>
@@ -783,7 +830,7 @@ export function SpreadsheetGrid({
         style={importedStyle}
         onClick={() => handleCellClick(row.id, column.id, value)}
       >
-        {formatValue(value, column) || <span className="text-muted-foreground">-</span>}
+        {formatValue(value, column) || '\u00A0'}
       </div>
     );
   };
@@ -886,7 +933,180 @@ export function SpreadsheetGrid({
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Currency */}
+        {/* Cell Formatting: Bold, BG Color, Text Color */}
+        <div className="flex items-center gap-0.5">
+          {/* Bold Toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={activeCellStyle?.bold ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  if (activeCell) {
+                    const row = sortedRows[activeCell.row];
+                    const col = columns[activeCell.col];
+                    if (row && col) {
+                      const currentBold = (row.data as any)?._styles?.[col.id]?.bold;
+                      // Apply to all selected cells if multi-selection
+                      if (selection) {
+                        const minRow = Math.min(selection.start.row, selection.end.row);
+                        const maxRow = Math.max(selection.start.row, selection.end.row);
+                        const minCol = Math.min(selection.start.col, selection.end.col);
+                        const maxCol = Math.max(selection.start.col, selection.end.col);
+                        for (let r = minRow; r <= maxRow; r++) {
+                          for (let c = minCol; c <= maxCol; c++) {
+                            const sRow = sortedRows[r];
+                            const sCol = columns[c];
+                            if (sRow && sCol) applyCellStyle(sRow.id, sCol.id, { bold: !currentBold });
+                          }
+                        }
+                      } else {
+                        applyCellStyle(row.id, col.id, { bold: !currentBold });
+                      }
+                    }
+                  }
+                }}
+              >
+                <Bold className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Bold (cell)</TooltipContent>
+          </Tooltip>
+
+          {/* Background Color Picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+                <PaintBucket className="h-4 w-4" />
+                <span
+                  className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-5 h-1 rounded-sm"
+                  style={{ backgroundColor: activeCellStyle?.bgColor ? `#${activeCellStyle.bgColor}` : 'transparent', border: '1px solid hsl(var(--border))' }}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <p className="text-xs font-medium mb-1.5 text-muted-foreground">Background</p>
+              <div className="grid grid-cols-4 gap-1">
+                {[
+                  { hex: 'FFFF00', label: 'Yellow' },
+                  { hex: 'D9E2F3', label: 'Light Blue' },
+                  { hex: 'F2F2F2', label: 'Light Grey' },
+                  { hex: 'E2EFDA', label: 'Light Green' },
+                  { hex: 'FCE4EC', label: 'Light Red' },
+                  { hex: 'FFC000', label: 'Gold' },
+                  { hex: 'FFFFFF', label: 'White' },
+                  { hex: '', label: 'No Fill' },
+                ].map((color) => (
+                  <Tooltip key={color.hex + color.label}>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={cn(
+                          'w-6 h-6 rounded border hover:ring-2 ring-ring',
+                          activeCellStyle?.bgColor === color.hex && 'ring-2 ring-primary'
+                        )}
+                        style={{
+                          backgroundColor: color.hex ? `#${color.hex}` : 'transparent',
+                          backgroundImage: !color.hex ? 'linear-gradient(135deg, transparent 45%, hsl(var(--destructive)) 45%, hsl(var(--destructive)) 55%, transparent 55%)' : undefined
+                        }}
+                        onClick={() => {
+                          if (!activeCell) return;
+                          const applyBg = (r: number, c: number) => {
+                            const sRow = sortedRows[r];
+                            const sCol = columns[c];
+                            if (sRow && sCol) {
+                              if (color.hex) {
+                                applyCellStyle(sRow.id, sCol.id, { bgColor: color.hex });
+                              } else {
+                                // Remove bgColor
+                                const existing = (sRow.data as any)?._styles?.[sCol.id] || {};
+                                const { bgColor, ...rest } = existing;
+                                const allStyles = { ...(sRow.data as any)?._styles || {}, [sCol.id]: rest };
+                                onUpdateRow(sRow.id, { ...sRow.data, _styles: allStyles });
+                              }
+                            }
+                          };
+                          if (selection) {
+                            const minRow = Math.min(selection.start.row, selection.end.row);
+                            const maxRow = Math.max(selection.start.row, selection.end.row);
+                            const minCol = Math.min(selection.start.col, selection.end.col);
+                            const maxCol = Math.max(selection.start.col, selection.end.col);
+                            for (let r = minRow; r <= maxRow; r++) {
+                              for (let c = minCol; c <= maxCol; c++) applyBg(r, c);
+                            }
+                          } else {
+                            applyBg(activeCell.row, activeCell.col);
+                          }
+                        }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{color.label}</TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Text Color Picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+                <Paintbrush className="h-4 w-4" />
+                <span
+                  className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-5 h-1 rounded-sm"
+                  style={{ backgroundColor: activeCellStyle?.fontColor ? `#${activeCellStyle.fontColor}` : 'hsl(var(--foreground))' }}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <p className="text-xs font-medium mb-1.5 text-muted-foreground">Text Color</p>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { hex: '000000', label: 'Black' },
+                  { hex: 'FF0000', label: 'Red' },
+                  { hex: '008000', label: 'Green' },
+                  { hex: '0000FF', label: 'Blue' },
+                  { hex: '808080', label: 'Grey' },
+                  { hex: 'FFFFFF', label: 'White' },
+                ].map((color) => (
+                  <Tooltip key={color.hex}>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={cn(
+                          'w-6 h-6 rounded border hover:ring-2 ring-ring flex items-center justify-center',
+                          activeCellStyle?.fontColor === color.hex && 'ring-2 ring-primary'
+                        )}
+                        style={{ backgroundColor: `#${color.hex}` }}
+                        onClick={() => {
+                          if (!activeCell) return;
+                          const applyFc = (r: number, c: number) => {
+                            const sRow = sortedRows[r];
+                            const sCol = columns[c];
+                            if (sRow && sCol) applyCellStyle(sRow.id, sCol.id, { fontColor: color.hex });
+                          };
+                          if (selection) {
+                            const minRow = Math.min(selection.start.row, selection.end.row);
+                            const maxRow = Math.max(selection.start.row, selection.end.row);
+                            const minCol = Math.min(selection.start.col, selection.end.col);
+                            const maxCol = Math.max(selection.start.col, selection.end.col);
+                            for (let r = minRow; r <= maxRow; r++) {
+                              for (let c = minCol; c <= maxCol; c++) applyFc(r, c);
+                            }
+                          } else {
+                            applyFc(activeCell.row, activeCell.col);
+                          }
+                        }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{color.label}</TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Select
           value={selectedCol?.options?.currency || 'none'}
           onValueChange={(v) => {

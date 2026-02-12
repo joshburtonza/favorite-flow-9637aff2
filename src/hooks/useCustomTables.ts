@@ -648,7 +648,7 @@ export function useTableRows(tableId: string | null) {
         .from('custom_rows')
         .select('*')
         .eq('table_id', tableId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
       
       if (error) throw error;
       return data as CustomRow[];
