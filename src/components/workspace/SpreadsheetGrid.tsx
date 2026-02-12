@@ -1000,17 +1000,15 @@ export function SpreadsheetGrid({
       </div>
 
       {/* Table with Excel-like scrolling */}
-      <div className="relative flex-1 overflow-hidden border rounded-md">
-        {/* Scrollable container - Excel-like horizontal and vertical scrolling */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Scrollable container */}
         <div 
-          className="overflow-scroll flex-1 spreadsheet-scroll"
+          className="overflow-auto h-full spreadsheet-scroll"
           style={{
             scrollBehavior: 'auto',
             overscrollBehavior: 'contain',
           }}
         >
-          {/* Wrapper to ensure content always overflows for visible scrollbars */}
-          <div style={{ minWidth: 'calc(100% + 1px)', minHeight: 'calc(100% + 1px)' }}>
           <table 
             className="border-collapse w-max table-fixed" 
             style={{ 
@@ -1168,7 +1166,6 @@ export function SpreadsheetGrid({
               </tfoot>
             )}
           </table>
-          </div>
         </div>
         
         {/* Add Row button - sticky at bottom */}
