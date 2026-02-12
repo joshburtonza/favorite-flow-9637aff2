@@ -69,7 +69,6 @@ export default function Workspace() {
     documentType?: string; 
     summary?: string;
     cellStyles?: Record<string, Record<string, any>>;
-    headerRowIndex?: number;
     columnWidths?: number[];
     isFormLayout?: boolean;
   }[]>([]);
@@ -333,118 +332,105 @@ export default function Workspace() {
           const workbook = new ExcelJS.Workbook();
           await workbook.xlsx.load(buffer);
           
-          const sheet = workbook.worksheets[0];
-          if (!sheet || sheet.rowCount === 0) {
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet || worksheet.rowCount === 0) {
             parsed = { headers: [], rows: [] };
           } else {
-            // Find header row (first row with 2+ non-empty cells)
-            let headerRowIndex = 1;
-            for (let i = 1; i <= Math.min(10, sheet.rowCount); i++) {
-              const row = sheet.getRow(i);
-              let nonEmpty = 0;
-              row.eachCell({ includeEmpty: false }, () => { nonEmpty++; });
-              if (nonEmpty >= 2) {
-                headerRowIndex = i;
-                break;
+            const maxCol = worksheet.columnCount || 4;
+            const maxRow = worksheet.rowCount || 1;
+            
+            // Find last row with content
+            let lastContentRow = 1;
+            for (let r = maxRow; r >= 1; r--) {
+              const wsRow = worksheet.getRow(r);
+              let hasContent = false;
+              for (let c = 1; c <= maxCol; c++) {
+                if (wsRow.getCell(c).value !== null && wsRow.getCell(c).value !== undefined) {
+                  hasContent = true; break;
+                }
               }
+              if (hasContent) { lastContentRow = r; break; }
             }
             
-            const headerRow = sheet.getRow(headerRowIndex);
-            const colCount = headerRow.cellCount || headerRow.actualCellCount || 6;
-            
-            // Extract headers
+            // Column letters as headers (A, B, C...)
             const headers: string[] = [];
-            for (let c = 1; c <= colCount; c++) {
-              const cell = headerRow.getCell(c);
-              const val = cell.value;
-              const text = val !== null && val !== undefined ? String(val).trim() : '';
-              headers.push(text || `Column ${c}`);
+            for (let c = 1; c <= maxCol; c++) {
+              headers.push(c <= 26
+                ? String.fromCharCode(64 + c)
+                : String.fromCharCode(64 + Math.floor((c - 1) / 26)) + String.fromCharCode(65 + ((c - 1) % 26)));
             }
             
-            // Extract cell styles for ALL cells
-            const cellStyles: Record<string, Record<string, any>> = {};
+            // Extract column widths
+            const columnWidths: number[] = [];
+            for (let c = 1; c <= maxCol; c++) {
+              const w = worksheet.getColumn(c).width || 12;
+              columnWidths.push(Math.max(80, Math.round(w * 7.5)));
+            }
             
-            sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-              row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+            const extractColor = (color: any): string | undefined => {
+              if (!color) return undefined;
+              if (color.argb) {
+                const a = String(color.argb);
+                return a.length === 8 ? a.substring(2) : a.length === 6 ? a : undefined;
+              }
+              if (color.theme !== undefined) {
+                const tc: Record<number, string> = {0:'FFFFFF',1:'000000',2:'44546A',3:'E7E6E6',4:'4472C4',5:'ED7D31',6:'A5A5A5',7:'FFC000',8:'5B9BD5',9:'70AD47'};
+                return tc[color.theme];
+              }
+              return undefined;
+            };
+            
+            const getCellText = (cell: ExcelJS.Cell): string => {
+              const val = cell.value;
+              if (val === null || val === undefined) return '';
+              if (typeof val === 'object' && 'richText' in val) return (val as any).richText.map((rt: any) => rt.text || '').join('');
+              if (typeof val === 'object' && 'result' in val) {
+                const res = (val as any).result;
+                if (res === null || res === undefined) return '';
+                return typeof res === 'number' ? formatCellNumber(res, cell.numFmt) : String(res);
+              }
+              if (val instanceof Date) return val.toLocaleDateString('en-ZA');
+              if (typeof val === 'number') return formatCellNumber(val, cell.numFmt);
+              return String(val);
+            };
+            
+            const cellStyles: Record<string, Record<string, any>> = {};
+            const rows: string[][] = [];
+            
+            for (let r = 1; r <= lastContentRow; r++) {
+              const wsRow = worksheet.getRow(r);
+              const rowData: string[] = [];
+              
+              for (let c = 1; c <= maxCol; c++) {
+                const cell = wsRow.getCell(c);
+                rowData.push(getCellText(cell));
+                
                 const style: Record<string, any> = {};
                 let hasStyle = false;
                 
                 if (cell.font) {
                   if (cell.font.bold) { style.bold = true; hasStyle = true; }
                   if (cell.font.italic) { style.italic = true; hasStyle = true; }
-                  if (cell.font.size) { style.fontSize = cell.font.size; hasStyle = true; }
-                  if (cell.font.color?.argb) { 
-                    style.fontColor = cell.font.color.argb.substring(2); 
-                    hasStyle = true; 
-                  }
+                  if (cell.font.size && cell.font.size !== 11) { style.fontSize = cell.font.size; hasStyle = true; }
+                  const fc = extractColor(cell.font.color);
+                  if (fc && fc !== '000000') { style.fontColor = fc; hasStyle = true; }
                 }
-                
-                if (cell.fill && cell.fill.type === 'pattern') {
-                  const patternFill = cell.fill as ExcelJS.FillPattern;
-                  if (patternFill.fgColor?.argb) {
-                    const color = patternFill.fgColor.argb.substring(2);
-                    if (color !== 'FFFFFF' && color !== '000000') {
-                      style.bgColor = color;
-                      hasStyle = true;
-                    }
-                  }
+                if (cell.fill && (cell.fill as any).type === 'pattern') {
+                  const bg = extractColor((cell.fill as ExcelJS.FillPattern).fgColor);
+                  if (bg && bg !== 'FFFFFF' && bg !== '000000') { style.bgColor = bg; hasStyle = true; }
                 }
-                
                 if (cell.alignment?.horizontal) {
-                  style.alignment = cell.alignment.horizontal;
-                  hasStyle = true;
+                  style.alignment = cell.alignment.horizontal; hasStyle = true;
                 }
-                
-                if (cell.numFmt) {
-                  style.numFmt = cell.numFmt;
-                  hasStyle = true;
+                if (cell.numFmt && cell.numFmt !== 'General') {
+                  style.numFmt = cell.numFmt; hasStyle = true;
                 }
-                
-                if (hasStyle) {
-                  const colLetter = colNumber < 27 
-                    ? String.fromCharCode(64 + colNumber) 
-                    : String.fromCharCode(64 + Math.floor((colNumber - 1) / 26)) + String.fromCharCode(65 + ((colNumber - 1) % 26));
-                  cellStyles[`${colLetter}${rowNumber}`] = style;
-                }
-              });
-            });
-            
-            // Extract data rows
-            const rows: string[][] = [];
-            for (let r = headerRowIndex + 1; r <= sheet.rowCount; r++) {
-              const row = sheet.getRow(r);
-              const rowData: string[] = [];
-              let hasData = false;
-              
-              for (let c = 1; c <= colCount; c++) {
-                const cell = row.getCell(c);
-                let val = '';
-                
-                if (cell.value !== null && cell.value !== undefined) {
-                  if (typeof cell.value === 'object' && 'richText' in (cell.value as any)) {
-                    val = (cell.value as any).richText.map((rt: any) => rt.text).join('');
-                  } else if (typeof cell.value === 'number') {
-                    val = cell.value.toLocaleString('en-ZA', { 
-                      minimumFractionDigits: 0, 
-                      maximumFractionDigits: 2 
-                    });
-                  } else if (cell.value instanceof Date) {
-                    val = cell.value.toLocaleDateString('en-ZA');
-                  } else {
-                    val = String(cell.value).trim();
-                  }
-                  if (val) hasData = true;
-                }
-                
-                rowData.push(val);
+                if (hasStyle) cellStyles[`${headers[c - 1]}${r}`] = style;
               }
-              
-              if (hasData) {
-                rows.push(rowData);
-              }
+              rows.push(rowData);
             }
             
-            parsed = { headers, rows, cellStyles, headerRowIndex };
+            parsed = { headers, rows, cellStyles, columnWidths, isFormLayout: true };
           }
         } catch (error) {
           console.error('Excel parsing error:', error);
