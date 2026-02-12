@@ -296,12 +296,14 @@ export function ShipmentDetail() {
             <Download className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
-          {supplierId && (
+          {supplierId && permissions.canSeeFinancials && (
             <>
-              <Button variant="outline" onClick={() => setLedgerOpen(true)}>
-                <Eye className="h-4 w-4 mr-2" />
-                Supplier Ledger
-              </Button>
+              {permissions.canSeeSupplierCosts && (
+                <Button variant="outline" onClick={() => setLedgerOpen(true)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Supplier Ledger
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setPaymentDialogOpen(true)}>
                 <CreditCard className="h-4 w-4 mr-2" />
                 Schedule Payment

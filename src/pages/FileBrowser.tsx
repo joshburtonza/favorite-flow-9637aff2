@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Upload, Grid, List, Search, ChevronRight, Home, Plus } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { Upload, Grid, List, Search, ChevronRight, Home, Plus, ShieldX } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 
 export default function FileBrowser() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { checkFolderAccess, checkUploadAccess, permissions } = useRoleBasedData();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +41,39 @@ export default function FileBrowser() {
   } = useDocumentFolders();
 
   const { data: documents = [], isLoading: documentsLoading } = useFolderDocuments(selectedFolderId);
+
+  // Build folder path for access checking
+  const getFolderPath = useCallback((folderId: string): string => {
+    const parts: string[] = [];
+    let currentId: string | null = folderId;
+    while (currentId) {
+      const folder = folders.find(f => f.id === currentId);
+      if (folder) {
+        parts.unshift(folder.name.toLowerCase());
+        currentId = folder.parent_id;
+      } else break;
+    }
+    return '/' + parts.join('/') + '/';
+  }, [folders]);
+
+  // Filter folder tree by role access
+  const filterFolderTree = useCallback((tree: typeof folderTree): typeof folderTree => {
+    return tree
+      .filter(folder => checkFolderAccess(getFolderPath(folder.id)))
+      .map(folder => ({
+        ...folder,
+        children: folder.children ? filterFolderTree(folder.children) : [],
+      }));
+  }, [checkFolderAccess, getFolderPath]);
+
+  const filteredFolderTree = useMemo(() => filterFolderTree(folderTree), [filterFolderTree, folderTree]);
+
+  // Check if current folder allows uploads
+  const canUploadHere = useMemo(() => {
+    if (!selectedFolderId) return !permissions.isReadOnly;
+    return checkUploadAccess(getFolderPath(selectedFolderId));
+  }, [selectedFolderId, checkUploadAccess, getFolderPath, permissions.isReadOnly]);
+
 
   // Get breadcrumb path
   const getBreadcrumbPath = useCallback(() => {
@@ -136,7 +172,7 @@ export default function FileBrowser() {
   };
 
   return (
-    <AppLayout>
+    <PermissionGate permission="view_documents" pageLevel>
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar - Folder Tree */}
         <div className="w-64 border-r bg-card/50 flex flex-col">
@@ -145,7 +181,7 @@ export default function FileBrowser() {
           </div>
           <ScrollArea className="flex-1 p-2">
             <FolderTree
-              folders={folderTree}
+              folders={filteredFolderTree}
               selectedFolderId={selectedFolderId}
               onSelectFolder={setSelectedFolderId}
               onCreateFolder={(name, parentId) => createFolder.mutate({ name, parent_id: parentId })}
@@ -218,36 +254,40 @@ export default function FileBrowser() {
               </Button>
             </div>
 
-            {/* New Folder Button - creates subfolder in current folder */}
-            <Button
-              variant="outline"
-              onClick={() => {
-                const folderName = prompt('Enter folder name:');
-                if (folderName?.trim()) {
-                  createFolder.mutate({ name: folderName.trim(), parent_id: selectedFolderId || undefined });
-                }
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Folder
-            </Button>
+            {/* New Folder Button */}
+            {canUploadHere && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const folderName = prompt('Enter folder name:');
+                  if (folderName?.trim()) {
+                    createFolder.mutate({ name: folderName.trim(), parent_id: selectedFolderId || undefined });
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Folder
+              </Button>
+            )}
 
             {/* Upload Button */}
-            <label>
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploading}
-              />
-              <Button asChild disabled={uploading}>
-                <span>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? 'Uploading...' : 'Upload Files'}
-                </span>
-              </Button>
-            </label>
+            {canUploadHere && (
+              <label>
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <Button asChild disabled={uploading}>
+                  <span>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? 'Uploading...' : 'Upload Files'}
+                  </span>
+                </Button>
+              </label>
+            )}
           </div>
 
           {/* File Grid/List */}
@@ -276,6 +316,6 @@ export default function FileBrowser() {
         onOpenChange={(open) => !open && setSelectedDocument(null)}
         document={selectedDocument}
       />
-    </AppLayout>
+    </PermissionGate>
   );
 }
