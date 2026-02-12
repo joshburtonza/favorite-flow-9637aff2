@@ -1003,7 +1003,7 @@ export function SpreadsheetGrid({
       <div className="relative flex-1 overflow-hidden border rounded-md">
         {/* Scrollable container - Excel-like horizontal and vertical scrolling */}
         <div 
-          className="overflow-auto h-full max-h-[calc(100vh-280px)]"
+          className="overflow-scroll h-full max-h-[calc(100vh-280px)] spreadsheet-scroll"
           style={{
             scrollBehavior: 'auto',
             overscrollBehavior: 'contain',
@@ -1013,7 +1013,8 @@ export function SpreadsheetGrid({
             className="border-collapse w-max table-fixed" 
             style={{ 
               minWidth: '100%',
-              fontSize: `${14 * (zoom / 100)}px`,
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top left',
             }}
           >
             <thead className="sticky top-0 z-20 bg-background">

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ export default function Workspace() {
     documentType?: string; 
     summary?: string;
     cellStyles?: Record<string, Record<string, any>>;
+    headerRowIndex?: number;
   }[]>([]);
   const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
   
@@ -289,88 +290,126 @@ export default function Workspace() {
       const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
       const isExcel = /\.(xlsx|xls)$/i.test(file.name);
       
-      let parsed: { headers: string[]; rows: string[][]; cellStyles?: Record<string, Record<string, any>> };
+      let parsed: { headers: string[]; rows: string[][]; cellStyles?: Record<string, Record<string, any>>; headerRowIndex?: number };
       
       if (isExcel) {
         try {
           const buffer = await file.arrayBuffer();
-          const workbook = XLSX.read(buffer, { 
-            type: 'array',
-            cellStyles: true,
-            cellDates: true,
-            cellNF: true
-          });
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer);
           
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          
-          // Get data as array of arrays
-          const jsonData = XLSX.utils.sheet_to_json<any[]>(sheet, { 
-            header: 1, 
-            defval: '',
-            raw: false
-          });
-          
-          if (jsonData.length === 0) {
+          const sheet = workbook.worksheets[0];
+          if (!sheet || sheet.rowCount === 0) {
             parsed = { headers: [], rows: [] };
           } else {
-            // Find header row (first row with multiple non-empty cells)
-            let headerRowIndex = 0;
-            for (let i = 0; i < Math.min(10, jsonData.length); i++) {
-              const row = jsonData[i] as any[];
-              const nonEmpty = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '');
-              if (nonEmpty.length >= 2) {
+            // Find header row (first row with 2+ non-empty cells)
+            let headerRowIndex = 1;
+            for (let i = 1; i <= Math.min(10, sheet.rowCount); i++) {
+              const row = sheet.getRow(i);
+              let nonEmpty = 0;
+              row.eachCell({ includeEmpty: false }, () => { nonEmpty++; });
+              if (nonEmpty >= 2) {
                 headerRowIndex = i;
                 break;
               }
             }
             
-            const headerRow = jsonData[headerRowIndex] as any[];
-            const headers = headerRow.map((h, idx) => 
-              h !== null && h !== undefined && String(h).trim() !== '' 
-                ? String(h).trim() 
-                : `Column ${idx + 1}`
-            );
+            const headerRow = sheet.getRow(headerRowIndex);
+            const colCount = headerRow.cellCount || headerRow.actualCellCount || 6;
             
-            // Extract cell styles
+            // Extract headers
+            const headers: string[] = [];
+            for (let c = 1; c <= colCount; c++) {
+              const cell = headerRow.getCell(c);
+              const val = cell.value;
+              const text = val !== null && val !== undefined ? String(val).trim() : '';
+              headers.push(text || `Column ${c}`);
+            }
+            
+            // Extract cell styles for ALL cells
             const cellStyles: Record<string, Record<string, any>> = {};
             
-            Object.keys(sheet).forEach(addr => {
-              if (addr.startsWith('!')) return;
-              const cell = sheet[addr];
-              if (cell.s) {
-                // Has style information
-                cellStyles[addr] = {
-                  bold: cell.s.font?.bold,
-                  italic: cell.s.font?.italic,
-                  fontSize: cell.s.font?.sz,
-                  fontColor: cell.s.font?.color?.rgb,
-                  bgColor: cell.s.fill?.fgColor?.rgb || cell.s.fill?.bgColor?.rgb,
-                  numFmt: cell.z,
-                  alignment: cell.s.alignment?.horizontal
-                };
-              }
+            sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+              row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+                const style: Record<string, any> = {};
+                let hasStyle = false;
+                
+                if (cell.font) {
+                  if (cell.font.bold) { style.bold = true; hasStyle = true; }
+                  if (cell.font.italic) { style.italic = true; hasStyle = true; }
+                  if (cell.font.size) { style.fontSize = cell.font.size; hasStyle = true; }
+                  if (cell.font.color?.argb) { 
+                    style.fontColor = cell.font.color.argb.substring(2); 
+                    hasStyle = true; 
+                  }
+                }
+                
+                if (cell.fill && cell.fill.type === 'pattern') {
+                  const patternFill = cell.fill as ExcelJS.FillPattern;
+                  if (patternFill.fgColor?.argb) {
+                    const color = patternFill.fgColor.argb.substring(2);
+                    if (color !== 'FFFFFF' && color !== '000000') {
+                      style.bgColor = color;
+                      hasStyle = true;
+                    }
+                  }
+                }
+                
+                if (cell.alignment?.horizontal) {
+                  style.alignment = cell.alignment.horizontal;
+                  hasStyle = true;
+                }
+                
+                if (cell.numFmt) {
+                  style.numFmt = cell.numFmt;
+                  hasStyle = true;
+                }
+                
+                if (hasStyle) {
+                  const colLetter = colNumber < 27 
+                    ? String.fromCharCode(64 + colNumber) 
+                    : String.fromCharCode(64 + Math.floor((colNumber - 1) / 26)) + String.fromCharCode(65 + ((colNumber - 1) % 26));
+                  cellStyles[`${colLetter}${rowNumber}`] = style;
+                }
+              });
             });
             
-            // Get data rows
-            const rows = jsonData.slice(headerRowIndex + 1)
-              .map(row => {
-                const rowArray = row as any[];
-                return headers.map((_, idx) => {
-                  const cell = rowArray[idx];
-                  if (cell === null || cell === undefined) return '';
-                  if (typeof cell === 'number') {
-                    return cell.toLocaleString('en-ZA', { 
+            // Extract data rows
+            const rows: string[][] = [];
+            for (let r = headerRowIndex + 1; r <= sheet.rowCount; r++) {
+              const row = sheet.getRow(r);
+              const rowData: string[] = [];
+              let hasData = false;
+              
+              for (let c = 1; c <= colCount; c++) {
+                const cell = row.getCell(c);
+                let val = '';
+                
+                if (cell.value !== null && cell.value !== undefined) {
+                  if (typeof cell.value === 'object' && 'richText' in (cell.value as any)) {
+                    val = (cell.value as any).richText.map((rt: any) => rt.text).join('');
+                  } else if (typeof cell.value === 'number') {
+                    val = cell.value.toLocaleString('en-ZA', { 
                       minimumFractionDigits: 0, 
                       maximumFractionDigits: 2 
                     });
+                  } else if (cell.value instanceof Date) {
+                    val = cell.value.toLocaleDateString('en-ZA');
+                  } else {
+                    val = String(cell.value).trim();
                   }
-                  return String(cell).trim();
-                });
-              })
-              .filter(row => row.some(cell => cell !== ''));
+                  if (val) hasData = true;
+                }
+                
+                rowData.push(val);
+              }
+              
+              if (hasData) {
+                rows.push(rowData);
+              }
+            }
             
-            parsed = { headers, rows, cellStyles };
+            parsed = { headers, rows, cellStyles, headerRowIndex };
           }
         } catch (error) {
           console.error('Excel parsing error:', error);
@@ -494,9 +533,9 @@ export default function Workspace() {
               
               // Map cell styles if available
               if (importData.cellStyles) {
-                // Excel uses 1-based indexing, A1 notation
-                // Row 1 is header, so data row 0 = Excel row 2
-                const excelRow = rowIndex + 2; // +1 for header, +1 for 1-based
+                // ExcelJS 1-based indexing: header at headerRowIndex, data starts at headerRowIndex+1
+                const headerOffset = (importData as any).headerRowIndex || 1;
+                const excelRow = rowIndex + headerOffset + 1;
                 const excelCol = colIndex < 26 
                   ? String.fromCharCode(65 + colIndex) 
                   : String.fromCharCode(64 + Math.floor(colIndex / 26)) + String.fromCharCode(65 + (colIndex % 26));
