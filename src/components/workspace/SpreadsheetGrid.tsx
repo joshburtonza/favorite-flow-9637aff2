@@ -1009,6 +1009,8 @@ export function SpreadsheetGrid({
             overscrollBehavior: 'contain',
           }}
         >
+          {/* Wrapper to ensure content always overflows for visible scrollbars */}
+          <div style={{ minWidth: 'calc(100% + 1px)', minHeight: 'calc(100% + 1px)' }}>
           <table 
             className="border-collapse w-max table-fixed" 
             style={{ 
@@ -1166,6 +1168,7 @@ export function SpreadsheetGrid({
               </tfoot>
             )}
           </table>
+          </div>
         </div>
         
         {/* Add Row button - sticky at bottom */}
