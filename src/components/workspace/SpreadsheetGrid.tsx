@@ -1000,10 +1000,10 @@ export function SpreadsheetGrid({
       </div>
 
       {/* Table with Excel-like scrolling */}
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1 min-h-0 flex flex-col">
         {/* Scrollable container */}
         <div 
-          className="overflow-auto h-full spreadsheet-scroll"
+          className="overflow-scroll flex-1 min-h-0 spreadsheet-scroll"
           style={{
             scrollBehavior: 'auto',
             overscrollBehavior: 'contain',
@@ -1023,140 +1023,123 @@ export function SpreadsheetGrid({
                 {columns.map((column, colIndex) => (
                   <th
                     key={column.id}
-                    className="border-b border-r text-left font-medium text-sm relative group/header cursor-pointer select-none"
+                    className={cn(
+                      "border-b border-r text-left font-medium text-sm relative group cursor-pointer select-none",
+                      sortState?.columnId === column.id && "bg-primary/10"
+                    )}
                     style={{ width: column.width * (zoom / 100), minWidth: column.width * (zoom / 100) }}
                     onClick={() => handleColumnHeaderClick(column.id)}
                   >
-                    <div className="flex items-center px-3 py-2 group gap-2">
+                    <div className="flex items-center px-3 py-2 gap-1">
                       {getColumnIcon(column)}
-                      <span className="flex-1 truncate">{column.name}</span>
-                      {/* Sort indicator */}
+                      <span className="truncate flex-1">{column.name}</span>
                       {sortState?.columnId === column.id && (
-                        <span className="text-primary">
-                          {sortState.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                        </span>
-                      )}
-                      {sortState?.columnId !== column.id && (
-                        <ArrowUpDown className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover/header:opacity-100" />
+                        sortState.direction === 'asc' 
+                          ? <ArrowUp className="h-3 w-3 shrink-0" />
+                          : <ArrowDown className="h-3 w-3 shrink-0" />
                       )}
                       <ColumnSettingsPopover column={column} />
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive"
                         onClick={(e) => { e.stopPropagation(); onDeleteColumn(column.id); }}
                       >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                     {/* Resize handle */}
                     <div
-                      className={cn(
-                        "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
-                        resizingColumn === column.id && "bg-primary"
-                      )}
-                      onMouseDown={(e) => { e.stopPropagation(); handleResizeStart(e, column.id, column.width); }}
+                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 z-10"
+                      onMouseDown={(e) => handleResizeStart(e, column.id, column.width)}
+                      onClick={(e) => e.stopPropagation()}
                     />
                   </th>
                 ))}
-                <th className="border-b w-40 p-0">
+                {/* Add Column */}
+                <th className="border-b w-10 min-w-[40px]">
                   {showNewColumn ? (
-                    <div className="flex flex-col gap-1 p-1">
+                    <div className="flex items-center gap-1 p-1">
                       <Input
-                        autoFocus
-                        placeholder="Column name"
                         value={newColumnName}
                         onChange={(e) => setNewColumnName(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleAddColumn();
                           if (e.key === 'Escape') setShowNewColumn(false);
                         }}
-                        className="h-7 text-sm"
+                        placeholder="Name..."
+                        className="h-6 text-xs w-24"
+                        autoFocus
                       />
-                      <Select value={newColumnType} onValueChange={(v) => setNewColumnType(v as ColumnType)}>
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="text">Text</SelectItem>
-                          <SelectItem value="number">Number</SelectItem>
-                          <SelectItem value="currency">Currency</SelectItem>
-                          <SelectItem value="date">Date</SelectItem>
-                          <SelectItem value="checkbox">Checkbox</SelectItem>
-                          <SelectItem value="select">Select</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button size="sm" className="h-7" onClick={handleAddColumn}>Add</Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddColumn}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
                     </div>
                   ) : (
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="w-full h-full justify-start text-muted-foreground"
+                      size="icon"
+                      className="h-full w-10"
                       onClick={() => setShowNewColumn(true)}
                     >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Column
+                      <Plus className="h-4 w-4" />
                     </Button>
                   )}
                 </th>
               </tr>
             </thead>
+
             <tbody>
               {sortedRows.map((row, rowIndex) => (
                 <tr key={row.id} className="group hover:bg-muted/30">
-                  <td className="border-b border-r text-center text-xs text-muted-foreground p-0 sticky left-0 bg-background z-10 min-w-[40px]">
-                    <div 
-                      className="flex items-center justify-center"
-                      style={{ height: `${32 * (zoom / 100)}px` }}
-                    >
+                  {/* Row number */}
+                  <td className="border-b border-r p-0 text-center text-xs text-muted-foreground sticky left-0 bg-background z-10 group-hover:bg-muted/30">
+                    <div className="flex items-center justify-center h-8 relative">
                       <span className="group-hover:hidden">{rowIndex + 1}</span>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 hidden group-hover:flex"
+                        className="h-5 w-5 hidden group-hover:flex text-destructive hover:text-destructive"
                         onClick={() => onDeleteRow(row.id)}
                       >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </td>
-                  {columns.map((column, colIndex) => {
-                    const cellSelected = isCellSelected(rowIndex, colIndex);
-                    const cellActive = isActiveCell(rowIndex, colIndex);
-                    const cellKey = `${rowIndex}-${colIndex}`;
-                    const isHighlighted = highlightedCells.has(cellKey);
-                    
-                    return (
-                      <td
-                        key={column.id}
-                        className={cn(
-                          'border-b border-r p-0',
-                          editingCell?.rowId === row.id && editingCell?.columnId === column.id && 'ring-2 ring-primary ring-inset',
-                          cellSelected && !cellActive && 'bg-primary/10',
-                          cellActive && 'ring-2 ring-primary ring-inset bg-primary/5',
-                          isHighlighted && 'bg-yellow-100 dark:bg-yellow-900/30'
-                        )}
-                        style={{ height: `${32 * (zoom / 100)}px` }}
-                        onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
-                        onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
-                      >
-                        {renderCell(row, column, rowIndex)}
-                      </td>
-                    );
-                  })}
+
+                  {/* Data cells */}
+                  {columns.map((column, colIndex) => (
+                    <td
+                      key={column.id}
+                      className={cn(
+                        "border-b border-r p-0 relative",
+                        editingCell?.rowId === row.id && editingCell?.columnId === column.id && "ring-2 ring-primary z-10",
+                        isCellSelected(rowIndex, colIndex) && "bg-primary/10",
+                        isActiveCell(rowIndex, colIndex) && "bg-primary/20",
+                        highlightedCells.has(`${row.id}:${column.id}`) && "bg-warning/20"
+                      )}
+                      style={{ width: column.width * (zoom / 100) }}
+                      onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                      onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                    >
+                      {renderCell(row, column, rowIndex)}
+                    </td>
+                  ))}
                   <td className="border-b" />
                 </tr>
               ))}
             </tbody>
-            {/* Totals row */}
-            {sortedRows.length > 0 && columns.some(c => c.column_type === 'number' || c.column_type === 'currency') && (
-              <tfoot>
-                <tr className="bg-muted/30 font-medium">
-                  <td className="border-t border-r p-2 text-center text-xs text-muted-foreground">Σ</td>
+
+            {/* Summary Row */}
+            {columns.some(c => ['number', 'currency'].includes(c.column_type)) && (
+              <tfoot className="sticky bottom-0 bg-muted/50 z-10">
+                <tr>
+                  <td className="border-t p-0 sticky left-0 bg-muted/50 z-20">
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Σ</div>
+                  </td>
                   {columns.map((column) => (
-                    <td key={column.id} className="border-t border-r p-2 text-sm">
-                      <div className={getAlignClass(column.options?.textAlign)}>
+                    <td key={column.id} className="border-t p-0">
+                      <div className="px-3 py-1.5 text-sm font-medium">
                         {getColumnTotal(column) || ''}
                       </div>
                     </td>
@@ -1168,8 +1151,8 @@ export function SpreadsheetGrid({
           </table>
         </div>
         
-        {/* Add Row button - sticky at bottom */}
-        <div className="sticky bottom-0 bg-background border-t">
+        {/* Add Row button */}
+        <div className="bg-background border-t shrink-0">
           <Button
             variant="ghost"
             size="sm"
