@@ -78,11 +78,22 @@ const getCellStyle = (row: CustomRow, columnId: string): React.CSSProperties => 
   
   if (styles.bold) css.fontWeight = 'bold';
   if (styles.italic) css.fontStyle = 'italic';
-  if (styles.bgColor) css.backgroundColor = `#${styles.bgColor}`;
-  if (styles.fontColor) css.color = `#${styles.fontColor}`;
-  if (styles.fontSize) css.fontSize = `${styles.fontSize}pt`;
+  if (styles.bgColor) {
+    css.backgroundColor = `#${styles.bgColor}`;
+    // Force dark text on yellow/gold backgrounds for readability
+    const bg = styles.bgColor.toUpperCase();
+    if (['FFFF00', 'FFC000', 'FFFF99', 'FFD700'].includes(bg)) {
+      css.color = '#000000';
+    }
+  }
+  if (styles.fontColor) css.color = css.color || `#${styles.fontColor}`;
+  if (styles.fontSize) {
+    const size = Math.min(styles.fontSize, 16); // Cap at 16pt
+    css.fontSize = `${size}pt`;
+  }
   if (styles.alignment === 'center') css.textAlign = 'center';
   if (styles.alignment === 'right') css.textAlign = 'right';
+  if (styles.alignment === 'left') css.textAlign = 'left';
   
   return css;
 };

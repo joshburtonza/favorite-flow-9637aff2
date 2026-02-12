@@ -70,6 +70,8 @@ export default function Workspace() {
     summary?: string;
     cellStyles?: Record<string, Record<string, any>>;
     headerRowIndex?: number;
+    columnWidths?: number[];
+    isFormLayout?: boolean;
   }[]>([]);
   const [isCreatingTableFromImport, setIsCreatingTableFromImport] = useState(false);
   
@@ -275,6 +277,37 @@ export default function Workspace() {
     newTableFileInputRef.current?.click();
   };
 
+  // Helper to format numbers with Excel numFmt
+  const formatCellNumber = (num: number, numFmt?: string): string => {
+    if (!numFmt || numFmt === 'General') {
+      return num.toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+    if (numFmt.includes('R') || numFmt.includes('ZAR')) {
+      const decMatch = numFmt.match(/\.([0#]+)/);
+      const decimals = decMatch ? decMatch[1].length : 2;
+      return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    if (numFmt.includes('$') || numFmt.includes('USD')) {
+      const decMatch = numFmt.match(/\.([0#]+)/);
+      const decimals = decMatch ? decMatch[1].length : 2;
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    if (numFmt.includes('€') || numFmt.includes('EUR')) {
+      const decMatch = numFmt.match(/\.([0#]+)/);
+      const decimals = decMatch ? decMatch[1].length : 2;
+      return '€' + num.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    if (numFmt.includes('%')) {
+      const decMatch = numFmt.match(/\.([0#]+)/);
+      const decimals = decMatch ? decMatch[1].length : 2;
+      return (num * 100).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + '%';
+    }
+    // Generic number with decimal detection
+    const decMatch = numFmt.match(/\.([0#]+)/);
+    const decimals = decMatch ? decMatch[1].length : 0;
+    return num.toLocaleString('en-ZA', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  };
+
   const handleNewTableFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -284,13 +317,15 @@ export default function Workspace() {
       rows: string[][]; 
       fileName: string;
       cellStyles?: Record<string, Record<string, any>>;
+      columnWidths?: number[];
+      isFormLayout?: boolean;
     }[] = [];
     
     for (const file of Array.from(files)) {
       const fileName = file.name.replace(/\.(csv|xlsx?|tsv)$/i, '');
       const isExcel = /\.(xlsx|xls)$/i.test(file.name);
       
-      let parsed: { headers: string[]; rows: string[][]; cellStyles?: Record<string, Record<string, any>>; headerRowIndex?: number };
+      let parsed: { headers: string[]; rows: string[][]; cellStyles?: Record<string, Record<string, any>>; headerRowIndex?: number; columnWidths?: number[]; isFormLayout?: boolean };
       
       if (isExcel) {
         try {
@@ -505,12 +540,19 @@ export default function Workspace() {
             }
           }
           
+          // For form layouts, keep type as text (values are pre-formatted)
+          if (importData.isFormLayout) {
+            columnType = 'text';
+          }
+          
+          const colWidth = importData.columnWidths?.[index] || 150;
+          
           return {
             table_id: newTable.id,
             name: header.trim() || `Column ${index + 1}`,
             column_type: columnType,
             order_position: index,
-            width: 150,
+            width: Math.max(80, Math.min(500, colWidth)),
           };
         });
 
@@ -533,12 +575,13 @@ export default function Workspace() {
               
               // Map cell styles if available
               if (importData.cellStyles) {
-                // ExcelJS 1-based indexing: header at headerRowIndex, data starts at headerRowIndex+1
-                const headerOffset = (importData as any).headerRowIndex || 1;
-                const excelRow = rowIndex + headerOffset + 1;
-                const excelCol = colIndex < 26 
-                  ? String.fromCharCode(65 + colIndex) 
-                  : String.fromCharCode(64 + Math.floor(colIndex / 26)) + String.fromCharCode(65 + (colIndex % 26));
+                // For isFormLayout (Excel): rows are 1:1 with Excel rows (row 0 = Excel row 1)
+                // For CSV: row 0 = Excel row 2 (after header)
+                const excelRow = importData.isFormLayout ? rowIndex + 1 : rowIndex + 2;
+                const oneBasedCol = colIndex + 1;
+                const excelCol = oneBasedCol <= 26
+                  ? String.fromCharCode(64 + oneBasedCol)
+                  : String.fromCharCode(64 + Math.floor((oneBasedCol - 1) / 26)) + String.fromCharCode(65 + ((oneBasedCol - 1) % 26));
                 const cellAddr = `${excelCol}${excelRow}`;
                 
                 if (importData.cellStyles[cellAddr]) {
