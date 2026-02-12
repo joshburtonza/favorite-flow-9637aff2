@@ -1000,12 +1000,11 @@ export function SpreadsheetGrid({
       </div>
 
       {/* Table with Excel-like scrolling */}
-      <div className="relative flex-1 min-h-0 flex flex-col">
+      <div className="relative flex-1 min-h-0">
         {/* Scrollable container */}
         <div 
-          className="overflow-scroll flex-1 min-h-0 spreadsheet-scroll"
+          className="overflow-scroll absolute inset-0 workspace-spreadsheet-scroll"
           style={{
-            scrollBehavior: 'auto',
             overscrollBehavior: 'contain',
           }}
         >
