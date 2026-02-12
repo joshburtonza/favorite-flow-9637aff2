@@ -648,7 +648,7 @@ export function useTableRows(tableId: string | null) {
         .from('custom_rows')
         .select('*')
         .eq('table_id', tableId)
-        .order('created_at', { ascending: true });
+        .order('row_index', { ascending: true });
       
       if (error) throw error;
       return data as CustomRow[];
@@ -659,12 +659,25 @@ export function useTableRows(tableId: string | null) {
   const addRow = useMutation({
     mutationFn: async (data: Record<string, any> = {}) => {
       const { data: user } = await supabase.auth.getUser();
+      
+      // Get max row_index for deterministic ordering
+      const { data: maxRow } = await supabase
+        .from('custom_rows')
+        .select('row_index')
+        .eq('table_id', tableId)
+        .order('row_index', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const nextIndex = (maxRow?.row_index ?? -1) + 1;
+      
       const { data: newRow, error } = await supabase
         .from('custom_rows')
         .insert({
           table_id: tableId,
           data,
           created_by: user.user?.id,
+          row_index: nextIndex,
         })
         .select()
         .single();
@@ -679,6 +692,18 @@ export function useTableRows(tableId: string | null) {
 
   const updateRow = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, any> }) => {
+      // Safety net: preserve _styles if not provided in the update
+      if (!data._styles) {
+        const { data: existing } = await supabase
+          .from('custom_rows')
+          .select('data')
+          .eq('id', id)
+          .single();
+        if ((existing?.data as any)?._styles) {
+          data._styles = (existing.data as any)._styles;
+        }
+      }
+      
       const { error } = await supabase
         .from('custom_rows')
         .update({ data })

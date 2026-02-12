@@ -585,6 +585,7 @@ export default function Workspace() {
               table_id: newTable.id,
               data: Object.keys(styles).length > 0 ? { ...data, _styles: styles } : data,
               created_by: user.user?.id,
+              row_index: rowIndex,
             };
           });
 
@@ -664,7 +665,7 @@ export default function Workspace() {
 
       // Create rows with template data and styles
       if (createdColumns && template.rows.length > 0) {
-        const rowInserts = template.rows.map((row) => {
+        const rowInserts = template.rows.map((row, rowIndex) => {
           const data: Record<string, any> = {};
           const styles: Record<string, any> = {};
           
@@ -681,6 +682,7 @@ export default function Workspace() {
             table_id: newTable.id,
             data: Object.keys(styles).length > 0 ? { ...data, _styles: styles } : data,
             created_by: user.user?.id,
+            row_index: rowIndex,
           };
         });
 
