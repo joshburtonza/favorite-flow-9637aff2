@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
 import { useShipment, useUpdateShipment, useUpdateShipmentCosts, useDeleteShipment } from '@/hooks/useShipments';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useClients } from '@/hooks/useClients';
@@ -55,6 +56,7 @@ import { ShipmentStatusHistory } from '@/components/tracking/ShipmentStatusHisto
 import { toast } from 'sonner';
 
 export function ShipmentDetail() {
+  const { permissions } = useRoleBasedData();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: shipment, isLoading } = useShipment(id!);
@@ -487,8 +489,8 @@ export function ShipmentDetail() {
           </CardContent>
         </Card>
 
-        {/* Cost Breakdown */}
-        <Card>
+        {/* Cost Breakdown - only visible to roles with financial access */}
+        {permissions.canSeeFinancials && <Card>
           <CardHeader>
             <CardTitle>Cost Breakdown</CardTitle>
           </CardHeader>
@@ -635,7 +637,7 @@ export function ShipmentDetail() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       {/* Status History */}

@@ -1,3 +1,4 @@
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { usePayments, useCreatePayment, useMarkPaymentPaid, useDeletePayment } from '@/hooks/usePayments';
@@ -11,20 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,7 +22,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-export default function Payments() {
+function PaymentsContent() {
   const isMobile = useIsMobile();
   const { data: pendingPayments, isLoading: pendingLoading } = usePayments('pending');
   const { data: completedPayments, isLoading: completedLoading } = usePayments('completed');
@@ -112,7 +101,6 @@ export default function Payments() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-slide-in">
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Finance</p>
@@ -121,97 +109,38 @@ export default function Payments() {
           <div className="flex gap-3 w-full md:w-auto">
             <div className="search-glass flex-1 md:w-64">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search payments..." 
-                className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <Input placeholder="Search payments..." className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-            <Button 
-              onClick={() => setDialogOpen(true)}
-              className="rounded-xl"
-              style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule
+            <Button onClick={() => setDialogOpen(true)} className="rounded-xl" style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}>
+              <Plus className="h-4 w-4 mr-2" />Schedule
             </Button>
           </div>
         </header>
 
-        {/* Summary KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KPICard
-            title="Pending"
-            value={formatCurrency(totalPending, 'ZAR', { compact: true })}
-            icon={DollarSign}
-            description={`${pendingPayments?.length || 0} scheduled`}
-          />
-          <KPICard
-            title="Paid"
-            value={formatCurrency(totalCompleted, 'ZAR', { compact: true })}
-            icon={CreditCard}
-            description={`${completedPayments?.length || 0} completed`}
-          />
-          <KPICard
-            title="Commission"
-            value={formatCurrency(totalCommission, 'ZAR', { compact: true })}
-            icon={TrendingUp}
-            description="From FX"
-          />
+          <KPICard title="Pending" value={formatCurrency(totalPending, 'ZAR', { compact: true })} icon={DollarSign} description={`${pendingPayments?.length || 0} scheduled`} />
+          <KPICard title="Paid" value={formatCurrency(totalCompleted, 'ZAR', { compact: true })} icon={CreditCard} description={`${completedPayments?.length || 0} completed`} />
+          <KPICard title="Commission" value={formatCurrency(totalCommission, 'ZAR', { compact: true })} icon={TrendingUp} description="From FX" />
         </div>
 
-        {/* Tab Switcher */}
         <div className="glass-card p-2">
           <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('upcoming')}
-              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'upcoming'
-                  ? 'text-foreground border border-primary/30'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              style={{
-                background: activeTab === 'upcoming'
-                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))'
-                  : 'transparent',
-              }}
-            >
+            <button onClick={() => setActiveTab('upcoming')} className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === 'upcoming' ? 'text-foreground border border-primary/30' : 'text-muted-foreground hover:text-foreground'}`} style={{ background: activeTab === 'upcoming' ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' : 'transparent' }}>
               Upcoming ({pendingPayments?.length || 0})
             </button>
-            <button
-              onClick={() => setActiveTab('completed')}
-              className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'completed'
-                  ? 'text-foreground border border-primary/30'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              style={{
-                background: activeTab === 'completed'
-                  ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))'
-                  : 'transparent',
-              }}
-            >
+            <button onClick={() => setActiveTab('completed')} className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === 'completed' ? 'text-foreground border border-primary/30' : 'text-muted-foreground hover:text-foreground'}`} style={{ background: activeTab === 'completed' ? 'linear-gradient(135deg, hsl(239 84% 67% / 0.2), hsl(187 94% 43% / 0.2))' : 'transparent' }}>
               Completed ({completedPayments?.length || 0})
             </button>
           </div>
         </div>
 
-        {/* Payments List */}
         {currentPayments?.length === 0 ? (
           <div className="glass-card flex flex-col items-center justify-center py-16">
             <CreditCard className="h-16 w-16 text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground text-center">
-              {activeTab === 'upcoming' ? 'No upcoming payments scheduled.' : 'No completed payments yet.'}
-            </p>
+            <p className="text-muted-foreground text-center">{activeTab === 'upcoming' ? 'No upcoming payments scheduled.' : 'No completed payments yet.'}</p>
             {activeTab === 'upcoming' && (
-              <Button 
-                className="mt-4 rounded-xl"
-                onClick={() => setDialogOpen(true)}
-                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Schedule Payment
+              <Button className="mt-4 rounded-xl" onClick={() => setDialogOpen(true)} style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}>
+                <Plus className="h-4 w-4 mr-2" />Schedule Payment
               </Button>
             )}
           </div>
@@ -219,25 +148,16 @@ export default function Payments() {
           <div className="space-y-4">
             {currentPayments?.map((payment) => (
               <div key={payment.id} className="glass-card p-5">
-                {/* Header: Supplier & Amount */}
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-base truncate">{payment.supplier?.name || 'Unknown'}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {payment.shipment?.lot_number || 'No LOT'} • {formatDate(activeTab === 'upcoming' ? payment.payment_date : payment.paid_date)}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{payment.shipment?.lot_number || 'No LOT'} • {formatDate(activeTab === 'upcoming' ? payment.payment_date : payment.paid_date)}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-lg font-bold">
-                      {formatCurrency(payment.amount_foreign, payment.currency)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCurrency(payment.amount_zar)} ZAR
-                    </p>
+                    <p className="text-lg font-bold">{formatCurrency(payment.amount_foreign, payment.currency)}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(payment.amount_zar)} ZAR</p>
                   </div>
                 </div>
-
-                {/* Details Row */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>Rate: {formatRate(payment.fx_rate)}</span>
                   <span>{payment.bank_account?.name || 'No bank'}</span>
@@ -245,38 +165,19 @@ export default function Payments() {
                     <span className="text-success">+{formatCurrency(payment.commission_earned)}</span>
                   )}
                 </div>
-
-                {/* Actions */}
                 {activeTab === 'upcoming' && (
                   <div className="flex gap-3 mt-4 pt-4 border-t border-border/10">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="flex-1 rounded-xl hover:bg-success/20 hover:text-success h-9"
-                      onClick={() => markPaid.mutate(payment.id)}
-                      disabled={markPaid.isPending}
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      Mark Paid
+                    <Button variant="ghost" size="sm" className="flex-1 rounded-xl hover:bg-success/20 hover:text-success h-9" onClick={() => markPaid.mutate(payment.id)} disabled={markPaid.isPending}>
+                      <Check className="h-4 w-4 mr-2" />Mark Paid
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="rounded-xl hover:bg-destructive/20 hover:text-destructive h-9 px-3"
-                      onClick={() => deletePayment.mutate(payment.id)}
-                      disabled={deletePayment.isPending}
-                    >
+                    <Button variant="ghost" size="sm" className="rounded-xl hover:bg-destructive/20 hover:text-destructive h-9 px-3" onClick={() => deletePayment.mutate(payment.id)} disabled={deletePayment.isPending}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
-
                 {activeTab === 'completed' && (
                   <div className="mt-4 pt-4 border-t border-border/10">
-                    <Badge className="trend-badge trend-up text-xs">
-                      <Check className="h-3 w-3 mr-1" />
-                      Paid
-                    </Badge>
+                    <Badge className="trend-badge trend-up text-xs"><Check className="h-3 w-3 mr-1" />Paid</Badge>
                   </div>
                 )}
               </div>
@@ -285,24 +186,17 @@ export default function Payments() {
         )}
       </div>
 
-      {/* New Payment Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
         <DialogContent className="sm:max-w-lg glass-card border-glass-border">
-          <DialogHeader>
-            <DialogTitle className="gradient-text">Schedule Payment</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="gradient-text">Schedule Payment</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Payment Date *</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      className={cn('w-full justify-start rounded-xl bg-glass-surface border-glass-border', !paymentDate && 'text-muted-foreground')}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {paymentDate ? format(paymentDate, 'PPP') : 'Pick a date'}
+                    <Button variant="outline" className={cn('w-full justify-start rounded-xl bg-glass-surface border-glass-border', !paymentDate && 'text-muted-foreground')}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, 'PPP') : 'Pick a date'}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 bg-card border-glass-border" align="start">
@@ -313,95 +207,49 @@ export default function Payments() {
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Supplier *</Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-glass-border">
-                    {suppliers?.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                  <SelectContent className="bg-card border-glass-border">{suppliers?.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
             </div>
-
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Shipment (Optional)</Label>
                 <Select value={shipmentId} onValueChange={setShipmentId}>
-                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
-                    <SelectValue placeholder="Link to shipment" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-glass-border">
-                    {shipments?.filter(s => !supplierId || s.supplier_id === supplierId).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.lot_number}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border"><SelectValue placeholder="Link to shipment" /></SelectTrigger>
+                  <SelectContent className="bg-card border-glass-border">{shipments?.filter(s => !supplierId || s.supplier_id === supplierId).map((s) => (<SelectItem key={s.id} value={s.id}>{s.lot_number}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Bank Account</Label>
                 <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
-                    <SelectValue placeholder="Select bank" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-glass-border">
-                    {bankAccounts?.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border"><SelectValue placeholder="Select bank" /></SelectTrigger>
+                  <SelectContent className="bg-card border-glass-border">{bankAccounts?.map((b) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
             </div>
-
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Amount *</Label>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  value={amountForeign} 
-                  onChange={(e) => setAmountForeign(e.target.value)} 
-                  placeholder="0.00"
-                  className="rounded-xl bg-glass-surface border-glass-border"
-                />
+                <Input type="number" step="0.01" value={amountForeign} onChange={(e) => setAmountForeign(e.target.value)} placeholder="0.00" className="rounded-xl bg-glass-surface border-glass-border" />
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Currency</Label>
                 <Select value={currency} onValueChange={(v) => setCurrency(v as CurrencyType)}>
-                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="rounded-xl bg-glass-surface border-glass-border"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-card border-glass-border">
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                    <SelectItem value="ZAR">ZAR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem><SelectItem value="EUR">EUR</SelectItem><SelectItem value="ZAR">ZAR</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">FX Rate *</Label>
-                <Input 
-                  type="number" 
-                  step="0.0001" 
-                  value={fxRate} 
-                  onChange={(e) => setFxRate(e.target.value)} 
-                  placeholder="18.5000"
-                  className="rounded-xl bg-glass-surface border-glass-border"
-                />
+                <Input type="number" step="0.0001" value={fxRate} onChange={(e) => setFxRate(e.target.value)} placeholder="18.5000" className="rounded-xl bg-glass-surface border-glass-border" />
               </div>
             </div>
-
             <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={createPayment.isPending}
-                className="rounded-xl"
-                style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}
-              >
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">Cancel</Button>
+              <Button type="submit" disabled={createPayment.isPending} className="rounded-xl" style={{ background: 'linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 50%))' }}>
                 {createPayment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Schedule Payment'}
               </Button>
             </DialogFooter>
@@ -409,5 +257,13 @@ export default function Payments() {
         </DialogContent>
       </Dialog>
     </AppLayout>
+  );
+}
+
+export default function Payments() {
+  return (
+    <PermissionGate permission="view_payments" pageLevel>
+      <PaymentsContent />
+    </PermissionGate>
   );
 }

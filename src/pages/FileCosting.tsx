@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Plus, Calculator, Clock, CheckCircle, FileText } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { Button } from '@/components/ui/button';
 import { KPICard } from '@/components/ui/kpi-card';
 import { FileCostingList } from '@/components/file-costing/FileCostingList';
@@ -11,7 +12,7 @@ import { formatCurrency } from '@/lib/formatters';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-export default function FileCostingPage() {
+function FileCostingContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCosting, setEditingCosting] = useState<FileCosting | null>(null);
   const { data: costings } = useFileCostings();
@@ -112,5 +113,13 @@ export default function FileCostingPage() {
         editingCosting={editingCosting}
       />
     </AppLayout>
+  );
+}
+
+export default function FileCostingPage() {
+  return (
+    <PermissionGate permission="view_financials" pageLevel>
+      <FileCostingContent />
+    </PermissionGate>
   );
 }
