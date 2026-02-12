@@ -23,7 +23,8 @@ export type AppPermission =
   | 'view_shipping_documents'
   | 'view_transport_invoices'
   | 'view_clearing_invoices'
-  | 'download_documents';
+  | 'download_documents'
+  | 'view_file_costing';
 
 export type AppRole = 'admin' | 'staff' | 'user' | 'moderator' | 'accountant' | 'shipping' | 'file_costing' | 'operations';
 
