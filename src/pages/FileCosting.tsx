@@ -118,7 +118,7 @@ function FileCostingContent() {
 
 export default function FileCostingPage() {
   return (
-    <PermissionGate permission="view_financials" pageLevel>
+    <PermissionGate permission="view_file_costing" pageLevel>
       <FileCostingContent />
     </PermissionGate>
   );

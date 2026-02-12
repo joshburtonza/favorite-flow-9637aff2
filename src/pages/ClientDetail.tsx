@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formatters';
@@ -20,9 +22,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
-export default function ClientDetail() {
+function ClientDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { permissions } = useRoleBasedData();
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ['client', id],
@@ -51,7 +54,6 @@ export default function ClientDetail() {
         .eq('client_id', id!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      // Transform to match expected shape
       return (data || []).map(s => ({
         ...s,
         client_invoice_zar: s.costs?.client_invoice_zar || 0,
@@ -65,7 +67,6 @@ export default function ClientDetail() {
 
   const isLoading = clientLoading || shipmentsLoading;
 
-  // Calculate financial summary
   const financialSummary = {
     totalRevenue: shipments?.reduce((sum, s) => sum + (s.client_invoice_zar || 0), 0) || 0,
     totalProfit: shipments?.reduce((sum, s) => sum + (s.net_profit_zar || 0), 0) || 0,
@@ -166,7 +167,7 @@ export default function ClientDetail() {
           </div>
         </div>
 
-        {/* Financial Summary */}
+        {/* Financial Summary - KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="glass-card">
             <div className="flex items-center gap-3 mb-3">
@@ -175,37 +176,41 @@ export default function ClientDetail() {
             </div>
             <p className="text-3xl font-bold">{financialSummary.shipmentCount}</p>
           </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Revenue</span>
-            </div>
-            <p className="text-3xl font-bold">{formatCurrency(financialSummary.totalRevenue, 'ZAR', { compact: true })}</p>
-          </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Profit</span>
-            </div>
-            <p className={cn(
-              'text-3xl font-bold',
-              financialSummary.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'
-            )}>
-              {formatCurrency(financialSummary.totalProfit, 'ZAR', { compact: true })}
-            </p>
-          </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Avg Margin</span>
-            </div>
-            <p className={cn(
-              'text-3xl font-bold',
-              financialSummary.avgMargin >= 5 ? 'text-green-500' : 'text-yellow-500'
-            )}>
-              {financialSummary.avgMargin.toFixed(1)}%
-            </p>
-          </div>
+          {permissions.canSeeFinancials && (
+            <>
+              <div className="glass-card">
+                <div className="flex items-center gap-3 mb-3">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Revenue</span>
+                </div>
+                <p className="text-3xl font-bold">{formatCurrency(financialSummary.totalRevenue, 'ZAR', { compact: true })}</p>
+              </div>
+              <div className="glass-card">
+                <div className="flex items-center gap-3 mb-3">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Profit</span>
+                </div>
+                <p className={cn(
+                  'text-3xl font-bold',
+                  financialSummary.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'
+                )}>
+                  {formatCurrency(financialSummary.totalProfit, 'ZAR', { compact: true })}
+                </p>
+              </div>
+              <div className="glass-card">
+                <div className="flex items-center gap-3 mb-3">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Avg Margin</span>
+                </div>
+                <p className={cn(
+                  'text-3xl font-bold',
+                  financialSummary.avgMargin >= 5 ? 'text-green-500' : 'text-yellow-500'
+                )}>
+                  {financialSummary.avgMargin.toFixed(1)}%
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Orders/Shipments Table */}
@@ -228,9 +233,13 @@ export default function ClientDetail() {
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Commodity</th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Status</th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Date</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Invoice</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Profit</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Margin</th>
+                    {permissions.canSeeFinancials && (
+                      <>
+                        <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Invoice</th>
+                        <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Profit</th>
+                        <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Margin</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -248,21 +257,25 @@ export default function ClientDetail() {
                       <td className="py-3 px-4 text-muted-foreground">
                         {shipment.created_at ? format(new Date(shipment.created_at), 'MMM d, yyyy') : '-'}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        {formatCurrency(shipment.client_invoice_zar || 0, 'ZAR')}
-                      </td>
-                      <td className={cn(
-                        'py-3 px-4 text-right font-medium',
-                        (shipment.net_profit_zar || 0) >= 0 ? 'text-green-500' : 'text-red-500'
-                      )}>
-                        {formatCurrency(shipment.net_profit_zar || 0, 'ZAR')}
-                      </td>
-                      <td className={cn(
-                        'py-3 px-4 text-right',
-                        (shipment.profit_margin || 0) >= 5 ? 'text-green-500' : 'text-yellow-500'
-                      )}>
-                        {(shipment.profit_margin || 0).toFixed(1)}%
-                      </td>
+                      {permissions.canSeeFinancials && (
+                        <>
+                          <td className="py-3 px-4 text-right">
+                            {formatCurrency(shipment.client_invoice_zar || 0, 'ZAR')}
+                          </td>
+                          <td className={cn(
+                            'py-3 px-4 text-right font-medium',
+                            (shipment.net_profit_zar || 0) >= 0 ? 'text-green-500' : 'text-red-500'
+                          )}>
+                            {formatCurrency(shipment.net_profit_zar || 0, 'ZAR')}
+                          </td>
+                          <td className={cn(
+                            'py-3 px-4 text-right',
+                            (shipment.profit_margin || 0) >= 5 ? 'text-green-500' : 'text-yellow-500'
+                          )}>
+                            {(shipment.profit_margin || 0).toFixed(1)}%
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -272,5 +285,13 @@ export default function ClientDetail() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function ClientDetail() {
+  return (
+    <PermissionGate permission="view_clients" pageLevel>
+      <ClientDetailContent />
+    </PermissionGate>
   );
 }

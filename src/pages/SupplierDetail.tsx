@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
+import { useRoleBasedData } from '@/hooks/useRoleBasedData';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formatters';
@@ -22,9 +24,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
-export default function SupplierDetail() {
+function SupplierDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { permissions } = useRoleBasedData();
 
   const { data: supplier, isLoading: supplierLoading } = useQuery({
     queryKey: ['supplier', id],
@@ -48,7 +51,6 @@ export default function SupplierDetail() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      // Filter in memory since v_shipments_full might not have supplier_id directly accessible
       return (data || []).filter(s => (s as any).supplier_id === id);
     },
     enabled: !!id,
@@ -85,7 +87,6 @@ export default function SupplierDetail() {
 
   const isLoading = supplierLoading || shipmentsLoading || ledgerLoading || paymentsLoading;
 
-  // Calculate financial summary
   const financialSummary = {
     totalCosts: shipments?.reduce((sum, s) => sum + (s.supplier_cost || 0), 0) || 0,
     shipmentCount: shipments?.length || 0,
@@ -148,15 +149,17 @@ export default function SupplierDetail() {
               <h1 className="text-3xl font-semibold gradient-text">{supplier.name}</h1>
               <p className="text-muted-foreground mt-1">{supplier.currency} • {supplier.contact_person || 'No contact'}</p>
             </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Current Balance</p>
-              <p className={cn('text-3xl font-bold', getBalanceClass(supplier.current_balance))}>
-                {formatCurrency(Math.abs(supplier.current_balance), supplier.currency)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {supplier.current_balance > 0 ? 'owed to supplier' : supplier.current_balance < 0 ? 'credit balance' : 'balanced'}
-              </p>
-            </div>
+            {permissions.canSeeFinancials && (
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Current Balance</p>
+                <p className={cn('text-3xl font-bold', getBalanceClass(supplier.current_balance))}>
+                  {formatCurrency(Math.abs(supplier.current_balance), supplier.currency)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {supplier.current_balance > 0 ? 'owed to supplier' : supplier.current_balance < 0 ? 'credit balance' : 'balanced'}
+                </p>
+              </div>
+            )}
           </div>
         </header>
 
@@ -195,89 +198,93 @@ export default function SupplierDetail() {
           </div>
         </div>
 
-        {/* Financial Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <Package className="h-5 w-5 text-primary" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Shipments</span>
+        {/* Financial Summary - only for financial roles */}
+        {permissions.canSeeFinancials && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="glass-card">
+              <div className="flex items-center gap-3 mb-3">
+                <Package className="h-5 w-5 text-primary" />
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Shipments</span>
+              </div>
+              <p className="text-3xl font-bold">{financialSummary.shipmentCount}</p>
             </div>
-            <p className="text-3xl font-bold">{financialSummary.shipmentCount}</p>
-          </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Purchased</span>
+            <div className="glass-card">
+              <div className="flex items-center gap-3 mb-3">
+                <DollarSign className="h-5 w-5 text-primary" />
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Purchased</span>
+              </div>
+              <p className="text-3xl font-bold">{formatCurrency(financialSummary.totalCosts, supplier.currency, { compact: true })}</p>
             </div>
-            <p className="text-3xl font-bold">{formatCurrency(financialSummary.totalCosts, supplier.currency, { compact: true })}</p>
-          </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Paid</span>
+            <div className="glass-card">
+              <div className="flex items-center gap-3 mb-3">
+                <TrendingUp className="h-5 w-5 text-green-500" />
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Total Paid</span>
+              </div>
+              <p className="text-3xl font-bold text-green-500">
+                {formatCurrency(financialSummary.totalPaid, supplier.currency, { compact: true })}
+              </p>
             </div>
-            <p className="text-3xl font-bold text-green-500">
-              {formatCurrency(financialSummary.totalPaid, supplier.currency, { compact: true })}
-            </p>
-          </div>
-          <div className="glass-card">
-            <div className="flex items-center gap-3 mb-3">
-              <CreditCard className="h-5 w-5 text-yellow-500" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Pending Payments</span>
+            <div className="glass-card">
+              <div className="flex items-center gap-3 mb-3">
+                <CreditCard className="h-5 w-5 text-yellow-500" />
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Pending Payments</span>
+              </div>
+              <p className="text-3xl font-bold text-yellow-500">{financialSummary.pendingPayments}</p>
             </div>
-            <p className="text-3xl font-bold text-yellow-500">{financialSummary.pendingPayments}</p>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Ledger Entries */}
-          <div className="glass-card">
-            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Recent Ledger Entries
-            </h3>
-            
-            {!ledgerEntries || ledgerEntries.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No ledger entries found
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {ledgerEntries.map((entry) => (
-                  <div 
-                    key={entry.id} 
-                    className="flex items-center justify-between p-3 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'p-2 rounded-lg',
-                        entry.ledger_type === 'debit' ? 'bg-red-500/10' : 'bg-green-500/10'
+          {/* Ledger Entries - only for financial roles */}
+          {permissions.canSeeFinancials && (
+            <div className="glass-card">
+              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Recent Ledger Entries
+              </h3>
+              
+              {!ledgerEntries || ledgerEntries.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No ledger entries found
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {ledgerEntries.map((entry) => (
+                    <div 
+                      key={entry.id} 
+                      className="flex items-center justify-between p-3 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'p-2 rounded-lg',
+                          entry.ledger_type === 'debit' ? 'bg-red-500/10' : 'bg-green-500/10'
+                        )}>
+                          {entry.ledger_type === 'debit' ? (
+                            <ArrowUpRight className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <ArrowDownRight className="h-4 w-4 text-green-500" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{entry.description || entry.ledger_type}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(entry.transaction_date), 'MMM d, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <p className={cn(
+                        'font-semibold',
+                        entry.ledger_type === 'debit' ? 'text-red-500' : 'text-green-500'
                       )}>
-                        {entry.ledger_type === 'debit' ? (
-                          <ArrowUpRight className="h-4 w-4 text-red-500" />
-                        ) : (
-                          <ArrowDownRight className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{entry.description || entry.ledger_type}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(entry.transaction_date), 'MMM d, yyyy')}
-                        </p>
-                      </div>
+                        {entry.ledger_type === 'debit' ? '+' : '-'}
+                        {formatCurrency(entry.amount, supplier.currency)}
+                      </p>
                     </div>
-                    <p className={cn(
-                      'font-semibold',
-                      entry.ledger_type === 'debit' ? 'text-red-500' : 'text-green-500'
-                    )}>
-                      {entry.ledger_type === 'debit' ? '+' : '-'}
-                      {formatCurrency(entry.amount, supplier.currency)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Shipments */}
           <div className="glass-card">
@@ -304,9 +311,11 @@ export default function SupplierDetail() {
                     </div>
                     <div className="text-right">
                       <StatusBadge status={shipment.status || 'pending'} />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatCurrency(shipment.supplier_cost || 0, supplier.currency)}
-                      </p>
+                      {permissions.canSeeSupplierCosts && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatCurrency(shipment.supplier_cost || 0, supplier.currency)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -315,62 +324,72 @@ export default function SupplierDetail() {
           </div>
         </div>
 
-        {/* Payments Table */}
-        <div className="glass-card">
-          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-primary" />
-            Payment History
-          </h3>
-          
-          {!payments || payments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No payments found for this supplier
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border/30">
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Date</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Status</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Amount</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">FX Rate</th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">ZAR Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => (
-                    <tr key={payment.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
-                      <td className="py-3 px-4">
-                        {format(new Date(payment.payment_date), 'MMM d, yyyy')}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={cn(
-                          'px-2 py-1 rounded-full text-xs font-medium',
-                          payment.status === 'completed' 
-                            ? 'bg-green-500/10 text-green-500' 
-                            : 'bg-yellow-500/10 text-yellow-500'
-                        )}>
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(payment.amount_foreign, payment.currency)}
-                      </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">
-                        {payment.fx_rate.toFixed(4)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {formatCurrency(payment.amount_zar || 0, 'ZAR')}
-                      </td>
+        {/* Payments Table - only for financial roles */}
+        {permissions.canSeeFinancials && (
+          <div className="glass-card">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              Payment History
+            </h3>
+            
+            {!payments || payments.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No payments found for this supplier
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/30">
+                      <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Date</th>
+                      <th className="text-left py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Status</th>
+                      <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">Amount</th>
+                      <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">FX Rate</th>
+                      <th className="text-right py-3 px-4 text-xs uppercase tracking-wide text-muted-foreground">ZAR Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                        <td className="py-3 px-4">
+                          {format(new Date(payment.payment_date), 'MMM d, yyyy')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={cn(
+                            'px-2 py-1 rounded-full text-xs font-medium',
+                            payment.status === 'completed' 
+                              ? 'bg-green-500/10 text-green-500' 
+                              : 'bg-yellow-500/10 text-yellow-500'
+                          )}>
+                            {payment.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          {formatCurrency(payment.amount_foreign, payment.currency)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-muted-foreground">
+                          {payment.fx_rate.toFixed(4)}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {formatCurrency(payment.amount_zar || 0, 'ZAR')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function SupplierDetail() {
+  return (
+    <PermissionGate permission="view_suppliers" pageLevel>
+      <SupplierDetailContent />
+    </PermissionGate>
   );
 }

@@ -3672,6 +3672,7 @@ export type Database = {
         | "view_transport_invoices"
         | "view_clearing_invoices"
         | "download_documents"
+        | "view_file_costing"
       app_role:
         | "admin"
         | "moderator"
@@ -3894,6 +3895,7 @@ export const Constants = {
         "view_transport_invoices",
         "view_clearing_invoices",
         "download_documents",
+        "view_file_costing",
       ],
       app_role: [
         "admin",

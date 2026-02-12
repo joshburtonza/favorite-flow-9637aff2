@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { formatCurrency } from '@/lib/formatters';
 import { KPICard } from '@/components/ui/kpi-card';
@@ -22,7 +23,7 @@ import { Input } from '@/components/ui/input';
 
 type FilterType = 'all' | 'outstanding' | 'overpaid';
 
-export default function Creditors() {
+function CreditorsContent() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: suppliers, isLoading } = useSuppliers();
@@ -175,5 +176,13 @@ export default function Creditors() {
         />
       )}
     </AppLayout>
+  );
+}
+
+export default function Creditors() {
+  return (
+    <PermissionGate permission="view_financials" pageLevel>
+      <CreditorsContent />
+    </PermissionGate>
   );
 }
