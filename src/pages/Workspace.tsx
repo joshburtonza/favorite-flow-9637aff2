@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Table2, MoreVertical, Pencil, Trash2, FileSpreadsheet, Download, Upload, FolderOpen, ChevronRight, ChevronDown, Save, Folder, FileText, ArrowLeft, FolderPlus, FileUp, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen, LayoutTemplate } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils';
 import { useDocumentFolders } from '@/hooks/useDocumentFolders';
 import { supabase } from '@/integrations/supabase/client';
 import { usePDFExtraction } from '@/hooks/usePDFExtraction';
+import { TemplatePickerDialog } from '@/components/workspace/TemplatePickerDialog';
+import { WorkspaceTemplate } from '@/data/workspaceTemplates';
 
 export default function Workspace() {
   const queryClient = useQueryClient();
@@ -81,6 +83,9 @@ export default function Workspace() {
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiPanelExpanded, setAIPanelExpanded] = useState(false);
+
+  // Template picker state
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   const { folders, folderTree, createFolder } = useDocumentFolders();
 
@@ -619,6 +624,84 @@ export default function Workspace() {
     }
   };
 
+  // Handle creating table from template
+  const handleCreateFromTemplate = async (template: WorkspaceTemplate) => {
+    setTemplatePickerOpen(false);
+    
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      const today = new Date().toLocaleDateString('en-ZA');
+      const tableName = `${template.name} - ${today}`;
+      
+      const { data: newTable, error: tableError } = await supabase
+        .from('custom_tables')
+        .insert({
+          name: tableName,
+          description: template.description,
+          icon: 'table',
+          created_by: user.user?.id,
+        })
+        .select()
+        .single();
+      
+      if (tableError) throw tableError;
+
+      // Create columns with template widths
+      const columnInserts = template.columns.map((col, index) => ({
+        table_id: newTable.id,
+        name: col.name,
+        column_type: 'text' as const,
+        order_position: index,
+        width: Math.max(80, Math.min(500, col.width)),
+      }));
+
+      const { data: createdColumns, error: colError } = await supabase
+        .from('custom_columns')
+        .insert(columnInserts)
+        .select();
+      
+      if (colError) throw colError;
+
+      // Create rows with template data and styles
+      if (createdColumns && template.rows.length > 0) {
+        const rowInserts = template.rows.map((row) => {
+          const data: Record<string, any> = {};
+          const styles: Record<string, any> = {};
+          
+          createdColumns.forEach((col, colIndex) => {
+            data[col.id] = row.cells[colIndex] ?? '';
+            
+            const cellStyle = row.styles?.[colIndex];
+            if (cellStyle) {
+              styles[col.id] = cellStyle;
+            }
+          });
+          
+          return {
+            table_id: newTable.id,
+            data: Object.keys(styles).length > 0 ? { ...data, _styles: styles } : data,
+            created_by: user.user?.id,
+          };
+        });
+
+        // Supabase has row limits — batch if needed
+        const BATCH_SIZE = 500;
+        for (let i = 0; i < rowInserts.length; i += BATCH_SIZE) {
+          const batch = rowInserts.slice(i, i + BATCH_SIZE);
+          const { error: rowError } = await supabase.from('custom_rows').insert(batch);
+          if (rowError) throw rowError;
+        }
+      }
+
+      toast({ title: 'Template created', description: `${tableName} is ready to fill in.` });
+      setSelectedTableId(newTable.id);
+      queryClient.invalidateQueries({ queryKey: ['custom-tables'] });
+    } catch (error: any) {
+      console.error('Template creation error:', error);
+      toast({ title: 'Failed to create template', description: error.message, variant: 'destructive' });
+    }
+  };
+
   // Load documents for a folder when browsing
   const loadFolderDocuments = async (folderId: string | null) => {
     setIsLoadingDocs(true);
@@ -776,6 +859,15 @@ export default function Workspace() {
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold">Tables</h2>
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="New from Template"
+                onClick={() => setTemplatePickerOpen(true)}
+              >
+                <LayoutTemplate className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -1558,6 +1650,12 @@ export default function Workspace() {
         onAction={(action) => {
           toast({ title: 'AI Action', description: `${action.type} applied to workspace` });
         }}
+      />
+
+      <TemplatePickerDialog
+        open={templatePickerOpen}
+        onOpenChange={setTemplatePickerOpen}
+        onSelect={handleCreateFromTemplate}
       />
     </AppLayout>
   );
